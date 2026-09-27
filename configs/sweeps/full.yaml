@@ -1,0 +1,23 @@
+# PURPOSE: Full sweep definition (both readers, all factors).
+# WHAT GOES HERE: Readers, page count, seed, factor levels, repeats, output root.
+# FILLED IN AT STEP: W3.2. Frozen once W3.3 starts.
+# DO NOT: Edit after the sweep has started; resume instead.
+#
+# The sweep is the Cartesian product of all factor levels, times n_pages, times repeats, times readers.
+# Compute the total run count before launching and write it here:
+#   total runs = TODO[W3.2]: product of level counts x n_pages x repeats x readers
+#   estimated hours = TODO[W3.2]: total runs x seconds per run (from W1.7) / 3600
+
+readers: ["TODO[W3.2]: both reader names from configs/readers.yaml"]
+n_pages: "TODO[W3.2]: number of pages"
+seed: "TODO[W3.2]: integer seed"
+factors:
+  phase_x_px: ["TODO[W3.2]: phase levels across one cell"]
+  phase_y_px: ["TODO[W3.2]: phase levels"]
+  font_size_px: ["TODO[W3.2]: font sizes"]
+  line_pitch_mode: ["TODO[W3.2]: aligned, unaligned"]
+  aa_mode: ["TODO[W3.2]: binary, coverage_srgb, coverage_linear"]
+  render_mode: ["TODO[W3.2]: conventional, patch_aware"]
+  font_file: ["TODO[W3.2]: font file(s)"]
+repeats: "TODO[W3.2]: repeats per condition"
+output_root: results/runs

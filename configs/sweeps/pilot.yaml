@@ -1,0 +1,22 @@
+# PURPOSE: Pilot sweep definition (one reader, reduced levels).
+# WHAT GOES HERE: Readers, page count, seed, factor levels, repeats, output root.
+# FILLED IN AT STEP: W2.2. Frozen by prereg-v1 once used.
+# DO NOT: Edit after the pilot has run; copy to a new file instead and log the change.
+#
+# The sweep is the Cartesian product of all factor levels, times n_pages, times repeats, times readers.
+# Compute the total run count before launching and write it here:
+#   total runs = TODO[W2.2]: product of level counts x n_pages x repeats x readers
+
+readers: ["TODO[W2.2]: reader name(s) from configs/readers.yaml"]
+n_pages: "TODO[W2.2]: number of pages"
+seed: "TODO[W2.2]: integer seed"
+factors:
+  phase_x_px: ["TODO[W2.2]: phase levels across one cell"]
+  phase_y_px: ["TODO[W2.2]: phase levels"]
+  font_size_px: ["TODO[W2.2]: font sizes"]
+  line_pitch_mode: ["TODO[W2.2]: aligned and/or unaligned"]
+  aa_mode: ["TODO[W2.2]: binary, coverage_srgb, coverage_linear"]
+  render_mode: ["TODO[W2.2]: conventional and/or patch_aware"]
+  font_file: ["TODO[W2.2]: font file(s)"]
+repeats: "TODO[W2.2]: repeats per condition"
+output_root: results/runs

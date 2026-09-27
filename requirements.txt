@@ -1,0 +1,20 @@
+# PURPOSE: Python dependencies for the project.
+# WHAT GOES HERE: Unpinned package names. Pinned versions go in requirements.lock.txt.
+# FILLED IN AT STEP: W1.3 (pin with pip freeze).
+# DO NOT: Add torch here. Do not add packages nobody imports.
+#
+# Install PyTorch first using the official selector for your CUDA version.
+# Pin all versions at step W1.3 with `pip freeze > requirements.lock.txt`.
+transformers
+accelerate
+qwen-vl-utils
+pillow
+numpy
+pandas
+scipy
+jiwer
+matplotlib
+pyyaml
+pytest
+jupyter
+# triton  # needed at W4.2

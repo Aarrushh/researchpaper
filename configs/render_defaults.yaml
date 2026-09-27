@@ -1,0 +1,17 @@
+# PURPOSE: Default rendering parameters. Sweep configs override individual keys.
+# WHAT GOES HERE: Page geometry, font, anti-aliasing, colours, phase, render mode.
+# FILLED IN AT STEP: W1.5 (values), W1.6 (page size in multiples of the reader cell).
+# DO NOT: Use a page size that is not a multiple of the reader's cell size (see docs/05_decisions.md D3).
+
+page_width_px: "TODO[W1.6]: multiple of the reader's token_cell_px"
+page_height_px: "TODO[W1.6]: multiple of the reader's token_cell_px"
+margin_px: "TODO[W1.5]: margin in pixels"
+font_file: "TODO[W1.5]: path under data/external/fonts/"
+font_size_px: "TODO[W1.5]: default font size in pixels"
+line_pitch_px: "TODO[W1.5]: default line pitch in pixels"
+aa_mode: coverage_linear          # enum: binary | coverage_srgb | coverage_linear
+text_color: "TODO[W1.5]: RGB triple, e.g. [0, 0, 0]"
+background_color: "TODO[W1.5]: RGB triple, e.g. [255, 255, 255]"
+phase_x_px: "TODO[W1.5]: default horizontal phase in pixels"
+phase_y_px: "TODO[W1.5]: default vertical phase in pixels"
+render_mode: conventional         # enum: conventional | patch_aware

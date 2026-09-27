@@ -1,0 +1,26 @@
+# PURPOSE: Package metadata so `pip install -e .` makes `mrr` importable from src/.
+# WHAT GOES HERE: Build config, minimal runtime deps, pytest config.
+# FILLED IN AT STEP: Scaffolded at setup. Revisit at W1.3 if install fails.
+# DO NOT: Add GPU packages (torch, triton) as hard dependencies; CI has no GPU.
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mrr"
+version = "0.0.0"
+description = "Rendering for Machine Readers"
+requires-python = ">=3.10"
+dependencies = ["numpy", "pyyaml"]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "todo: tests for functions the humans have not implemented yet",
+]

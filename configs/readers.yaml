@@ -1,0 +1,25 @@
+# PURPOSE: Configuration for each VLM reader.
+# WHAT GOES HERE: Model identity, grid geometry, dtype, generation limits, prompt.
+# FILLED IN AT STEP: W1.6 (ids, revisions, geometry), W1.7 (max_new_tokens), W3.1 (second reader in sweep).
+# DO NOT: Use a model without a pinned revision. Do not change the prompt after prereg-v1.
+
+readers:
+  - name: qwen
+    hf_id: "TODO[W1.6]: confirm exact HF model id and revision hash (expected Qwen/Qwen2.5-VL-3B-Instruct)"
+    revision: "TODO[W1.6]: pin revision hash"
+    patch_size: 14
+    merge_size: 2
+    token_cell_px: 28
+    dtype: bfloat16
+    max_new_tokens: "TODO[W1.7]: set from timing run to cover one full page"
+    prompt: "Transcribe all text in the image exactly. Output only the text."
+
+  - name: smolvlm
+    hf_id: "TODO[W1.6]: confirm HF model id, patch size, tiling, effective cell size, VRAM in bf16 (expected HuggingFaceTB SmolVLM-2.2B)"
+    revision: "TODO[W1.6]: pin revision hash"
+    patch_size: "TODO[W1.6]: confirm patch size (reported 14, unconfirmed)"
+    merge_size: "TODO[W1.6]: confirm pixel-shuffle factor"
+    token_cell_px: "TODO[W1.6]: confirm effective token cell size"
+    dtype: bfloat16
+    max_new_tokens: "TODO[W1.7]: set from timing run to cover one full page"
+    prompt: "Transcribe all text in the image exactly. Output only the text."

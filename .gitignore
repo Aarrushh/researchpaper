@@ -1,0 +1,60 @@
+# PURPOSE: Keep data, weights, images and build output out of git.
+# WHAT GOES HERE: Ignore patterns. README.md and .gitkeep files are re-included by negation.
+# FILLED IN AT STEP: Scaffolded at setup.
+# DO NOT: Un-ignore model weights, rendered images or raw data. CSVs and small JSON manifests are committed.
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Environments and secrets
+.env
+.venv/
+venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data (keep README.md and .gitkeep via negation)
+data/raw/**
+data/interim/**
+data/processed/**
+data/external/**
+!data/raw/**/
+!data/interim/**/
+!data/processed/**/
+!data/external/**/
+!data/**/README.md
+!data/**/.gitkeep
+
+# Rendered images inside run folders
+results/runs/**/images/
+
+# Model weights
+*.pt
+*.safetensors
+*.bin
+
+# Hugging Face caches
+.cache/
+hf_cache/
+.hf_cache/
+huggingface/
+
+# Paper build output
+paper/*.pdf
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
+*.toc
