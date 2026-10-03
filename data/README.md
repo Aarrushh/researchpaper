@@ -2,7 +2,7 @@
 PURPOSE: Map of the data folder and its rules.
 WHAT GOES HERE: Nothing but this README and the subfolder READMEs are committed.
 FILLED IN AT STEP: W1.4 (downloads), W2.3 onward (interim pages).
-DO NOT: Commit any data file except fonts in external/fonts/. Do not edit anything in raw/ after download.
+DO NOT: Commit any data file except fonts in external/fonts/ and books in raw/texts/. Do not edit anything in raw/ after download.
 -->
 
 # data/
@@ -12,7 +12,7 @@ Adapted from the Cookiecutter Data Science layout.
 | Folder | What belongs here | Comes from | Committed |
 |---|---|---|---|
 | `external/fonts/` | Font files and their licence files | Font publishers (W1.4) | yes (pinned; see its README) |
-| `raw/texts/` | Public-domain source texts | Project Gutenberg (W1.4) | no |
+| `raw/texts/` | Public-domain source texts | Project Gutenberg (W1.4) | yes (pinned, unedited; see its README) |
 | `interim/pages/` | Rendered page images | `mrr.render` (regenerable) | no |
 | `processed/` | Cleaned, paginated text ready for rendering | `mrr.text_source` | no |
 
