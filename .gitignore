@@ -1,7 +1,7 @@
 # PURPOSE: Keep data, weights, images and build output out of git.
 # WHAT GOES HERE: Ignore patterns. README.md and .gitkeep files are re-included by negation.
 # FILLED IN AT STEP: Scaffolded at setup.
-# DO NOT: Un-ignore model weights, rendered images or raw data. CSVs and small JSON manifests are committed.
+# DO NOT: Un-ignore model weights, rendered images or raw data. Fonts under data/external/fonts/ are the one committed exception. CSVs and small JSON manifests are committed.
 
 # Python
 __pycache__/
@@ -32,6 +32,8 @@ data/external/**
 !data/external/**/
 !data/**/README.md
 !data/**/.gitkeep
+# Fonts are pinned in git (OFL 1.1, licence file beside each font). See data/external/fonts/README.md.
+!data/external/fonts/**
 
 # Rendered images inside run folders
 results/runs/**/images/
