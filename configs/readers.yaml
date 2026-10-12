@@ -5,21 +5,49 @@
 
 readers:
   - name: qwen
-    hf_id: "TODO[W1.6]: confirm exact HF model id and revision hash (expected Qwen/Qwen2.5-VL-3B-Instruct)"
-    revision: "TODO[W1.6]: pin revision hash"
+    hf_id: Qwen/Qwen2.5-VL-3B-Instruct
+    revision: 66285546d2b821cf421d4f5eb2576359d3770cd3
     patch_size: 14
-    merge_size: 2
+    merge_size: 2            # spatial merge
     token_cell_px: 28
+    window_px: 112           # window attention in 28 of 32 blocks; full attention in 7, 15, 23, 31
+    page_px: [448, 448]
+    min_pixels: 3136         # documentation only: never passed per call (deprecated); pages are native, do_resize=False
+    max_pixels: 12845056     # documentation only, as above
+    aligned_pitch_px: 28
+    image_token: "<|image_pad|>"   # id 151655
     dtype: bfloat16
-    max_new_tokens: "TODO[W1.7]: set from timing run to cover one full page"
+    device_map: cuda         # fallback in section 1B.8
+    max_new_tokens: "TODO[W1.7]"
     prompt: "Transcribe all text in the image exactly. Output only the text."
 
   - name: smolvlm
-    hf_id: "TODO[W1.6]: confirm HF model id, patch size, tiling, effective cell size, VRAM in bf16 (expected HuggingFaceTB SmolVLM-2.2B)"
-    revision: "TODO[W1.6]: pin revision hash"
-    patch_size: "TODO[W1.6]: confirm patch size (reported 14, unconfirmed)"
-    merge_size: "TODO[W1.6]: confirm pixel-shuffle factor"
-    token_cell_px: "TODO[W1.6]: confirm effective token cell size"
+    hf_id: HuggingFaceTB/SmolVLM-Instruct
+    revision: 81cd9a775a4d644f2faf4e7becff4559b46b14c7
+    patch_size: 14
+    merge_size: 3            # pixel-shuffle factor (scale_factor in the Hub config)
+    token_cell_px: 42
+    page_px: [384, 384]
+    blind_from_px: 378       # 27 x 14: columns and rows 378 to 383 never reach the encoder
+    aligned_pitch_px: 42
+    image_token: "<image>"   # id 49153
     dtype: bfloat16
-    max_new_tokens: "TODO[W1.7]: set from timing run to cover one full page"
+    device_map: cuda
+    position_id_fix: pre_hook
+    max_new_tokens: "TODO[W1.7]"
+    prompt: "Transcribe all text in the image exactly. Output only the text."
+
+  - name: smolvlm500m
+    hf_id: HuggingFaceTB/SmolVLM-500M-Instruct
+    revision: a7da5b986cb59b408707209984f360a5f4ad7e47
+    patch_size: 16
+    merge_size: 4
+    token_cell_px: 64
+    page_px: [512, 512]
+    aligned_pitch_px: 64
+    image_token: "<image>"   # id 49190
+    dtype: bfloat16
+    device_map: cuda
+    position_id_fix: pre_hook
+    max_new_tokens: "TODO[W1.7]"
     prompt: "Transcribe all text in the image exactly. Output only the text."
