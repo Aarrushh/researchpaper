@@ -7,7 +7,7 @@ PYTHON ?= python
 SWEEP  ?= configs/sweeps/pilot.yaml
 
 .DEFAULT_GOAL := help
-.PHONY: help env check-env test test-all readers render-check pilot sweep analyze figures clean-interim
+.PHONY: help env check-env test test-models test-all readers render-check pilot sweep analyze figures clean-interim
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -19,8 +19,11 @@ env: ## Install mrr in editable mode plus requirements (install PyTorch first)
 check-env: ## Print Python, packages, CUDA and GPU; fail if torch or CUDA is missing
 	$(PYTHON) scripts/00_check_env.py
 
-test: ## Run tests except those marked todo
-	$(PYTHON) -m pytest -m "not todo"
+test: ## Run tests except those marked todo or model
+	$(PYTHON) -m pytest -m "not todo and not model"
+
+test-models: ## Run tests that need torch, transformers and downloaded weights (D17)
+	$(PYTHON) -m pytest -m model -v
 
 test-all: ## Run every test, including todo tests
 	$(PYTHON) -m pytest

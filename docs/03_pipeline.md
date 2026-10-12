@@ -19,7 +19,7 @@ Dates follow the re-plan of 12 October 2026 (D21). If G1 has not passed by Wed 1
 - [ ] **W1.2** Work through learning topics A1 to A6 in `docs/02_learning_guide.md`, doing every exercise.
   - Files: `LAB_NOTEBOOK.md`, `references/citations.md`, `references/reading_notes/`
   - Done when: every A1 to A6 exercise has an answer in the notebook; prior-art rows in citations.md have a claim.
-- [ ] **W1.3** Create the Python environment; run `make env` and `make check-env`.
+- [x] **W1.3** Create the Python environment; run `make env` and `make check-env`.
   - Files: `requirements.txt`, `requirements.lock.txt` (new), `LAB_NOTEBOOK.md`
   - Done when: `make check-env` exits 0 on both laptops and `requirements.lock.txt` is committed.
 - [ ] **W1.4** Download fonts and texts into `data/external/` and `data/raw/`; record licences and sources.

@@ -11,10 +11,10 @@ name = "mrr"
 version = "0.0.0"
 description = "Rendering for Machine Readers"
 requires-python = ">=3.10"
-dependencies = ["numpy", "pyyaml"]
+dependencies = ["numpy", "pyyaml", "freetype-py"]
 
 [project.optional-dependencies]
-test = ["pytest"]
+test = ["pytest", "scipy", "jiwer"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -23,4 +23,5 @@ where = ["src"]
 testpaths = ["tests"]
 markers = [
     "todo: tests for functions the humans have not implemented yet",
+    "model: needs torch, transformers and downloaded weights; never run in CI",
 ]

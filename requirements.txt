@@ -3,17 +3,17 @@
 # FILLED IN AT STEP: W1.3 (pin with pip freeze).
 # DO NOT: Add torch here. Do not add packages nobody imports.
 #
-# Install PyTorch first using the official selector for your CUDA version.
-# Pin all versions at step W1.3 with `pip freeze > requirements.lock.txt`.
+# Install PyTorch first: pip install torch==2.14.1 torchvision==0.29.1 --index-url https://download.pytorch.org/whl/cu130
+# Exact versions are in requirements.lock.txt (W1.3), whose first line adds that index.
 transformers
 accelerate
-qwen-vl-utils
 pillow
 numpy
 pandas
 scipy
 jiwer
 matplotlib
+freetype-py
 pyyaml
 pytest
 jupyter
