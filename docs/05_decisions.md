@@ -123,7 +123,7 @@ DO NOT: Delete or rewrite old entries. Supersede them with a new entry that refe
 
 ### D12. The sRGB encode threshold is 0.04045/12.92
 - ID: D12
-- Status: open
+- Status: superseded by D24
 - Date: 2026-10-12 (opened; to be decided at W1.5)
 - Decision: Encode linear light with the threshold 0.04045/12.92 = 0.0031308049535603713, matched to the decode threshold 0.04045, and compute it rather than write it as a literal.
 - Options considered: the rounded threshold 0.0031308 in the scaffold's docstring; the matched threshold 0.04045/12.92.
@@ -228,3 +228,12 @@ DO NOT: Delete or rewrite old entries. Supersede them with a new entry that refe
 - Options considered: both authors, independently; two language-model reviewers, blind to each other, with the owner's final go; the owner alone.
 - Evidence: The owner's decision on 12 October.
 - Consequences: `h2/judge/reviews.csv` records both verdicts and the owner's go. The paper discloses that language-model reviewers judged this field.
+
+### D24. The sRGB encode threshold is 0.04045/12.92 (supersedes D12)
+- ID: D24
+- Status: decided
+- Date: 2026-10-12
+- Decision: As D12. Encode linear light on the straight piece when l <= 0.04045/12.92 = 0.0031308049535603713, where the decode's straight piece ends, and compute the threshold in code rather than write it as a literal. D24 replaces D12 only because D12's evidence named a source that does not use this threshold.
+- Options considered: As D12: the rounded threshold 0.0031308; the matched threshold 0.04045/12.92.
+- Evidence: Measured at W1.5. With the matched threshold, the round-trip test in `tests/test_color.py` (100,001 points, absolute tolerance 1e-12) passes with a largest error of 1.7e-16; with 0.0031308 the largest error is 3.0e-8, at v = 0.04045, and the test fails. Every value the decode's straight piece produces is at most 0.04045/12.92, and every value its power piece produces is above it (the power piece starts 2.3e-9 higher), so the encode applies the inverse of the piece that made each value. D12 also said that the sample code in W3C CSS Color 4 uses the matched pair. It does not: its `gam_sRGB` uses 0.0031308 (Candidate Recommendation Draft of 9 October 2026, section 19, read on 12 October 2026). That code is a source for the constants 0.04045, 12.92, 0.055, 1.055 and 2.4, not for this threshold.
+- Consequences: As D12: the docstring and DO NOT line of `src/mrr/color.py` change, and the specification (W4.1) states the threshold as our choice, with the round-trip test as its reason. `references/citations.md` cites CSS Color 4 for the constants only. Section 1A.1 of the build guide makes D12's claim too; `LAB_NOTEBOOK.md` records the error.

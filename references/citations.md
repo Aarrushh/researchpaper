@@ -20,4 +20,4 @@ DO NOT: Add a row you have not verified by opening the source. Do not paraphrase
 | TODO[W1.2]: claim from CodeOCR (title unconfirmed) | arXiv 2602.01785 | | | | |
 | TODO[W1.2]: claim from ViT | arXiv 2010.11929 | | | | |
 | TODO[W1.2]: claim from KernelBench | arXiv 2502.10517 | | | | |
-| TODO[W1.5]: sRGB transfer function constants | TODO[W1.5]: primary or reliable secondary source for IEC 61966-2-1 | | | | |
+| sRGB transfer constants: decode is v / 12.92 when v <= 0.04045, otherwise ((v + 0.055) / 1.055)^2.4; encode is 1.055 * l^(1/2.4) - 0.055 when l > 0.0031308, otherwise 12.92 * l. Our encode threshold, 0.04045 / 12.92, is not in this source (D24) | W3C, CSS Color Module Level 4, Candidate Recommendation Draft of 9 October 2026, https://www.w3.org/TR/2026/CRD-css-color-4-20261009/ (the sample code is non-normative; IEC 61966-2-1 itself was not read) | Section 19, "Sample code for Color Conversions" (#color-conversion-code), functions lin_sRGB and gam_sRGB | Claude | 2026-10-12 | TODO[W5.3] |
