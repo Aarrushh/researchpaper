@@ -14,9 +14,11 @@ import pytest
 import yaml
 
 from conftest import REPO_ROOT
-from mrr.render import load_glyph
+from mrr.color import linear_to_srgb, srgb_to_linear
+from mrr.render import composite_coverage, load_glyph
 
 CELL = 28  # Qwen2.5-VL token cell; see configs/readers.yaml
+MODES = ("binary", "coverage_srgb", "coverage_linear")
 # A str, because freetype-py cannot take a pathlib.Path.
 FONT = str(REPO_ROOT / "data" / "external" / "fonts" / "source-sans-3" / "SourceSans3-Regular.ttf")
 needs_font = pytest.mark.skipif(not Path(FONT).exists(), reason="font file not downloaded yet (W1.4)")
@@ -115,3 +117,99 @@ def test_load_glyph_opens_a_font_under_a_non_ascii_path(tmp_path):
     font.parent.mkdir()
     shutil.copyfile(FONT, font)
     assert np.array_equal(load_glyph(str(font), 16, "o").coverage, load_glyph(FONT, 16, "o").coverage)
+
+
+def _bytes(page):
+    # Equation (6) without the clip, so that a colour left in 0-255 shows up as a value above 255.
+    return np.floor(255 * page + 0.5)
+
+
+@pytest.mark.parametrize("mode,c,expected", [
+    ("binary", .25, 255), ("coverage_srgb", .25, 191), ("coverage_linear", .25, 225),
+    ("binary", .5, 0),    ("coverage_srgb", .5, 128),  ("coverage_linear", .5, 188),
+    ("binary", .75, 0),   ("coverage_srgb", .75, 64),  ("coverage_linear", .75, 137)])
+def test_black_on_white(mode, c, expected):
+    page = np.ones((1, 1, 3))
+    out = composite_coverage(page, np.full((1, 1), c), 0, 0, (0, 0, 0), mode)
+    assert np.all(np.floor(255 * out + 0.5) == expected)
+
+
+@pytest.mark.parametrize("mode", MODES)
+def test_no_coverage_keeps_every_background_level(mode):
+    page = np.repeat(np.arange(256.0)[:, None, None] / 255, 3, axis=2)  # one background level per row
+    out = composite_coverage(page, np.zeros((256, 1)), 0, 0, (0, 0, 0), mode)
+    assert out is page
+    assert np.array_equal(_bytes(out)[:, 0, :], np.repeat(np.arange(256.0)[:, None], 3, axis=1))
+
+
+@pytest.mark.parametrize("mode", MODES)
+def test_full_coverage_gives_every_text_level(mode):
+    for level in range(256):
+        page = np.full((2, 2, 3), 0.5)
+        composite_coverage(page, np.ones((2, 2)), 0, 0, (level, 0, 255), mode)
+        assert np.all(_bytes(page) == [level, 0, 255]), level
+
+
+@pytest.mark.parametrize("mode", ["coverage_srgb", "coverage_linear"])
+def test_partial_coverage_mixes_each_channel(mode):
+    page = np.full((1, 1, 3), 0.2)
+    composite_coverage(page, np.full((1, 1), 0.3), 0, 0, (255, 51, 0), mode)
+    t = np.array([255, 51, 0]) / 255
+    if mode == "coverage_srgb":
+        expected = 0.3 * t + 0.7 * 0.2
+    else:
+        expected = linear_to_srgb(0.3 * srgb_to_linear(t) + 0.7 * srgb_to_linear(np.full(3, 0.2)))
+    np.testing.assert_allclose(page[0, 0], expected, rtol=0, atol=1e-15)
+
+
+@pytest.mark.parametrize(("x", "y"), [(1.5, 0), (0, 2.0), (True, 0), (np.float64(1), 0)])
+def test_composite_rejects_a_coordinate_that_is_not_an_integer(x, y):
+    with pytest.raises(TypeError):
+        composite_coverage(np.ones((4, 4, 3)), np.ones((1, 1)), x, y, (0, 0, 0), "coverage_srgb")
+
+
+def test_composite_accepts_numpy_integers():
+    page = composite_coverage(np.ones((4, 4, 3)), np.ones((1, 1)), np.int64(1), np.uint8(2), (0, 0, 0), "binary")
+    assert page[2, 1].tolist() == [0, 0, 0]
+    assert page.sum() == 4 * 4 * 3 - 3
+
+
+def test_composite_rejects_an_unknown_mode():
+    with pytest.raises(ValueError):
+        composite_coverage(np.ones((1, 1, 3)), np.ones((1, 1)), 0, 0, (0, 0, 0), "coverage_gamma")
+
+
+def test_composite_rejects_a_page_or_coverage_outside_its_contract():
+    cov = np.ones((1, 1))
+    with pytest.raises(TypeError):  # uint8 arithmetic is not allowed anywhere before equation (6)
+        composite_coverage(np.full((2, 2, 3), 255, np.uint8), cov, 0, 0, (0, 0, 0), "binary")
+    with pytest.raises(ValueError):  # a page still in 0-255
+        composite_coverage(np.full((2, 2, 3), 255.0), cov, 0, 0, (0, 0, 0), "binary")
+    with pytest.raises(ValueError):  # not (H, W, 3)
+        composite_coverage(np.ones((2, 2)), cov, 0, 0, (0, 0, 0), "binary")
+    with pytest.raises(ValueError):  # coverage summed past 1 and not clipped
+        composite_coverage(np.ones((2, 2, 3)), np.full((1, 1), 1.5), 0, 0, (0, 0, 0), "binary")
+    with pytest.raises(ValueError):  # a colour outside 0-255
+        composite_coverage(np.ones((2, 2, 3)), cov, 0, 0, (0, 0, 256), "binary")
+
+
+def test_composite_clips_at_the_far_corner():
+    page = np.ones((6, 8, 3))
+    composite_coverage(page, np.ones((4, 4)), 8 - 2, 6 - 2, (0, 0, 0), "coverage_srgb")
+    expected = np.ones((6, 8, 3))
+    expected[4:, 6:] = 0
+    assert np.array_equal(page, expected)
+
+
+def test_composite_clips_negative_origin():      # Review Focus 5
+    page = np.ones((8, 8, 3))
+    composite_coverage(page, np.ones((4, 4)), -3, -2, (0, 0, 0), "coverage_srgb")
+    expected = np.ones((8, 8, 3))
+    expected[0:2, 0:1] = 0
+    assert np.array_equal(page, expected)
+
+
+def test_composite_ignores_a_block_wholly_off_the_page():
+    page = np.ones((4, 4, 3))
+    composite_coverage(page, np.ones((2, 2)), 10, -5, (0, 0, 0), "coverage_srgb")
+    assert np.array_equal(page, np.ones((4, 4, 3)))

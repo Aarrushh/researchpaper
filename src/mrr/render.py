@@ -17,9 +17,12 @@ from typing import Any, Mapping, Sequence
 import freetype
 import numpy as np
 
+from mrr.color import linear_to_srgb, srgb_to_linear
+
 # Unhinted outlines, rendered to 8-bit coverage; NO_BITMAP skips any embedded bitmap strike (D11).
 FLAGS = freetype.FT_LOAD_RENDER | freetype.FT_LOAD_NO_HINTING | freetype.FT_LOAD_NO_BITMAP
 IDENT = freetype.Matrix(0x10000, 0, 0, 0x10000)
+AA_MODES = ("binary", "coverage_srgb", "coverage_linear")
 
 
 @dataclass(frozen=True)
@@ -111,25 +114,68 @@ def load_glyph_coverage(font_path: str, size_px: float, char: str) -> np.ndarray
 def composite_coverage(
     page: np.ndarray,
     coverage: np.ndarray,
-    x: float,
-    y: float,
-    color: Sequence[float],
+    x: int,
+    y: int,
+    color: Sequence[int],
     aa_mode: str,
 ) -> np.ndarray:
-    """Composite one coverage mask onto the page at (x, y).
+    """Composite one coverage mask onto the page with its top-left pixel at (x, y).
+
+    Source-over onto an opaque page is a straight mix of the text colour t and the page value b
+    (section 1A.3 of the build guide, equations 4 and 5). alpha is 1 where c >= 0.5 and 0 elsewhere for
+    "binary", and c itself for the coverage modes. "binary" and "coverage_srgb" mix the stored sRGB
+    values; "coverage_linear" mixes in linear light, v(alpha L(t) + (1 - alpha) L(b)). Coverage that falls
+    off the page is discarded. Nothing is rounded here: render_page rounds the whole page once (D11).
 
     Args:
-        page: float64 array (H, W, 3), sRGB-encoded values in [0, 1].
+        page: float64 array (H, W, 3), sRGB-encoded values in [0, 1]; written in place.
         coverage: float64 array (h, w) in [0, 1].
-        x: left edge in pixels (may be fractional).
-        y: top edge in pixels (may be fractional).
-        color: text colour as sRGB values in [0, 1].
+        x: column of the mask's left edge, a Python or NumPy integer; sub-pixel placement is
+            load_glyph's phase.
+        y: row of the mask's top edge, a Python or NumPy integer.
+        color: text colour as an sRGB triple from 0 to 255.
         aa_mode: one of "binary", "coverage_srgb", "coverage_linear".
 
     Returns:
-        The updated page array.
+        page, updated in place.
+
+    Raises:
+        TypeError: if x or y is not an integer, or page or coverage is not a float64 array.
+        ValueError: if aa_mode is unknown, or a shape, value or colour is outside the contract above.
     """
-    raise NotImplementedError("TODO[W1.5]: implement over-compositing for each aa_mode")
+    for name, value in (("x", x), ("y", y)):
+        if not isinstance(value, (int, np.integer)) or isinstance(value, bool):
+            raise TypeError(f"{name} must be an integer, got {type(value).__name__} {value!r}")
+    if aa_mode not in AA_MODES:
+        raise ValueError(f"aa_mode must be one of {AA_MODES}, got {aa_mode!r}")
+    for name, array in (("page", page), ("coverage", coverage)):
+        if not isinstance(array, np.ndarray) or array.dtype != np.float64:
+            raise TypeError(f"{name} must be a float64 array, got {getattr(array, 'dtype', type(array).__name__)}")
+        if not np.all((array >= 0) & (array <= 1)):
+            raise ValueError(f"{name} values must lie in [0, 1]")
+    if page.ndim != 3 or page.shape[2] != 3:
+        raise ValueError(f"page must have shape (H, W, 3), got {page.shape}")
+    if coverage.ndim != 2:
+        raise ValueError(f"coverage must have shape (h, w), got {coverage.shape}")
+    t = np.asarray(color, dtype=np.float64)
+    if t.shape != (3,) or not np.all((t >= 0) & (t <= 255)):
+        raise ValueError(f"color must be three values from 0 to 255, got {color!r}")
+    t = t / 255.0
+
+    x, y = int(x), int(y)  # NumPy integers would wrap in the sums below
+    height, width = page.shape[:2]
+    r0, r1 = max(0, y), min(height, y + coverage.shape[0])
+    c0, c1 = max(0, x), min(width, x + coverage.shape[1])
+    if r0 >= r1 or c0 >= c1:
+        return page
+    c = coverage[r0 - y : r1 - y, c0 - x : c1 - x, None]
+    alpha = (c >= 0.5).astype(np.float64) if aa_mode == "binary" else c
+    b = page[r0:r1, c0:c1]  # a view, so the writes below land in page
+    if aa_mode == "coverage_linear":
+        b[...] = linear_to_srgb(alpha * srgb_to_linear(t) + (1 - alpha) * srgb_to_linear(b))
+    else:
+        b[...] = alpha * t + (1 - alpha) * b
+    return page
 
 
 def layout_lines(text: str, font: Any, width_px: int, line_pitch_px: float) -> list[tuple[str, float]]:

@@ -96,3 +96,16 @@ Broke:
 - Nothing.
 Next:
 - `composite_coverage` (W1.5).
+
+## 2026-10-12, Claude (D22): W1.5, compositing
+Did:
+- `src/mrr/render.py`: `composite_coverage` mixes the text colour over the page once, with alpha from equation (4) of section 1A.3 and the mix of equation (5): stored sRGB values for `binary` and `coverage_srgb`, linear light for `coverage_linear`. x and y must be Python or NumPy integers, otherwise TypeError, because sub-pixel placement now belongs to `load_glyph`. The colour is 0 to 255 and is divided inside. The placement is clipped to the page, the page is written in place, and nothing is rounded. The page and the coverage must be float64 in [0, 1], so a uint8 page or a page still in 0 to 255 is refused. `AA_MODES` names the three modes.
+- `tests/test_render.py`: the black-on-white table; for each mode, every page level at c = 0 and every text level at c = 1; coloured text at partial coverage; the coordinate, mode and contract checks; and three clipping cases (far corner, negative origin, wholly off the page).
+Found:
+- In `coverage_srgb`, all 16,777,216 combinations of 8-bit coverage k, page level B and text level T round, through our code and equation (6), to the exact round-half-up of n/255 with n = (255 − k)·B + k·T. None comes closer to a rounding boundary than 0.0019607843137, which is 1/510 up to float error. Two correct implementations therefore agree byte for byte in this mode, as the H2 judge in Phase 4 of the guide assumes.
+- In `coverage_linear`, white decodes and encodes to 0.9999999999999999, not 1.0, because 1.055 − 0.055 is not exact in float64; it still stores as 255. The c = 0 and c = 1 tests compare stored bytes, not floats.
+- `make test`, run as its recipe: 106 passed, 8 deselected.
+Broke:
+- Nothing.
+Next:
+- `src/mrr/text_source.py` (W1.4).
