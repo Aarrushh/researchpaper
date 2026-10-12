@@ -168,8 +168,8 @@ DO NOT: Delete or rewrite old entries. Supersede them with a new entry that refe
 
 ### D17. Tests that need models are marked and kept out of CI
 - ID: D17
-- Status: open
-- Date: 2026-10-12 (opened; to be decided at W1.3)
+- Status: decided
+- Date: 2026-10-12 (decided at W1.3)
 - Decision: A pytest marker `model` for tests that need torch, transformers or downloaded weights. CI and `make test` run `-m "not todo and not model"`; `make test-models` runs the marked tests on the laptop.
 - Options considered: run the model tests in CI; skip them silently when torch is missing; mark them and run them on the laptop.
 - Evidence: The DO NOT line of `.github/workflows/tests.yml` forbids installing torch or downloading models.
