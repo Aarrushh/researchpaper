@@ -266,3 +266,70 @@ Broke:
 - Nothing. The script's interface changed: `--config` now has a default, `--reader` and `--readers-config` are new, `--out-dir` defaults to `reports/figures/render_check`, and `--output-root` is gone. Only the `render-check` recipe called the script.
 Next:
 - `src/mrr/readers.py` and the position-id fix (W1.6, sections 1B.4 and 1B.5).
+
+## 2026-10-13, Claude (D22): W1.6, readers
+Did:
+- `src/mrr/readers.py` (sections 1B.4 and 1B.5). Every torch and transformers import is inside a function.
+  - `Transcription` (frozen): the text, the number of new tokens, whether the limit cut it off, and the latency. `Reader`: name, model, processor, config and image token id.
+  - `load_reader`:
+    - It refuses a revision that is not a 40-character commit hash.
+    - It loads `AutoProcessor`, then the model class the guide names for that processor: `Qwen2_5_VLForConditionalGeneration` for `Qwen2_5_VLProcessor`, `Idefics3ForConditionalGeneration` for `Idefics3Processor`.
+    - The model gets the config's dtype and `device_map`, `attn_implementation="sdpa"`, and `max_memory` only when the config has it (rung 2 of section 1B.8). Then `.eval()`.
+    - When the config says `position_id_fix: pre_hook`, the fix goes on before any other hook.
+    - The image token's id must equal the id the processor expands, `processor.image_token_id`. `readers.yaml` has the ids only in comments, and Task P1.12 pins 151655, 49153 and 49190.
+  - `install_position_id_fix` is copied from P1:540–553, with `import torch` moved inside the function.
+  - `transcribe_full(reader, image, prompt, max_new_tokens=None)`. None takes the config value. Anything other than a positive integer is refused, so the `TODO[W1.7]` in `readers.yaml` stops a run with a clear message.
+    - The page goes in as `Image.fromarray(image)`, which must give mode RGB, with the chat messages of P1:520 and the processor called with keywords and `do_resize=False`.
+    - Under `torch.inference_mode()`: synchronise, time `generate` with the four greedy arguments, synchronise. Qwen gets the whole processor output, `mm_token_type_ids` included.
+    - Only the new tokens are decoded, with `skip_special_tokens=True, clean_up_tokenization_spaces=False`.
+  - Checks on every call, before the inputs move to the GPU:
+    - Qwen's `image_grid_thw` is [[1, H/14, W/14]].
+    - SmolVLM's `pixel_values` is (1, 1, 3, H, W) with an all-true `pixel_attention_mask`.
+    - `input_ids` holds `grid.token_count` image tokens. S:138 asks for the count on every call too.
+  - `count_vision_tokens` builds the same inputs with the reader's own prompt and counts the image tokens. `transcribe` returns `transcribe_full(...).text`.
+- `tests/test_smoke.py`: `test_readers_import_without_torch` imports `mrr.readers` in a fresh interpreter and checks that neither torch nor transformers is in `sys.modules`. The test can fail: an interpreter that imports torch first does show it there.
+- Three choices the plan's text does not make:
+  - `hit_limit` is true when the reader produced `max_new_tokens` tokens and the last one is not an end token (`generation_config.eos_token_id`). Section 1B.4, step 6, says "equals max_new_tokens", and its dataclass comment says "stopped at max_new_tokens, not at an end token". The two differ only when the end token is the last one allowed, and then the text is complete.
+  - `new_tokens` counts the end token when there is one.
+  - The text is the raw decode. It starts with a space after "Assistant:", which `normalise_text` trims before scoring (D13).
+Found:
+- The three pinned processors on CPU, one native page each, with `do_resize=False` (transformers 5.19.0):
+
+| Reader | Processor | Vision input | Image tokens | `<\|im_start\|>` in input_ids |
+|---|---|---|---|---|
+| qwen | Qwen2_5_VLProcessor | `pixel_values` 1,024 × 1,176; `image_grid_thw` [[1, 32, 32]] | 256 | 3 (system, user, assistant) |
+| smolvlm | Idefics3Processor | `pixel_values` (1, 1, 3, 384, 384); mask all true | 81 | 1 |
+| smolvlm500m | Idefics3Processor | `pixel_values` (1, 1, 3, 512, 512); mask all true | 64 | 1 |
+
+- Qwen's processor output also holds `mm_token_type_ids`.
+- For both SmolVLM readers, undoing the normalisation, x = (p + 1) · 127.5 rounded, gives back the page exactly, so the no-resize test of Task P1.12 should pass for them. With `do_resize=False` the native page still passes through `resize_for_vision_encoder` at its own size, and `split_images` keeps it whole, so `do_image_splitting` need not be set.
+- The chat template is part of the input:
+  - Qwen's template adds its default system line, "You are a helpful assistant.", when the messages have none.
+  - SmolVLM's prompt is `<|im_start|>User:<image>…<end_of_utterance>\nAssistant:`, and its tokenizer adds no second `<|im_start|>`.
+- Plan finding F19: Pillow 12.3.0 gives no deprecation warning for `Image.fromarray(page, mode="RGB")`. The code infers the mode and checks it anyway.
+- Loading SmolVLM prints "[transformers] Model config: pad_token_id must be `None` or an integer within the vocabulary (between 0 and 31999), got 128002." Nothing is padded at batch size 1.
+- GPU smoke run of the new code on the first page of Persuasion (the render-check page), SmolVLM readers only. Qwen waits for its placement measurement (Task P1.14).
+
+| Reader | Image tokens | Peak memory | New tokens at a limit of 400 | Ids seen by a hook registered after the fix |
+|---|---|---|---|---|
+| smolvlm500m | 64 | 1.00 GiB | 54; `hit_limit` false | 1,024 distinct, equal to 0 to 1,023 |
+| smolvlm | 81 | 4.32 GiB | 400; `hit_limit` true | 729 distinct, equal to 0 to 728 |
+
+- At a limit of 10, both readers give 10 tokens with `hit_limit` true.
+- The config's `TODO[W1.7]` limit is refused with the message above.
+- The latencies (8.5 s and 30.4 s) include the first call's warm-up. W1.7 measures them properly.
+- D15, measured on CPU with the pinned `Idefics3VisionEmbeddings`, random weights (the ids do not depend on them):
+  - In bfloat16, one 384 frame gets 441 distinct ids of 729 without the fix (21 distinct rows and 21 columns), and 729 with it. The guide's 441 is reproduced.
+  - In float32 it gets 729 without the fix, so the guide's other option works too.
+  - Rows and columns 15, 17, 19, 21, 23 and 25 lose their own id. For example, 15/27 = 0.555556 becomes 0.554688 in bfloat16, below its bucket boundary, so row 15 takes row 14's id.
+  - SmolVLM-500M gets all 1,024 ids in bfloat16 even without the fix, because k/32 is exact in bfloat16. For it the fix changes nothing.
+- D15, one page on the GPU:
+  - SmolVLM-2.2B without the fix stops by itself after 139 tokens, with no loop. It gets "Somersetshire" and "Baronetage" right, but drops "his own" and writes "an idylle", "a frisses", "contemplatig" and "the earliest earls".
+  - With the fix it gets "for his own amusement" and "occupation for an idle hour; and consolation in a distressed one" right, but writes "Somerset" and "Baronette". From character 210 on, it repeats ";" up to the limit.
+  - One page decides nothing. The question is which ids SmolVLM saw in training: if the bfloat16 cast entered transformers after SmolVLM was trained, the fix restores its training conditions. This is to check before D15 is decided at W1.8.
+- Greedy decoding with `repetition_penalty=1.0`, which the guide requires on every call, can loop, as on the page above. D13 keeps such a transcription and flags it. Its insertions count against the CER, and the page costs the full limit in time, which W1.7's t has to include.
+Broke:
+- Nothing. `load_reader` now returns a `Reader`, which its callers only pass back to `count_vision_tokens` and `transcribe`.
+- The `make test` recipe, run by hand: 198 passed, 6 deselected.
+Next:
+- Task P1.12 on the GPU: the no-resize and reader-facts tests (W1.8). D15 gets more pages, with and without the fix, and the history of the bfloat16 cast, for your decision at Gate 1.

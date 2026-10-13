@@ -9,6 +9,8 @@ from __future__ import annotations
 import importlib
 import json
 import re
+import subprocess
+import sys
 from datetime import datetime, timezone
 
 import pytest
@@ -32,6 +34,13 @@ MODULES = [
 @pytest.mark.parametrize("name", MODULES)
 def test_import(name):
     importlib.import_module(name)
+
+
+def test_readers_import_without_torch():
+    # A fresh interpreter, because torch may already be loaded in this one; readers.py imports it inside functions.
+    code = "import sys, mrr.readers; print(sorted(m for m in ('torch', 'transformers') if m in sys.modules))"
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
+    assert out.stdout.strip() == "[]"
 
 
 def test_run_id_format():
