@@ -34,7 +34,7 @@ Dates follow the re-plan of 12 October 2026 (D21). If G1 has not passed by Wed 1
 - [ ] **W1.7** Time one transcription per model; record in `LAB_NOTEBOOK.md`.
   - Files: `LAB_NOTEBOOK.md`, `configs/readers.yaml` (`max_new_tokens`)
   - Done when: latency and peak VRAM for each reader are in the notebook.
-- [ ] **W1.8** The no-resize test and determinism (B2).
+- [x] **W1.8** The no-resize test and determinism (B2).
   - Files: `tests/test_no_resize.py`, `tests/test_reader_facts.py` (both marked `model`), `LAB_NOTEBOOK.md`
   - Done when: `tests/test_no_resize.py` passes on both laptops (on the one laptop, under D20) and the summary is in `LAB_NOTEBOOK.md`.
 - [ ] **W1.9** Shift-equivariance error at the embedding level: paper Figure 0 (B4).

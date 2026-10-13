@@ -333,3 +333,32 @@ Broke:
 - The `make test` recipe, run by hand: 198 passed, 6 deselected.
 Next:
 - Task P1.12 on the GPU: the no-resize and reader-facts tests (W1.8). D15 gets more pages, with and without the fix, and the history of the bfloat16 cast, for your decision at Gate 1.
+
+## 2026-10-13, Claude (D22): W1.8, no-resize test and reader facts
+Did:
+- `tests/test_no_resize.py` (section 1B.6, B2), marked `model`. It needs the processors only, no weights.
+  - Each reader's native page goes through `readers.processor_inputs`, which builds the inputs of every reader call. The processor's rescale and normalisation are then undone, x = (p · std + mean) / rescale_factor rounded half up, and the result must equal the rendered bytes everywhere.
+  - Two pages per reader: the first page of Persuasion, and uniform random noise. The text page is grey (R = G = B), so it cannot catch swapped channels; the noise page has every level in every channel.
+  - `unpatchify_qwen(pixel_values, grid_thw)` inverts `patchify` (lines 177–210 of the pinned `image_processing_qwen2_vl.py`). It is tested first on an 84 × 140 px coordinate image, not square, cut by the pinned `patchify` itself. Qwen's two time copies must be equal.
+  - Beyond the plan: the model casts `pixel_values` to bfloat16 before the patch embedding. A test checks that the 256 grey levels still give 256 distinct value triples after that cast.
+  - Negative controls: with their defaults, Qwen's processor makes a 450 px page 448 px, and SmolVLM's makes 17 frames and 1,377 image tokens of a 384 px page. `processor_inputs` refuses a 450 px Qwen page and SmolVLM pages of 378, 400, 500 and 520 px.
+- `tests/test_reader_facts.py` (section 1B.6), marked `model`.
+  - Processors: 256, 81 and 64 image tokens per native page, each equal to `grid.token_count`; image-token ids 151655, 49153 and 49190; transformers' `smart_resize` maps 448, 1000 and 70 px to 448, 1008 and 56; `grid.qwen_smart_resize` agrees with it on all 25 pairs of 448, 384, 512, 1000 and 70 px, and its default bounds and the copy in `readers.yaml` are the processor's (3,136 and 12,845,056 pixels); one `<|im_start|>` in each SmolVLM prompt.
+  - GPU, one model at a time: SmolVLM's position ids without and with the fix, recorded by a hook registered after the fix (P1:584); columns 378–383 and rows 378–383 of a SmolVLM-2.2B page, with column 377 as the control; the same page read twice, 256 tokens, for each reader.
+- `tests/conftest.py`: the reader configs and two session fixtures, `native_page` (the first page of Persuasion at a reader's native size) and `cpu_reader` (the pinned processor in a `Reader` without a model).
+- `src/mrr/readers.py`: `_inputs` is now public as `processor_inputs`. The tests need the exact inputs, and so will the equivariance runs (W1.9). Its behaviour is unchanged.
+- Every model test starts with `pytest.importorskip("torch")`, binding the name `torch` only where the test uses it (section 1B.2, rule 4). With torch and transformers missing, all 62 skip.
+- Mutation check on a temporary copy: `unpatchify_qwen` with rows and columns swapped fails the coordinate test and both Qwen pages; SmolVLM's channels reversed fail the noise pages only.
+Found:
+- `make test-models`, run by hand with `HF_HUB_OFFLINE=1` on the RTX 5060 Laptop GPU (8 GiB): 62 passed, 204 deselected, in 190 s.
+- Undoing the processor gives back the page exactly for every reader, on text and on noise. Before rounding, the largest error is 2.5e-5 of a level for Qwen and 3.8e-6 for SmolVLM.
+- D15 on the GPU with the real weights: SmolVLM-2.2B gets 441 distinct position ids without the fix and 729 with it, equal to 0 to 728; SmolVLM-500M gets 1,024 either way.
+- The blind strip (D8): noise in columns 378–383 or in rows 378–383 leaves both the vision encoder's output and the connector's output bit-identical. Noise in column 377 changes both.
+- In bfloat16 the 256 grey levels stay distinct for all three readers, but one channel loses a level. Qwen's normalisation puts blue levels 253 and 254 at 2.117457 and 2.131677, and both become 2.125: CLIP's blue standard deviation spaces the levels 0.01422 apart, and bfloat16 values between 2 and 4 are 0.015625 apart. Red and green still separate them, so grey text loses nothing; coloured text near white could.
+- `do_resize=False` does not stop SmolVLM's processor from resizing. With image splitting on, `resize_for_vision_encoder` takes each side up to a multiple of the frame: 378 px becomes 384, and 400 px becomes 768, then 2 × 2 tiles and a global image. The shape check in `processor_inputs` refuses every such page; only the native page passes unchanged.
+- Qwen's determinism test loaded Qwen with `device_map: cuda` and passed in 77 s, load included. Whether the weights spilled into shared system memory is measured in Task P1.14.
+Broke:
+- Nothing. The `make test` recipe, run by hand: 198 passed, 68 deselected.
+Next:
+- Task P1.13: `scripts/01_check_readers.py` and `make readers` (W1.6).
+- D15 for Gate 1: when the bfloat16 cast entered transformers, and CER with and without the fix on more pages.

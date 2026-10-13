@@ -140,7 +140,7 @@ def count_vision_tokens(reader: Reader, image: np.ndarray) -> int:
     Returns:
         Vision token count as reported by the processor.
     """
-    inputs = _inputs(reader, image, reader.cfg["prompt"])
+    inputs = processor_inputs(reader, image, reader.cfg["prompt"])
     return int((inputs["input_ids"] == reader.image_token_id).sum())
 
 
@@ -166,7 +166,7 @@ def transcribe_full(
     limit = reader.cfg["max_new_tokens"] if max_new_tokens is None else max_new_tokens
     if isinstance(limit, bool) or not isinstance(limit, int) or limit < 1:
         raise ValueError(f"{reader.name}: max_new_tokens must be a positive integer, got {limit!r}")
-    inputs = _inputs(reader, image, prompt).to(reader.model.device)
+    inputs = processor_inputs(reader, image, prompt).to(reader.model.device)
     input_len = inputs["input_ids"].shape[1]
     with torch.inference_mode():
         torch.cuda.synchronize()
@@ -198,8 +198,24 @@ def transcribe(reader: Reader, image: np.ndarray, prompt: str) -> str:
     return transcribe_full(reader, image, prompt).text
 
 
-def _inputs(reader: Reader, image: np.ndarray, prompt: str) -> Any:
-    """Return the processor's inputs for one page and prompt, on the CPU, after checking the vision input."""
+def processor_inputs(reader: Reader, image: np.ndarray, prompt: str) -> Any:
+    """Build the processor's inputs for one page and prompt, as every call in this module builds them.
+
+    The prompt goes into the reader's chat template after the image, and the processor runs with
+    do_resize=False. The result is checked before it is returned: the encoder must get the page itself.
+
+    Args:
+        reader: object returned by load_reader; only its name, processor, cfg and image token id are used.
+        image: uint8 array (H, W, 3).
+        prompt: instruction from configs/readers.yaml.
+
+    Returns:
+        The processor's output on the CPU: input_ids, attention_mask and the vision inputs.
+
+    Raises:
+        ValueError: if the image is not a uint8 array of shape (H, W, 3).
+        RuntimeError: if the vision input is not the page itself (see _check_vision_input).
+    """
     pil = Image.fromarray(image)  # Pillow for input and output only
     if pil.mode != "RGB":
         raise ValueError(
