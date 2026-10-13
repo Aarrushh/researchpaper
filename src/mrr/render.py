@@ -10,6 +10,7 @@ Learn A3 (sampling), A4 (colour), A5 (compositing) and A6 (font rasterisation) b
 from __future__ import annotations
 
 import functools
+import logging
 import math
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
@@ -23,6 +24,9 @@ from mrr.color import linear_to_srgb, srgb_to_linear
 FLAGS = freetype.FT_LOAD_RENDER | freetype.FT_LOAD_NO_HINTING | freetype.FT_LOAD_NO_BITMAP
 IDENT = freetype.Matrix(0x10000, 0, 0, 0x10000)
 AA_MODES = ("binary", "coverage_srgb", "coverage_linear")
+RENDER_MODES = ("conventional", "patch_aware")
+
+_log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -178,19 +182,262 @@ def composite_coverage(
     return page
 
 
-def layout_lines(text: str, font: Any, width_px: int, line_pitch_px: float) -> list[tuple[str, float]]:
-    """Break text into lines that fit the page width.
+def unaligned_pitch_px(font_size_px: float) -> int:
+    """Return the unaligned line pitch of section 1A.4, floor(1.25 * size + 0.5).
+
+    Every rounding in the layout is floor(v + 0.5); Python's round would turn 1.25 x 18 = 22.5 into 22.
 
     Args:
-        text: page text.
-        font: a loaded font object.
-        width_px: usable width in pixels.
-        line_pitch_px: vertical distance between baselines.
+        font_size_px: font size in pixels.
 
     Returns:
-        List of (line_text, baseline_y) pairs.
+        The pitch in whole pixels: 15, 18 and 20 at 12, 14 and 16 px.
     """
-    raise NotImplementedError("TODO[W1.5]: greedy word wrap using glyph advances")
+    return math.floor(1.25 * font_size_px + 0.5)
+
+
+@dataclass(frozen=True)
+class LayoutFont:
+    """The advances of one layout, conventional or patch-aware (D10).
+
+    Attributes:
+        path: font file, as for load_glyph.
+        size_px: font size in pixels.
+        slot_px: None for conventional layout, where a character advances by its linear advance a. For
+            patch_aware layout the slot width q: a character takes a' = q * ceil(a / q) and the space
+            exactly one slot.
+    """
+
+    path: str
+    size_px: float
+    slot_px: int | None = None
+
+    def advance_px(self, char: str) -> float:
+        """Return how far the pen moves past char, in pixels."""
+        a = load_glyph(self.path, self.size_px, char).advance_px
+        if self.slot_px is None:
+            return a
+        if char == " ":
+            return float(self.slot_px)
+        return float(self.slot_px * math.ceil(a / self.slot_px))
+
+    def offset_px(self, char: str) -> int:
+        """Return the whole pixels from the pen to the glyph's origin.
+
+        0 in conventional layout. In patch_aware layout the glyph is centred in its slots,
+        floor((a' - a) / 2 + 0.5), a whole number so that every glyph keeps the same fractional phase.
+        """
+        if self.slot_px is None or char == " ":
+            return 0
+        a = load_glyph(self.path, self.size_px, char).advance_px
+        return math.floor((self.advance_px(char) - a) / 2 + 0.5)
+
+    @property
+    def ascender_px(self) -> float:
+        """face.size.ascender / 64, which FreeType rounds to whole pixels: 16 px at 16 px."""
+        return _face(self.path, math.floor(64 * self.size_px + 0.5)).size.ascender / 64
+
+    @property
+    def descender_room_px(self) -> int:
+        """ceil(-face.size.descender / 64), the room below the last baseline: 4, 5 and 6 px at 12, 14 and 16 px."""
+        return math.ceil(-_face(self.path, math.floor(64 * self.size_px + 0.5)).size.descender / 64)
+
+
+@dataclass(frozen=True)
+class PlacedGlyph:
+    """One character placed by the layout. Spaces move the pen but are not placed.
+
+    Attributes:
+        char: the character.
+        x_64: column of the glyph's origin in 1/64 px: its pen position plus, in patch_aware layout, the
+            centring offset. render_page draws the glyph here.
+        baseline_64: row of the baseline in 1/64 px.
+        line: line number, counting from 0.
+    """
+
+    char: str
+    x_64: int
+    baseline_64: int
+    line: int
+
+
+def layout_lines(text: str, font: LayoutFont, width_px: float, line_pitch_px: float) -> list[tuple[str, float]]:
+    """Break text into lines greedily and place their baselines (section 1A.4 of the build guide).
+
+    A word goes on the current line if it fits inside width_px; otherwise it starts a new line. A word wider
+    than width_px starts a new line and is split where the line is full, with a warning, because that should
+    not happen at the sizes used. There is no kerning, no ligatures, no justification and no hyphenation.
+
+    Args:
+        text: page text; its words are the runs between whitespace, and a line joins them with single spaces.
+        font: the advances to use.
+        width_px: block width in pixels.
+        line_pitch_px: distance between baselines in pixels.
+
+    Returns:
+        (line_text, baseline_y) pairs, baseline k at ascender + k * line_pitch_px from the block top.
+
+    Raises:
+        ValueError: if line_pitch_px is not positive, or one character is wider than width_px.
+    """
+    if not line_pitch_px > 0:
+        raise ValueError(f"line_pitch_px must be positive, got {line_pitch_px!r}")
+    space = font.advance_px(" ")
+    lines: list[str] = []
+    line, used = "", 0.0
+    for word in text.split():
+        width = sum(font.advance_px(c) for c in word)
+        if line and used + space + width <= width_px:
+            line, used = f"{line} {word}", used + space + width
+            continue
+        if line:
+            lines.append(line)
+        if width <= width_px:
+            line, used = word, width
+            continue
+        _log.warning("word %r is %.1f px wide, more than the %.1f px line; split where the line is full",
+                     word, width, width_px)
+        line, used = "", 0.0
+        for c in word:
+            advance = font.advance_px(c)
+            if advance > width_px:
+                raise ValueError(f"{c!r} is {advance:.1f} px wide, more than the {width_px} px line")
+            if used + advance > width_px:
+                lines.append(line)
+                line, used = "", 0.0
+            line, used = line + c, used + advance
+    if line:
+        lines.append(line)
+    ascender = font.ascender_px
+    return [(text_of_line, ascender + k * line_pitch_px) for k, text_of_line in enumerate(lines)]
+
+
+def block_size_px(cfg: Mapping[str, Any]) -> tuple[float, float]:
+    """Return the text block: the page less both margins, the phase allowance and the blind strip.
+
+    The allowance keeps all ink on the page at every phase, and the blind strip keeps it out of the columns
+    and rows the encoder never sees (sections 1A.4 and 2.4). With the allowances of section 2.4 the block
+    is 315 x 394 px for Qwen, 310 x 310 for SmolVLM-2.2B and 420 x 420 for SmolVLM-500M.
+
+    Args:
+        cfg: render config resolved by grid.resolve_render_cfg.
+
+    Returns:
+        (width, height) in pixels.
+
+    Raises:
+        ValueError: if an allowance or the blind strip is not set.
+    """
+    for key in ("max_phase_x_px", "max_phase_y_px", "blind_strip_px"):
+        if cfg.get(key) is None:
+            raise ValueError(f"{key} is not set; resolve the config with grid.resolve_render_cfg")
+    margin, blind = cfg["margin_px"], cfg["blind_strip_px"]
+    return (
+        cfg["page_width_px"] - 2 * margin - cfg["max_phase_x_px"] - blind,
+        cfg["page_height_px"] - 2 * margin - cfg["max_phase_y_px"] - blind,
+    )
+
+
+def _layout_font(cfg: Mapping[str, Any]) -> LayoutFont:
+    """Return the LayoutFont for cfg's render_mode: linear advances, or slots of patch_aware_slot_px."""
+    mode = cfg["render_mode"]
+    if mode not in RENDER_MODES:
+        raise ValueError(f"render_mode must be one of {RENDER_MODES}, got {mode!r}")
+    slot = None
+    if mode == "patch_aware":
+        slot = cfg.get("patch_aware_slot_px")
+        if not isinstance(slot, (int, np.integer)) or isinstance(slot, bool) or slot < 1:
+            raise ValueError(
+                f"patch_aware layout needs patch_aware_slot_px in whole pixels, got {slot!r}; "
+                "resolve the config with grid.resolve_render_cfg"
+            )
+        slot = int(slot)
+    return LayoutFont(str(cfg["font_file"]), cfg["font_size_px"], slot)
+
+
+def layout_block(text: str, cfg: Mapping[str, Any]) -> list[PlacedGlyph]:
+    """Lay out one page in block coordinates, without margins or phase (section 1A.4).
+
+    The layout is computed once per page; layout_page only translates it, so every phase reads the same
+    lines. Pen positions and baselines stay in pixels until the end and are converted to 1/64 px once,
+    with floor(64 * v + 0.5). Linear advances are 16.16 fixed-point numbers, so their sums are exact in
+    float64 and that conversion is the only rounding.
+
+    Args:
+        text: normalised page text.
+        cfg: render config resolved by grid.resolve_render_cfg.
+
+    Returns:
+        The placed glyphs in reading order, spaces left out.
+
+    Raises:
+        ValueError: if cfg is not resolved, render_mode is unknown, or a character is wider than the block.
+    """
+    font = _layout_font(cfg)
+    width, _ = block_size_px(cfg)
+    placed: list[PlacedGlyph] = []
+    for number, (line, baseline) in enumerate(layout_lines(text, font, width, cfg["line_pitch_px"])):
+        baseline_64 = math.floor(64 * baseline + 0.5)
+        pen = 0.0
+        for c in line:
+            if c != " ":
+                placed.append(PlacedGlyph(c, math.floor(64 * (pen + font.offset_px(c)) + 0.5), baseline_64, number))
+            pen += font.advance_px(c)
+    return placed
+
+
+def layout_page(text: str, cfg: Mapping[str, Any]) -> list[PlacedGlyph]:
+    """Lay out one page on the page: the block, moved by the margin and the phase.
+
+    Every x_64 gains floor(64 * margin_px + 0.5) + floor(64 * phase_x_px + 0.5), and every baseline_64 the
+    same with phase_y_px, so a whole-pixel phase s moves every glyph by exactly 64 * s.
+
+    Args:
+        text: normalised page text.
+        cfg: render config resolved by grid.resolve_render_cfg.
+
+    Returns:
+        The placed glyphs in page coordinates, in reading order.
+
+    Raises:
+        ValueError: as layout_block, or if a phase lies outside [0, its allowance].
+    """
+    placed = layout_block(text, cfg)
+    offsets = []
+    for axis in ("x", "y"):
+        phase, allowance = cfg[f"phase_{axis}_px"], cfg[f"max_phase_{axis}_px"]
+        if not 0 <= phase <= allowance:
+            raise ValueError(f"phase_{axis}_px must lie in [0, max_phase_{axis}_px = {allowance}], got {phase!r}")
+        offsets.append(math.floor(64 * cfg["margin_px"] + 0.5) + math.floor(64 * phase + 0.5))
+    dx, dy = offsets
+    return [PlacedGlyph(g.char, g.x_64 + dx, g.baseline_64 + dy, g.line) for g in placed]
+
+
+def fits_page(text: str, cfg: Mapping[str, Any]) -> bool:
+    """Return whether text fits in the block of cfg.
+
+    Every line fits the block width by construction, so the test is the line count: at most
+    floor((h - a - d) / p) + 1 lines, with h the block height, a the ascender, d the descender room and p
+    the line pitch (section 2.4). The first baseline sits one ascender below the block top, and the last
+    leaves the descender room above its bottom. paginate calls this under every layout that will be
+    compared on a page.
+
+    Args:
+        text: normalised page text.
+        cfg: render config resolved by grid.resolve_render_cfg.
+
+    Returns:
+        True if the text fits.
+
+    Raises:
+        ValueError: as layout_block.
+    """
+    font = _layout_font(cfg)
+    width, height = block_size_px(cfg)
+    pitch = cfg["line_pitch_px"]
+    n_lines = len(layout_lines(text, font, width, pitch))
+    room = height - font.ascender_px - font.descender_room_px
+    return n_lines <= (math.floor(room / pitch) + 1 if room >= 0 else 0)
 
 
 def render_page(text: str, cfg: Mapping[str, Any]) -> np.ndarray:

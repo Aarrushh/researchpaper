@@ -130,3 +130,56 @@ Broke:
 - Nothing. Nothing called the old `paginate`.
 Next:
 - Layout and `configs/render_defaults.yaml` (W1.5).
+
+## 2026-10-13, Claude (D22): W1.5, layout
+Did:
+- `src/mrr/render.py`: the layout of section 1A.4 of the guide.
+  - `layout_block(text, cfg)` lays a page out once, in block coordinates. `layout_page` adds floor(64·margin + 0.5) + floor(64·phase + 0.5) on each axis and refuses a phase outside [0, its allowance]. `fits_page` counts lines against floor((h − a − d)/p) + 1.
+  - `layout_lines(text, font, width_px, line_pitch_px)` stays as the word-wrap helper. Wrapping is greedy. A word wider than the line starts a new line, is split where the line is full and is logged on the `mrr.render` logger; a single character wider than the line raises ValueError.
+  - Added beyond the guide's interface: `LayoutFont` (the advances of one layout: linear, or slots of q with the centring offset), `block_size_px(cfg)` (page − 2·margin − allowance − blind strip; an unresolved config raises ValueError naming `grid.resolve_render_cfg`), `unaligned_pitch_px(size)` and `RENDER_MODES`.
+  - `PlacedGlyph.x_64` is the glyph's origin, its pen position plus the patch-aware centring offset, because section 1A.5 draws each glyph at `x_64` and adds nothing.
+- `configs/render_defaults.yaml`: lines 324 to 336 of the guide, plus a 448 × 448 page overwritten per reader (plan finding F4), `max_phase_x_px` and `max_phase_y_px` null (F5), and the DO NOT line of D8. Two departures from the guide's block:
+  - the `aa_mode` comment names D11 and Gate 1 instead of "see the decision below", which points at a box in the guide, not in the file;
+  - the scaffold's enum comments on `aa_mode` and `render_mode` stay.
+  `aa_mode` changes from the scaffold's `coverage_linear` to `coverage_srgb`, as section 1A.9 proposes. D11 stays open until Gate 1.
+- `tests/test_render.py`: 46 new tests:
+  - the unaligned pitch;
+  - the filled-in defaults;
+  - an unresolved config and an unknown render mode are refused;
+  - the block origin;
+  - linear advances and the space;
+  - patch-aware slots and centring;
+  - the same (character, line) sequence at phases 0, 0.5 and 111;
+  - a whole-pixel phase moves every glyph by 64·s on its own axis only;
+  - margin plus phase on the 500M page;
+  - phases outside the allowance are refused;
+  - a 60-character word is split inside the block and logged;
+  - a character wider than the line is refused;
+  - the line limit in both directions;
+  - the line counts, block sizes and page capacities of section 2.4;
+  - no ink in SmolVLM-2.2B's blind strip at the largest phase, in both layouts.
+- Moved: the two coherence tests of section 1A.4 (pooled R1 about 0.022 on a conventional 2,500-glyph Persuasion text; per-class 1.000 for `patch_aware`) need the R_k of section 2.2, so they move to Task P2.2 (plan finding F7).
+Found:
+- `fits_page` reproduces the page-capacity table of section 2.4 exactly: all 27 character counts, the 18 line counts and the 3 block sizes.
+- All 86 characters of the three normalised books are narrower than one 14 px slot at 12, 14 and 16 px. The widest is "œ", 13.424 px at 16 px. Patch-aware layout is therefore one glyph per patch.
+- The guide says a word wider than the block should never happen at the sizes used. It happens once.
+  - In pg84 an em dash joins "industrious" and "painstaking,"; D13 maps it to a hyphen, which makes a 24-character word.
+  - In 14 px slots that word is 336 px, over the 315 px block of Qwen and the 310 px block of SmolVLM-2.2B at every size, so patch-aware layout splits it and logs it.
+  - In the 500M's 16 px slots it is 384 px and fits the 420 px block.
+  - In conventional layout the widest word is 163.4 px at 16 px, and nothing splits.
+  - Proposed for Gate 1: keep the guide's rule.
+- Coherence by construction, on a Qwen page at phase 0:
+  - conventional glyphs use all 64 fractions of a pixel, and 8 of 32 character classes hold one position mod 14;
+  - patch-aware glyphs use one fraction, and all 30 classes hold one position;
+  - a 20 px pitch puts the baselines at 7 phases mod 14 and 7 mod 28, while a 28 px pitch puts them all at one.
+- At the largest phase with the default allowances (sweep period − 1), the last ink on a first page is:
+  - Qwen: row 424 and column 431 of 448;
+  - SmolVLM-2.2B: row 354 and column 361 of 384, short of the blind strip at 378;
+  - SmolVLM-500M: row 478 and column 494 of 512.
+- The space advance at 16 px is 3.20001220703125 px, which is 3.2 in 16.16 fixed point.
+- Paginating 200 Qwen pages of Persuasion took 0.20 s: 2,854 calls to `fits_page`, 0.07 ms each with the glyphs cached.
+- `make test`, run as its recipe: 174 passed, 8 deselected.
+Broke:
+- Nothing. The old `layout_lines` stub had no callers. The two `todo` tests in `tests/test_render.py` still read the unresolved defaults; Task P1.9 gives them a resolved Qwen config when `render_page` exists.
+Next:
+- `render_coverage`, `render_page` and `overlay_grid` (W1.5, sections 1A.5 and 1A.6).
