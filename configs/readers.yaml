@@ -12,8 +12,10 @@ readers:
     token_cell_px: 28
     window_px: 112           # window attention in 28 of 32 blocks; full attention in 7, 15, 23, 31
     page_px: [448, 448]
-    min_pixels: 3136         # documentation only: never passed per call (deprecated); pages are native, do_resize=False
-    max_pixels: 12845056     # documentation only, as above
+    # min_pixels and max_pixels are read by grid.page_size_px, which checks that smart_resize keeps the page.
+    # They are never passed to the processor (deprecated per call): pages are native, do_resize=False.
+    min_pixels: 3136
+    max_pixels: 12845056
     aligned_pitch_px: 28
     image_token: "<|image_pad|>"   # id 151655
     dtype: bfloat16

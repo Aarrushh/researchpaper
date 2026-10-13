@@ -54,7 +54,8 @@ def load_reader(cfg: Mapping[str, Any]) -> Reader:
 
     The model is loaded at the pinned revision in the config's dtype, with SDPA attention, and put in
     eval mode. For the SmolVLM readers the position-id fix goes on before anything else can attach a
-    hook (D15).
+    hook (D15). A SmolVLM block must name its position_id_fix, pre_hook or null, so that a block
+    without the key cannot load without the fix unnoticed.
 
     Args:
         cfg: one reader block from configs/readers.yaml.
@@ -74,6 +75,8 @@ def load_reader(cfg: Mapping[str, Any]) -> Reader:
     model_class = MODEL_CLASSES.get(type(processor).__name__)
     if model_class is None:
         raise ValueError(f"{cfg['name']}: no model class for {type(processor).__name__}")
+    if type(processor).__name__ == "Idefics3Processor" and "position_id_fix" not in cfg:
+        raise ValueError(f"{cfg['name']}: a SmolVLM block needs position_id_fix: pre_hook, or null to read without it")
     placement = {"max_memory": cfg["max_memory"]} if "max_memory" in cfg else {}  # the fallback of 1B.8 (D18)
     model = getattr(transformers, model_class).from_pretrained(
         cfg["hf_id"],
@@ -107,7 +110,9 @@ def install_position_id_fix(model: Any) -> None:
     bucketing it. In bfloat16 neighbouring patches land in the same bucket, and a 384 px frame gets 441
     distinct ids instead of 729. A forward pre-hook on the position table replaces the ids of a full
     frame and leaves any other input alone, so it is right only for a full frame without padding;
-    transcribe_full checks that. Pre-hooks run in registration order, so install this one before any
+    processor_inputs checks that. The hook sees only the ids, so it takes a full frame to be n ids of
+    which exactly one is 0 in each image: padded patches get id 0, and a frame that is not square puts
+    several patches in bucket 0. Pre-hooks run in registration order, so install this one before any
     hook that records ids.
 
     Args:
@@ -120,7 +125,7 @@ def install_position_id_fix(model: Any) -> None:
 
     def fix_ids(module, args):
         (ids,) = args
-        if ids.shape[-1] == n:  # one full frame: ids must be 0..n-1
+        if ids.shape[-1] == n and bool((ids == 0).sum(-1).eq(1).all()):  # one full frame: ids must be 0..n-1
             return (torch.arange(n, device=ids.device).expand_as(ids),)
         return None  # anything else is left alone
 
@@ -214,18 +219,23 @@ def processor_inputs(reader: Reader, image: np.ndarray, prompt: str) -> Any:
 
     Raises:
         ValueError: if the image is not a uint8 array of shape (H, W, 3).
-        RuntimeError: if the vision input is not the page itself (see _check_vision_input).
+        RuntimeError: if the vision input is not the page itself (see _check_vision_input), or if a Qwen
+            page is not whole token cells, which Qwen's processor cannot cut into merge groups.
     """
+    if not (isinstance(image, np.ndarray) and image.dtype == np.uint8 and image.ndim == 3 and image.shape[2] == 3):
+        got = f"{image.dtype} {image.shape}" if isinstance(image, np.ndarray) else type(image).__name__
+        raise ValueError(f"{reader.name}: expected a uint8 page of shape (H, W, 3), got {got}")
+    height, width = image.shape[:2]
+    if "min_pixels" in reader.cfg:  # Qwen, the reader with smart_resize bounds (as in grid.page_size_px)
+        cell = grid.token_cell_px(reader.cfg)
+        if height % cell or width % cell:  # otherwise the processor fails with a bare reshape error
+            raise RuntimeError(f"{reader.name}: a {height}x{width} page is not whole {cell} px token cells")
     pil = Image.fromarray(image)  # Pillow for input and output only
-    if pil.mode != "RGB":
-        raise ValueError(
-            f"{reader.name}: expected a uint8 page of shape (H, W, 3), got {image.dtype} {image.shape}"
-        )
     messages = [{"role": "user", "content": [{"type": "image"}, {"type": "text", "text": prompt}]}]
     text = reader.processor.apply_chat_template(messages, add_generation_prompt=True)
     # Keywords only: the processor's first positional argument is images.
     inputs = reader.processor(text=[text], images=[pil], return_tensors="pt", do_resize=False)
-    _check_vision_input(reader, inputs, image.shape[0], image.shape[1])
+    _check_vision_input(reader, inputs, height, width)
     return inputs
 
 
@@ -239,7 +249,7 @@ def _check_vision_input(reader: Reader, inputs: Mapping[str, Any], height: int, 
     if "image_grid_thw" in inputs:
         patch = int(reader.cfg["patch_size"])
         want, got = [[1, height // patch, width // patch]], inputs["image_grid_thw"].tolist()
-        if height % patch or width % patch or got != want:
+        if got != want:
             raise RuntimeError(f"{reader.name}: image_grid_thw {got} for a {height}x{width} page; want {want}")
     else:
         want, got = (1, 1, 3, height, width), tuple(inputs["pixel_values"].shape)

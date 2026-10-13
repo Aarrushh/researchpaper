@@ -1,5 +1,5 @@
 # PURPOSE: Facts about the three readers that the experiment relies on, checked on the pinned processors and models.
-# WHAT GOES HERE: Tokens per native page, image-token ids, Qwen's smart_resize, one <|im_start|>; on the GPU, SmolVLM's position ids without and with the fix (D15), the 6 px strip SmolVLM-2.2B never sees, and determinism (build guide 1B.6).
+# WHAT GOES HERE: Tokens per native page, image-token ids, Qwen's smart_resize, one <|im_start|>; without weights, the frames the position-id fix changes and load_reader's check for its key; on the GPU, SmolVLM's position ids without and with the fix and as load_reader installs it (D15), the 6 px strip SmolVLM-2.2B never sees, and determinism (build guide 1B.6).
 # FILLED IN AT STEP: W1.6/W1.8.
 # DO NOT: Hold two models on the GPU at once; the laptop has 8 GiB. Do not run in CI: every test here is marked model.
 """Reader facts (build guide 1B.6)."""
@@ -9,6 +9,7 @@ from __future__ import annotations
 import gc
 import inspect
 import itertools
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -86,6 +87,57 @@ def test_smolvlm_prompt_holds_one_im_start(cpu_reader, native_page, name):
     assert int((inputs["input_ids"] == im_start).sum()) == 1
 
 
+def test_load_reader_wants_a_smolvlm_block_to_name_its_position_id_fix():
+    """D15: without the key a SmolVLM block would load without the fix; load_reader stops before the weights."""
+    pytest.importorskip("torch")
+    cfg = {key: value for key, value in READERS["smolvlm"].items() if key != "position_id_fix"}
+    with pytest.raises(ValueError, match="position_id_fix"):
+        readers.load_reader(cfg)
+
+
+@pytest.mark.parametrize(
+    ("patches_h", "patches_w", "valid_w", "fixed"),
+    [(27, 27, 27, True), (27, 27, 14, False), (9, 81, 81, False)],
+    ids=["full-frame", "padded-frame", "frame-not-square"],
+)
+def test_position_id_fix_changes_only_a_full_frame(patches_h, patches_w, valid_w, fixed):
+    """D15, on the pinned embeddings in bfloat16 without weights: the hook replaces the ids of a full frame only.
+
+    A padded frame and a frame of 9 x 81 patches also hold 729 ids; they keep the ids the embeddings give them.
+    """
+    torch = pytest.importorskip("torch")
+    from transformers.models.idefics3.configuration_idefics3 import Idefics3VisionConfig
+    from transformers.models.idefics3.modeling_idefics3 import Idefics3VisionEmbeddings
+
+    patch = READERS["smolvlm"]["patch_size"]
+    config = Idefics3VisionConfig(hidden_size=8, num_attention_heads=1, image_size=384, patch_size=patch)
+    embeddings = Idefics3VisionEmbeddings(config).to(torch.bfloat16)
+    pixels = torch.zeros(1, 3, patches_h * patch, patches_w * patch, dtype=torch.bfloat16)
+    mask = torch.zeros(1, patches_h, patches_w, dtype=torch.bool)
+    mask[:, :, :valid_w] = True
+
+    def ids_seen():
+        seen = []
+        handle = embeddings.position_embedding.register_forward_pre_hook(lambda module, args: seen.append(args[0]))
+        try:
+            with torch.inference_mode():
+                embeddings(pixels, mask)
+        finally:
+            handle.remove()
+        (ids,) = seen
+        return ids
+
+    before = ids_seen()
+    model = SimpleNamespace(model=SimpleNamespace(vision_model=SimpleNamespace(embeddings=embeddings)))
+    readers.install_position_id_fix(model)  # the path it takes on an Idefics3ForConditionalGeneration
+    after = ids_seen()
+    if fixed:
+        assert before.unique().numel() == 441  # the bfloat16 bug, as on the GPU
+        assert torch.equal(after[0], torch.arange(729))
+    else:
+        assert torch.equal(after, before)
+
+
 # On the GPU, one model at a time.
 
 _ON_GPU: dict[str, readers.Reader] = {}  # at most one reader: the laptop's 8 GiB holds one at a time
@@ -157,6 +209,15 @@ def test_position_ids_without_and_with_the_fix(native_page, name, without_fix, w
         _free_gpu()
 
 
+# smolvlm last: the next test reads it too, so it stays loaded
+@pytest.mark.parametrize(("name", "n"), [("smolvlm500m", 1024), ("smolvlm", 729)])
+def test_load_reader_installs_the_position_id_fix(native_page, name, n):
+    """D15: the reader as configs/readers.yaml loads it gives a full frame the ids 0 to n - 1."""
+    torch = pytest.importorskip("torch")
+    _, page = native_page(name)
+    assert torch.equal(_position_ids(_gpu_reader(name), page)[0], torch.arange(n))
+
+
 @pytest.mark.parametrize(
     ("region", "seen"),
     [
@@ -187,5 +248,6 @@ def test_same_page_twice_gives_identical_text(native_page, name):
         readers.transcribe_full(reader, page, reader.cfg["prompt"], max_new_tokens=DETERMINISM_TOKENS)
         for _ in range(2)
     )
+    assert first.text.strip()  # two empty texts would be equal too
     assert first.text == second.text
     assert first.new_tokens == second.new_tokens

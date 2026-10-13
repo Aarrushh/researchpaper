@@ -114,10 +114,8 @@ def check_reader(
             raise SystemExit(f"{name}: device_map cuda, but parameters on {devices}")
         where = placement(reader.model)
         inputs = readers.processor_inputs(reader, page, reader_cfg["prompt"])  # raises unless the page is native
-        tokens = readers.count_vision_tokens(reader, page)
+        tokens = readers.count_vision_tokens(reader, page)  # processor_inputs has checked it against the grid
         expected = grid.token_count(reader_cfg, height, width)
-        if tokens != expected:
-            raise SystemExit(f"{name}: {tokens} vision tokens; grid.token_count gives {expected}")
 
         limit, limit_source = generation_limit(reader, reference)
         result = readers.transcribe_full(reader, page, reader_cfg["prompt"], max_new_tokens=limit)
@@ -128,7 +126,12 @@ def check_reader(
         torch.cuda.empty_cache()
 
     used = limit if limit is not None else reader_cfg["max_new_tokens"]
-    run_cfg = {"reader": dict(reader_cfg), "render": render_cfg, "max_new_tokens": used}
+    run_cfg = {
+        "reader": dict(reader_cfg),
+        "render": render_cfg,
+        "generation": {**readers.GREEDY, "max_new_tokens": used},  # every generate argument (build guide 1B.4)
+        "placement": {"parameter_devices": devices, "realised": where, "peak_allocated_gib": round(peak, 3)},  # D18
+    }
     manifest = write_manifest(output_root / new_run_id("checkreaders", name), run_cfg)
     ending = "the limit" if result.hit_limit else "an end token"
     print(

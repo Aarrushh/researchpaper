@@ -147,7 +147,7 @@ def test_smolvlm_tiles_a_384_page_by_default(cpu_reader, native_page):
 @pytest.mark.parametrize(
     ("name", "size", "message"),
     [
-        ("qwen", 450, "invalid for input of size"),  # patchify cannot cut 450 px into 28 px cells
+        ("qwen", 450, "not whole 28 px token cells"),  # refused before patchify, which cannot cut 450 px into them
         ("smolvlm", 400, "pixel_values"),  # resized to 768, then 2 x 2 tiles and a global image
         ("smolvlm", 378, "pixel_values"),  # resized up to 384
         ("smolvlm500m", 520, "pixel_values"),

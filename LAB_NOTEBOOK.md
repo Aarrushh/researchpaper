@@ -392,3 +392,27 @@ Broke:
 Next:
 - Task P1.14 (D18): Qwen's placement, from the peak memory above.
 - Task P1.15 (W1.7): t per reader at full power, and `max_new_tokens`.
+
+## 2026-10-13, Claude (D22): Phase 1 review, readers and environment
+Did:
+- A fresh reviewer read the readers and environment code of Phase 1 against the checklists of sections 1A.11 and 1B.10. Changes from its findings:
+  - `src/mrr/readers.py`:
+    - `load_reader` refuses a SmolVLM block without a `position_id_fix` key, which must say `pre_hook`, or null to read without the fix. A block that lost the key used to load without the fix, unnoticed (D15).
+    - The position-id fix replaces the ids of a full frame only: n ids, of which exactly one is 0 in each image. Padded patches get id 0, and a frame that is not square puts several patches in bucket 0, so such frames can also have n ids; they now keep theirs.
+    - `processor_inputs` refuses a page that is not uint8 (H, W, 3) before the processor sees it, and a Qwen page that is not whole 28 px token cells, which used to fail inside `patchify` with a bare reshape error.
+  - `scripts/00_check_env.py` checks the setting of section 1B.2: it allocates and fills 256 MiB blocks up to 1.1 times the card's memory, and fails if the driver allows it, which means the sysmem fallback is on.
+  - `scripts/01_check_readers.py`: the manifest records every generate argument, `readers.GREEDY` and the limit (section 1B.4), and the realised placement: the parameters' devices, `hf_device_map` and the peak allocated memory (D18). The script's own token-count check went, because `processor_inputs`, which builds the inputs of every reader call, makes the same check.
+  - `pyproject.toml` lists Pillow, which `readers.py` imports.
+  - `configs/readers.yaml`: the comments on `min_pixels` and `max_pixels` say what reads them, `grid.page_size_px`, and that the processor never gets them.
+  - Tests:
+    - `tests/test_readers.py` (new): the page checks, in CI; `transcribe_full` on a fake model, marked `model` because it imports torch: `hit_limit`, the greedy arguments and the limit passed to `generate`, and the refusal of a limit that is not a positive integer.
+    - `tests/test_reader_facts.py`: `load_reader` refuses a SmolVLM block without the key. On the pinned embeddings in bfloat16, without weights, the fix changes the ids of a full frame only: the full 27 × 27 frame goes from 441 distinct ids to 0 to 728, while a padded frame (14 of 27 columns valid) and a 9 × 81 frame keep theirs. On the GPU, the fix as `load_reader` installs it gives a full frame the ids 0 to n − 1. The determinism test also requires a non-empty text.
+    - `tests/test_no_resize.py`: the 450 px Qwen page is now refused by the cell check, with its own message.
+Found:
+- On the GPU, with `HF_HUB_OFFLINE=1`: `pytest -m "not todo" tests/test_readers.py tests/test_no_resize.py tests/test_reader_facts.py`, 88 passed in 209 s.
+- `scripts/00_check_env.py` exits 1: "the driver let this script allocate 1.1 x the card's memory, so the CUDA sysmem fallback is on". Everything else passes, as at W1.3. It will exit 0 once the NVIDIA Control Panel's CUDA - Sysmem Fallback Policy is set to Prefer No Sysmem Fallback (owner action 2).
+Broke:
+- Nothing. The `make test` recipe, run by hand on the working tree, which also holds the render review's tests (next entry): 222 passed, 85 deselected.
+- `scripts/01_check_readers.py` was not rerun for these changes. Its next run is `make readers` at Task P1.16, with the limits of W1.7.
+Next:
+- The render review's tests (next entry), then W1.7.

@@ -11,7 +11,7 @@ name = "mrr"
 version = "0.0.0"
 description = "Rendering for Machine Readers"
 requires-python = ">=3.10"
-dependencies = ["numpy", "pyyaml", "freetype-py"]
+dependencies = ["numpy", "pyyaml", "freetype-py", "pillow"]
 
 [project.optional-dependencies]
 test = ["pytest", "scipy", "jiwer"]
