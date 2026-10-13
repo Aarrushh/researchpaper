@@ -239,6 +239,13 @@ def test_paginate_searches_instead_of_adding_one_word_at_a_time():
     assert len(calls) < 2_000  # adding one word at a time would call fits more than 10,000 times
 
 
+@pytest.mark.parametrize("n_words", [1, 2, 3, 4, 5, 8])
+def test_paginate_puts_a_text_that_fits_on_one_page(n_words):
+    """The doubling search tries the whole rest of the text, also when its length is a power of two."""
+    text = " ".join("abcdefgh"[:n_words])
+    assert paginate(text, lambda page: True, n_pages=5) == [text]
+
+
 def test_paginate_rejects_a_word_that_fits_no_page():
     with pytest.raises(ValueError):
         paginate("short " + "x" * 50 + " tail", _fits_40, n_pages=5)

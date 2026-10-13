@@ -105,12 +105,13 @@ def blind_strip_px(reader_cfg: Mapping[str, Any]) -> int:
 
 
 def page_size_px(reader_cfg: Mapping[str, Any]) -> tuple[int, int]:
-    """Return the reader's native page, after checking that its processor would not resize it (D8).
+    """Return the reader's native page, after the checks against a resize that its config allows (D8).
 
     A reader with min_pixels and max_pixels (Qwen) resizes every image to a fixed point of smart_resize,
     so its page must be one: 448 stays 448, but 384 would become 392 and 512 would become 504. A reader
-    without them (SmolVLM) resizes every image to its square frame, so its page must be square. The
-    no-resize test (W1.8) checks both pages against the real processors.
+    without them (SmolVLM) resizes every image to its square frame, so its page must be square; whether
+    the side equals the frame is not checked here. The no-resize test (W1.8) checks both pages against the
+    real processors, and readers.processor_inputs checks every page it is given.
 
     Args:
         reader_cfg: one reader block from configs/readers.yaml.
@@ -119,7 +120,7 @@ def page_size_px(reader_cfg: Mapping[str, Any]) -> tuple[int, int]:
         (height, width) in pixels, from page_px.
 
     Raises:
-        ValueError: if the processor would resize the page.
+        ValueError: if smart_resize would resize a Qwen page, or a SmolVLM page is not square.
     """
     height, width = (int(side) for side in reader_cfg["page_px"])
     if "min_pixels" in reader_cfg:

@@ -105,7 +105,10 @@ class _XhtmlText(HTMLParser):
 
 
 def _epub_to_text(path: Path) -> str:
-    """Convert an EPUB to plain text, following the OPF spine order."""
+    """Convert an EPUB to plain text, following the OPF spine order.
+
+    Spine items that are not XHTML, such as a cover image, hold no text and are skipped.
+    """
     with zipfile.ZipFile(path) as z:
         container = ET.fromstring(z.read("META-INF/container.xml"))
         opf_path = container.find(".//{*}rootfile").get("full-path")

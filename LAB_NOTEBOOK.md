@@ -416,3 +416,32 @@ Broke:
 - `scripts/01_check_readers.py` was not rerun for these changes. Its next run is `make readers` at Task P1.16, with the limits of W1.7.
 Next:
 - The render review's tests (next entry), then W1.7.
+
+## 2026-10-13, Claude (D22): Phase 1 review, render
+Did:
+- A second fresh reviewer read the rendering code, `render.py`, `grid.py` and `text_source.py`, and its tests against section 1A.11. It found no wrong result, but behaviour that no test pinned, so that a later change could break it unnoticed. New and stronger tests:
+  - `test_a_sub_pixel_phase_moves_the_ink_by_the_phase`: a phase of 0.25, 0.5 or 0.75 px in x or in y moves the centroid of the ink by that amount along that axis (within 0.02 px) and not along the other (within 0.01 px). The table of section 1A.5 shifts x only, so the size of a y phase had no test.
+  - `test_half_pixel_down_moves_H_down` requires a move of half a pixel (0.522 measured, within 0.05), not merely a move down.
+  - `test_overlapping_glyphs_add_their_coverage_clipped_at_one`: two glyphs whose boxes overlap, at the same point, a third of a pixel apart and one pixel apart. The page's coverage is their sum clipped at 1 (section 1A.5, step 2), and the clip is reached.
+  - `test_a_line_may_end_exactly_at_the_block_edge`: a word fits if it ends at the edge (section 1A.4). In patch-aware layout every character, the space too, takes one 14 px slot, so a 308 px block holds exactly 22, and such ties are common (D10).
+  - `test_transform_reset_between_glyphs` now reads the cached face itself: after a load at a phase of 32/64 px, the next load from that face is unshifted, whoever makes it.
+  - `test_src_draws_no_text_with_pillow_or_hinted_freetype`: checks 3 and 4 of section 1A.11, the greps over `src/`, now run in CI.
+  - `test_paginate_puts_a_text_that_fits_on_one_page`: texts of 1, 2, 3, 4, 5 and 8 words that fit come back as one page. The doubling search must try the whole rest of the text also when its length is a power of two.
+- Docstrings: `render_page` says that it does not check the text against the page; `grid.page_size_px` says what it checks and what it leaves to the no-resize test and `processor_inputs`; `_epub_to_text` says that spine items that are not XHTML are skipped.
+- Mutation check on a copy of the tree, outside the repository: ten one-line changes to `render.py` and `text_source.py`, each run against the CPU tests of `test_render.py` and `test_text_source.py`. The unchanged copy passed, 152 tests. Every change failed the tests written for it:
+
+| Change | Tests that failed |
+|---|---|
+| The y phase ignored, halved or doubled | the sub-pixel test at all three phases; for halved and doubled, also the half-pixel test |
+| Coverage added without the clip, by maximum instead of sum, or overwritten | the overlap test at all three distances |
+| `<` for `<=` in the line-wrap or in the word-fit comparison | the block-edge test |
+| The face's transform not reset after a glyph | the transform-reset test |
+| `<` for `<=` in paginate's doubling loop | the one-page test at 2, 4 and 8 words |
+
+Found:
+- The `make test` recipe, run by hand: 222 passed, 85 deselected, in 14.6 s.
+- For W1.10 (Task P2.2), from the reviewer's recomputation of the coherence table of D10 on its own cut of the text: in the conventional rows the straddle shares range from 0.384 to 0.425, against the guide's 0.384 to 0.430; R2(14) is 0.018 against 0.019, and R1(28) is 0.014 against 0.013. Both flip with a change of about 10 glyphs in where the text is cut. The patch-aware row matches exactly. Nothing to fix now; Task P2.2 measures them on its own pages.
+Broke:
+- Nothing.
+Next:
+- W1.7: timing, memory and `max_new_tokens`.

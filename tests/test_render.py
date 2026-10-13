@@ -1,5 +1,5 @@
 # PURPOSE: Correctness tests for the reference renderer.
-# WHAT GOES HERE: Glyph loading at 1/64 px phases and compositing (D11); layout and page fit (D10); phase periodicity of the renderer itself; output shape.
+# WHAT GOES HERE: Glyph loading at 1/64 px phases and compositing (D11); layout and page fit (D10); phase periodicity of the renderer itself; output shape; overlapping glyphs; the greps of section 1A.11.
 # FILLED IN AT STEP: W1.5 (each todo mark goes when the function it tests is implemented).
 # DO NOT: Depend on a specific font file being committed; skip if the font is missing.
 """Tests for mrr.render."""
@@ -9,6 +9,7 @@ from __future__ import annotations
 import ast
 import logging
 import math
+import re
 import shutil
 from pathlib import Path
 
@@ -21,7 +22,9 @@ from mrr.color import linear_to_srgb, srgb_to_linear
 from mrr.grid import resolve_render_cfg
 from mrr.render import (
     AA_MODES,
+    FLAGS,
     LayoutFont,
+    _face,
     block_size_px,
     composite_coverage,
     fits_page,
@@ -115,15 +118,20 @@ def test_half_pixel_down_moves_H_down():
         r = np.arange(g.coverage.shape[0])[:, None] - g.top
         return float((r * g.coverage).sum() / g.coverage.sum())
     d = centroid_row(load_glyph(FONT, 16, "H", phase_y_64=32)) - centroid_row(load_glyph(FONT, 16, "H"))
-    assert 0 < d < 1
+    assert abs(d - 0.5) < 0.05  # 0.522: half a pixel, not merely some downward move
 
 
 @needs_font
 def test_transform_reset_between_glyphs():
-    load_glyph.cache_clear(); a = load_glyph(FONT, 16, "o").coverage.copy()
+    """load_glyph puts the shared face back at phase 0, so the next load from that face, by any code, is unshifted."""
+    zero = load_glyph(FONT, 16, "o").coverage
+    load_glyph.cache_clear()  # so that the next call reaches the face
     load_glyph(FONT, 16, "o", phase_x_64=32)
-    load_glyph.cache_clear(); b = load_glyph(FONT, 16, "o").coverage
-    assert np.array_equal(a, b)
+    face = _face(FONT, 16 * 64)  # the cached face that load_glyph used
+    face.load_char("o", FLAGS)
+    bm = face.glyph.bitmap
+    loaded = np.frombuffer(bytes(bm.buffer), np.uint8).reshape(bm.rows, abs(bm.pitch))[:, : bm.width] / 255.0
+    np.testing.assert_array_equal(loaded, zero)
 
 
 @needs_font
@@ -362,6 +370,19 @@ def test_an_over_wide_word_is_split_at_the_block_edge(caplog):
 
 
 @needs_font
+def test_a_line_may_end_exactly_at_the_block_edge(caplog):
+    """Section 1A.4: a word fits if it ends at or before the edge. In patch_aware layout every character, the
+    space too, takes one 14 px slot, so a 308 px block holds exactly 22 and such ties are common (D10).
+    """
+    font = LayoutFont(FONT, 16, 14)
+    two_words = "i" * 10 + " " + "i" * 11
+    with caplog.at_level(logging.WARNING, logger="mrr.render"):
+        assert [line for line, _ in layout_lines(two_words, font, 308, 20)] == [two_words]
+        assert [line for line, _ in layout_lines("i" * 22, font, 308, 20)] == ["i" * 22]
+    assert not caplog.records  # a word exactly as wide as the line is not over-wide
+
+
+@needs_font
 def test_layout_lines_rejects_a_character_wider_than_the_line():
     with pytest.raises(ValueError):
         layout_lines("m", LayoutFont(FONT, 16), 5, 20)
@@ -479,6 +500,23 @@ def test_a_sub_pixel_phase_changes_the_coverage_values(s, changed, most):
 
 
 @needs_font
+@pytest.mark.parametrize("s", [0.25, 0.5, 0.75])
+def test_a_sub_pixel_phase_moves_the_ink_by_the_phase(s):
+    """Beyond the table of section 1A.5, which shifts x only: the ink moves by s along the phase's axis alone."""
+    cfg = _cfg("qwen")
+    text = "Hamburgefonstiv HHH"
+
+    def centroid(coverage):
+        rows, cols = np.indices(coverage.shape)
+        return np.array([(rows * coverage).sum(), (cols * coverage).sum()]) / coverage.sum()
+
+    start = centroid(render_coverage(text, cfg))
+    for axis, key in enumerate(("phase_y_px", "phase_x_px")):
+        moved = centroid(render_coverage(text, {**cfg, key: s})) - start
+        assert abs(moved[axis] - s) < 0.02 and abs(moved[1 - axis]) < 0.01, (key, moved)
+
+
+@needs_font
 def test_the_same_page_renders_to_the_same_bytes(qwen_page):
     cfg = _cfg("qwen")
     first = render_page(qwen_page, cfg).tobytes()
@@ -517,6 +555,20 @@ def test_render_coverage_clips_left_edge():
     np.testing.assert_array_equal(coverage[top : top + visible.shape[0], : visible.shape[1]], visible)
     assert not coverage[:, -5:].any()  # a negative slice start would have wrapped to the right edge
     assert math.fsum(coverage.ravel()) == math.fsum(visible.ravel())  # nothing is written anywhere else
+
+
+@needs_font
+@pytest.mark.parametrize("dx_px", [0, 21 / 64, 1])  # the same point, a third of a pixel and one pixel apart
+def test_overlapping_glyphs_add_their_coverage_clipped_at_one(monkeypatch, dx_px):
+    """Section 1A.5, step 2: each glyph's coverage is added to what is there and the sum clipped at 1."""
+    cfg = _cfg("qwen")
+    moved = {**cfg, "phase_x_px": dx_px}
+    first, second = render_coverage("H", cfg), render_coverage("H", moved)
+    placed = [*layout_page("H", cfg), *layout_page("H", moved)]  # two glyphs whose boxes overlap
+    monkeypatch.setattr("mrr.render.layout_page", lambda text, cfg: placed)
+    coverage = render_coverage("H", cfg)
+    np.testing.assert_array_equal(coverage, np.minimum(1.0, first + second))
+    assert (first + second).max() > 1 and coverage.max() == 1  # the clip is reached
 
 
 @needs_font
@@ -574,3 +626,15 @@ def test_the_sweep_never_uses_overlay_grid():
         if "overlay_grid" in names:
             users.append(path.name)
     assert not users
+
+
+@pytest.mark.parametrize("pattern", [r"ImageDraw|ImageFont|truetype\(", r"FT_LOAD_DEFAULT|FT_LOAD_TARGET|advance\.x"])
+def test_src_draws_no_text_with_pillow_or_hinted_freetype(pattern):
+    """Section 1A.11, checks 3 and 4: grep -rnE over src/ finds nothing."""
+    hits = [
+        f"{path.relative_to(REPO_ROOT)}:{number}"
+        for path in sorted((REPO_ROOT / "src").rglob("*.py"))
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1)
+        if re.search(pattern, line)
+    ]
+    assert not hits

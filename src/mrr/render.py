@@ -480,6 +480,10 @@ def render_page(text: str, cfg: Mapping[str, Any]) -> np.ndarray:
     composite_coverage, and equation (6), floor(255 * clip(o, 0, 1) + 0.5), converts the page to 8 bits
     once, at the end.
 
+    The text is not checked against the page: lines that do not fit fall below it, and render_coverage
+    discards their ink with everything else outside the page. Paginate with fits_page first, as
+    text_source.paginate does.
+
     Args:
         text: normalised page text.
         cfg: render config resolved by grid.resolve_render_cfg.
