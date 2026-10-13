@@ -17,6 +17,23 @@ DO NOT: Edit a file after download (strip boilerplate in code, not by hand). Rel
 
 `mrr.text_source.load_book` reads `.txt` as is. For `.epub` it walks the spine in reading order and turns each paragraph or heading into a block separated by one blank line; `<br/>` becomes a line break. The header and footer are kept at this stage. `strip_gutenberg_boilerplate` then cuts everything outside the `*** START OF ...` and `*** END OF ...` lines, and raises an error if either is missing.
 
+Next, `skip_front_matter` drops the front matter (table below), and `normalise_text` applies D13 to what is left: NFC, curly quotes to straight ones, the em dash to a hyphen, whitespace collapsed.
+
+## Front matter
+
+Every stripped book still opens with its title and a contents list, and pg1661 also with an editorial note. `skip_front_matter(text, marker, occurrence)` drops everything up to and including the given occurrence of a chapter heading:
+
+| Book | Marker | Occurrence | Text after the skip begins |
+|---|---|---|---|
+| pg105, Persuasion | `CHAPTER I.` | 2nd | "Sir Walter Elliot, of Kellynch Hall, in Somersetshire, was a man who" |
+| pg84, Frankenstein | `Letter 1` | 2nd | "To Mrs. Saville, England. St. Petersburgh, Dec. 11th, 17—." |
+| pg1661, Sherlock Holmes | `I. A SCANDAL IN BOHEMIA` | 1st | "I. To Sherlock Holmes she is always the woman." |
+
+- In pg105 and pg84 the first occurrence is the contents list. The contents list of pg1661 spells the title in mixed case ("I. A Scandal in Bohemia"), and matching is case-sensitive, so its first match is the heading itself.
+- The heading of pg1661 breaks over two lines, "I." and "A SCANDAL IN BOHEMIA". The marker's words therefore match across any whitespace, and only as whole words.
+- The last column is the text after whitespace is collapsed, before `normalise_text` (so the em dash is still there). `tests/test_text_source.py` checks all three rows on the committed files.
+- Later chapter headings ("CHAPTER II." and so on) stay in the text. TODO[W2.2]: decide whether to keep them, and record it here. Proposed: keep them; they are text on the page and in the reference alike, so they cost nothing.
+
 ## Books
 
 | File | Book ID | Title | Author | Why | Downloaded from | PG last updated | Date |
@@ -31,7 +48,7 @@ Notes:
 - **PG last updated** is the "Most recently updated" line in each book's Gutenberg header. Gutenberg revises texts, so a later download can differ. The checksums below pin the exact files.
 - **Downloaded from** is the book's Gutenberg page. The exact file URL was not recorded. TODO[W1.4]: replace if known.
 - **Date** is the date the files were added to this repo. The original download date was not recorded. TODO[W1.4]: correct if it differs.
-- The text between the markers still has front matter: title, a contents list, and for 1661 a Gutenberg editorial note ("THERE IS AN ILLUSTRATED EDITION OF THIS TITLE ..."). It does not contain the words "Project Gutenberg". Decide at page sampling (W2.2) whether to skip front matter.
+- The text between the markers still has front matter: title, a contents list, and for 1661 a Gutenberg editorial note ("THERE IS AN ILLUSTRATED EDITION OF THIS TITLE ..."). It does not contain the words "Project Gutenberg". `skip_front_matter` removes it (see Front matter above).
 
 ### SHA-256 checksums
 

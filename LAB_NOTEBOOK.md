@@ -109,3 +109,24 @@ Broke:
 - Nothing.
 Next:
 - `src/mrr/text_source.py` (W1.4).
+
+## 2026-10-13, Claude (D22): W1.4, text
+Did:
+- `src/mrr/text_source.py`: four functions from section 1A.8 of the guide. PR #1's `load_book` and `strip_gutenberg_boilerplate` are unchanged.
+  - `skip_front_matter(text, marker, occurrence)` drops everything up to and including the given occurrence of a chapter heading. The marker's words match across any run of whitespace, case-sensitively and as whole words, so "Letter 1" cannot match "Letter 12"; the guide does not ask for whole words, but a partial match would skip to the wrong place without an error. Too few occurrences raise ValueError.
+  - `normalise_text` (D13): NFC; ‘ and ’ to ', “ and ” to ", the em dash to -; whitespace collapsed and the ends stripped. Case and the other non-ASCII characters are kept.
+  - `paginate(text, fits, n_pages, start=0)` replaces the stub's `paginate(text, chars_per_page)`. Each page takes as many words as `fits` allows, found by doubling and then halving, which assumes `fits` is monotone; greedy line breaking is. `start` is a word index, so a later run can begin after the last word used (section 2.4). A word that fits no page by itself raises ValueError.
+  - `random_text(n_chars, seed, word_len=5)`: `np.random.default_rng(seed).integers(0, 62, size=n_chars)` over digits, upper case and lower case, joined into words of five and cut to exactly `n_chars`. It ends with a space when `n_chars` is a multiple of six.
+- `data/raw/texts/README.md`: the table of front-matter markers, and the open choice on later chapter headings as TODO[W2.2] (proposed: keep them).
+- `tests/test_text_source.py`: 22 new tests. The three markers on the committed books, a heading broken over two lines, whole-word matching and missing occurrences; the normalisation map and NFC; the two pinned random strings, length, alphabet, words of five, uniformity and determinism; pagination (pages join back, each fits, each is full, a second call resumes at a word, the search is not linear, a word that fits no page is refused); every character of the three normalised books loads in both fonts (Review Focus 2).
+Found:
+- In pg105 and pg84 the first occurrence of the marker is in the contents list. pg1661's contents list spells the title "I. A Scandal in Bohemia", so its first case-sensitive match is the heading, which breaks over two lines: "I.\nA SCANDAL IN BOHEMIA". A plain substring search for the marker finds it 0 times.
+- The skip removes 390, 422 and 607 characters; pg1661's editorial note ("THERE IS AN ILLUSTRATED EDITION ...", at character 12 of the stripped text) goes with it.
+- After the skip and normalisation the books have 463,186, 417,812 and 558,577 characters (83,279, 74,973 and 104,419 words), 4.48 characters per word, punctuation included. All three were NFC already. The map changes 10,136 of 1,439,575 characters (0.70%). Ten other non-ASCII characters remain, 95 times in all: £ 37, æ 27, é 14, ê 6, œ 4, ô 2, è 2, ½ 1, à 1, â 1. Both fonts draw every character.
+- `paginate` called `fits` 1,399 times for 100 pages of 100 words; one word at a time would call it 10,099 times.
+- In 62,000 characters of `random_text` every one of the 62 appears, 944 to 1,047 times. `random_text(200000, 20261022)`, the random text of the Phase 4 checks, has 33,334 words.
+- `make test`, run as its recipe: 128 passed, 8 deselected.
+Broke:
+- Nothing. Nothing called the old `paginate`.
+Next:
+- Layout and `configs/render_defaults.yaml` (W1.5).
