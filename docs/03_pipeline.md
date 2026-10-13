@@ -31,7 +31,7 @@ Dates follow the re-plan of 12 October 2026 (D21). If G1 has not passed by Wed 1
 - [x] **W1.6** Implement `src/mrr/readers.py`; confirm model IDs, revisions and token formulas; run `scripts/01_check_readers.py`.
   - Files: `src/mrr/readers.py`, `src/mrr/grid.py`, `configs/readers.yaml`, `configs/render_defaults.yaml`
   - Done when: `configs/readers.yaml` has no W1.6 TODOs and `make readers` shows token counts equal to the formula.
-- [ ] **W1.7** Time one transcription per model; record in `LAB_NOTEBOOK.md`.
+- [x] **W1.7** Time one transcription per model; record in `LAB_NOTEBOOK.md`.
   - Files: `LAB_NOTEBOOK.md`, `configs/readers.yaml` (`max_new_tokens`)
   - Done when: latency and peak VRAM for each reader are in the notebook.
 - [x] **W1.8** The no-resize test and determinism (B2).

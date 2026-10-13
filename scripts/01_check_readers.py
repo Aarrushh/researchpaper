@@ -12,9 +12,9 @@ tokens. The script then transcribes the page once and prints the transcription,
 its latency and the peak GPU memory. A reader's manifest is written to
 results/runs/<run_id>/ only after its checks pass; a failed check stops the script.
 
-Until W1.7 sets max_new_tokens, the limit is 1.5 times this page's reference in
-tokens, the rule W1.7 applies to the longest reference. The latency is the first
-generate call after loading, so it includes warm-up; W1.7 times pages properly.
+The limit is max_new_tokens from configs/readers.yaml, set at W1.7. The latency is
+the first generate call after loading, so it includes warm-up; W1.7 times pages
+properly.
 Readers are loaded one at a time: the laptop's 8 GiB holds one.
 Run it from the repository root: make readers.
 """
@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import argparse
 import gc
-import math
 import sys
 import textwrap
 from collections import Counter
@@ -38,7 +37,6 @@ from mrr.manifest import new_run_id, write_manifest
 
 BOOK = Path("data/raw/texts/pg105-images-3.epub")  # Persuasion, as in the render check
 MARKER, OCCURRENCE = "CHAPTER I.", 2  # where its front matter ends (data/raw/texts/README.md)
-UNSET = "TODO[W1.7]"  # max_new_tokens in configs/readers.yaml until W1.7
 GIB = 2**30
 
 
@@ -54,15 +52,6 @@ def native_page(text: str, render_cfg: Mapping[str, Any]) -> tuple[str, np.ndarr
     """Return the first page of text that fits the reader's native page, and the page rendered."""
     reference = text_source.paginate(text, lambda candidate: render.fits_page(candidate, render_cfg), 1)[0]
     return reference, render.render_page(reference, render_cfg)
-
-
-def generation_limit(reader: readers.Reader, reference: str) -> tuple[int | None, str]:
-    """Return max_new_tokens for transcribe_full, None for the value in readers.yaml, and where it comes from."""
-    if reader.cfg["max_new_tokens"] != UNSET:
-        return None, f"{reader.cfg['max_new_tokens']}, from readers.yaml"
-    n = len(reader.processor.tokenizer(reference, add_special_tokens=False)["input_ids"])
-    limit = math.ceil(1.5 * n)
-    return limit, f"{limit} = 1.5 x {n} reference tokens, until W1.7 sets it"
 
 
 def encoder_grid(reader_cfg: Mapping[str, Any], inputs: Mapping[str, Any], height: int, width: int) -> str:
@@ -117,19 +106,17 @@ def check_reader(
         tokens = readers.count_vision_tokens(reader, page)  # processor_inputs has checked it against the grid
         expected = grid.token_count(reader_cfg, height, width)
 
-        limit, limit_source = generation_limit(reader, reference)
-        result = readers.transcribe_full(reader, page, reader_cfg["prompt"], max_new_tokens=limit)
+        result = readers.transcribe_full(reader, page, reader_cfg["prompt"])  # the limit in readers.yaml
         peak = torch.cuda.max_memory_allocated() / GIB
     finally:
         del reader
         gc.collect()
         torch.cuda.empty_cache()
 
-    used = limit if limit is not None else reader_cfg["max_new_tokens"]
     run_cfg = {
         "reader": dict(reader_cfg),
         "render": render_cfg,
-        "generation": {**readers.GREEDY, "max_new_tokens": used},  # every generate argument (build guide 1B.4)
+        "generation": {**readers.GREEDY, "max_new_tokens": reader_cfg["max_new_tokens"]},  # build guide 1B.4
         "placement": {"parameter_devices": devices, "realised": where, "peak_allocated_gib": round(peak, 3)},  # D18
     }
     manifest = write_manifest(output_root / new_run_id("checkreaders", name), run_cfg)
@@ -140,7 +127,7 @@ def check_reader(
         f"  page: {height} x {width} px, {len(reference)} characters from {reference.split(' ', 1)[0]!r}\n"
         f"  encoder input: {encoder_grid(reader_cfg, inputs, height, width)}\n"
         f"  vision tokens: {tokens}, grid.token_count {expected}; image token {reader_cfg['image_token']!r}\n"
-        f"  max_new_tokens: {limit_source}\n"
+        f"  max_new_tokens: {reader_cfg['max_new_tokens']}, from readers.yaml\n"
         f"  transcription: {result.new_tokens} new tokens, stopped by {ending}, {result.latency_s:.2f} s "
         f"(first call, with warm-up)\n"
         f"  peak GPU memory: {peak:.2f} GiB (torch.cuda.max_memory_allocated)\n"

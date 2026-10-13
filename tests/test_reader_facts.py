@@ -19,7 +19,7 @@ from mrr import grid, readers
 
 pytestmark = pytest.mark.model
 
-# max_new_tokens is set at W1.7; until then the determinism test reads 256 tokens, several lines of a page.
+# The determinism test reads 256 tokens, several lines of a page, not the limit in readers.yaml: enough, and quicker.
 DETERMINISM_TOKENS = 256
 SIZES = (448, 384, 512, 1000, 70)
 

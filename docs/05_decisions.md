@@ -52,11 +52,11 @@ DO NOT: Delete or rewrite old entries. Supersede them with a new entry that refe
 ### D4. G1 outcome
 - ID: D4
 - Status: open
-- Date: TODO[W1.7]: date of G1 decision
-- Decision: TODO[W1.7]: go or no-go at G1
+- Date: TODO[G1]: date of G1 decision
+- Decision: TODO[G1]: go or no-go at G1
 - Options considered: go; no-go.
-- Evidence: TODO[W1.7]: token count check, overlay images, transcription test
-- Consequences: TODO[W1.7]: what happens next
+- Evidence: TODO[G1]: token count check, overlay images, transcription test
+- Consequences: TODO[G1]: what happens next
 
 ### D5. G2 outcome
 - ID: D5

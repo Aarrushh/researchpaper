@@ -445,3 +445,34 @@ Broke:
 - Nothing.
 Next:
 - W1.7: timing, memory and `max_new_tokens`.
+
+## 2026-10-13, Claude (D22): W1.7, timing, memory and `max_new_tokens`
+Did:
+- Section 1B.9, with a throwaway script outside the repository, run with `HF_HUB_OFFLINE=1` while nvidia-smi logged every 5 s. For each reader, one at a time: the first page after the front matter of Persuasion, Frankenstein and The Adventures of Sherlock Holmes, and three random pages (`random_text`, seeds 9101 to 9103), at 16 px on the native page with the render defaults. After one unrecorded 8-token warm-up call, each page was transcribed three times with the limit below.
+- `max_new_tokens` in `configs/readers.yaml` is ⌈1.5 × the longest reference⌉, counted in the reader's own tokens over both text types (section 1B.9, item 3). The random pages set it: 575 to 581 characters of random text are 388 to 419 tokens, while 646 to 651 characters of prose are 131 to 145 (SmolVLM-500M's larger page: 1,067 to 1,073 and 1,187 to 1,207 characters, 761 to 771 and 258 to 308 tokens).
+- `scripts/01_check_readers.py` takes the limit from `readers.yaml`; the per-page rule it used until now is gone.
+- D4's open fields are tagged `TODO[G1]` instead of `TODO[W1.7]`: Gate 1 records the G1 outcome as D4 (section 2.10).
+Found:
+
+| Reader | Reference tokens, prose; random | `max_new_tokens` | t, median of 18 calls | Prose: median latency, calls cut by the limit | Random: median latency, calls cut by the limit | Peak allocated (reserved) |
+|---|---|---|---|---|---|---|
+| qwen | 131, 140, 142; 388, 389, 394 | 591 | 70.8 s | 42.5 s, 0 of 9 | 82.2 s, 0 of 9 | 7.07 (7.12) GiB |
+| smolvlm | 133, 141, 145; 413, 415, 419 | 629 | 104.8 s | 76.5 s, 6 of 9 | 289.5 s, 9 of 9 | 4.36 (4.45) GiB |
+| smolvlm500m | 258, 271, 308; 761, 763, 771 | 1,157 | 131.0 s | 66.8 s, 3 of 9 | 178.5 s, 9 of 9 | 1.03 (1.09) GiB |
+
+- Placement: every parameter of every reader on the GPU, no `hf_device_map`. During Qwen's calls nvidia-smi showed at most 7,423 MiB used of 8,151 MiB.
+- New tokens: Qwen wrote 141 to 158 on prose and 397 to 405 on random pages, always stopping by itself. SmolVLM-2.2B wrote its full 629 on two of the three prose pages and on every random page; SmolVLM-500M wrote its full 1,157 on one prose page and on every random page.
+- The three repeats gave identical text on every page, for every reader.
+- Reading, as CER with whitespace collapsed (jiwer; `score.py` comes at W2.4): Qwen 0.000 on all nine prose calls, and a median of 0.107 on random pages (0.099 to 0.113); SmolVLM-2.2B medians of 0.896 on prose and 1.024 on random pages; SmolVLM-500M 0.825 and 0.949. At 16 px both SmolVLM readers fall into loops on most pages: with greedy decoding and no repetition penalty, once a token or a short pattern repeats, repeating it stays the likeliest continuation until the limit, so each such page costs the whole limit.
+- The conditions were not the pilot's, so these t are provisional:
+  - The laptop slept three times. The nvidia-smi log stops for 351 s (13:53 to 13:59), 1,911 s (14:04 to 14:36) and 6,496 s (16:07 to 17:55), and the longest calls, 494 s and 1,997 s for Qwen and 6,624 s for SmolVLM-500M, span those gaps. The medians barely move; the means (195.5, 182.9 and 522.8 s) mean nothing.
+  - The laptop was on battery whenever it was checked (17:58, 18:19 and 18:29), on the Balanced plan, and the GPU's enforced power limit moved between 20 and 96 W during the run.
+  - Decoding was limited by the CPU, not the GPU. At 17:58, during SmolVLM-500M's calls, the Python main thread kept one core 83% busy at about 2.4 GHz, while the GPU was 6 to 29% busy and drew 16 to 24 W. The same work ran at very different rates: Qwen took 28.8 to 93.1 s for the same 150 to 158 prose tokens, and SmolVLM-2.2B's random pages slowed from 5.4 to 1.1 new tokens per second over its stage. SmolVLM-500M's first prose page took 59 to 68 s for 54 tokens in all three repeats, against about 6 tokens per second on its other prose pages; that is not explained.
+  - Review agents and test runs shared the CPU during the Qwen and SmolVLM-2.2B stages.
+- Pilot budget (D20: one laptop, the readers in series): 1,000 × 70.8 + 1,240 × 104.8 + 1,080 × 131.0 = 342,260 s, or 95.1 h, against 43,200 s (12 h). It does not fit. At the fastest rate each reader reached (11.9, 8.5 and 10.2 new tokens per second), the same calls would still need 236,770 s, or 65.8 h, because the SmolVLM readers write their whole limit on most pages. Section 2.12 takes t from the ladder's rows at the chosen size (section 2.9), under the pilot's conditions (plugged in; sleep, hibernation and the lid action off), and if a laptop still does not fit, cuts both text types to the largest equal page count that fits. At these t, one page of each type would fit.
+- D18: Qwen's peak of 7.07 GiB allocated is below the 7.5 GiB of the first rung, but section 1B.8 measures it with the sysmem fallback off, and the fallback is still on. Task P1.14 waits for that.
+Broke:
+- Nothing. The `make test` recipe, run by hand: 222 passed, 85 deselected. No test reads the limit in `readers.yaml`; the model tests set their own.
+Next:
+- For your decision, with Gate 1: how to make the pilot fit (power and sleep settings, the decode's CPU cost, the cost of loops, the page count).
+- Task P1.14 once the sysmem fallback is off; Task P1.16, including `make readers` with these limits.
