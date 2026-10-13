@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import ast
 import logging
 import math
 import shutil
@@ -28,6 +29,9 @@ from mrr.render import (
     layout_lines,
     layout_page,
     load_glyph,
+    overlay_grid,
+    render_coverage,
+    render_page,
     unaligned_pitch_px,
 )
 from mrr.text_source import load_book, normalise_text, paginate, skip_front_matter, strip_gutenberg_boilerplate
@@ -39,18 +43,40 @@ FONT = str(REPO_ROOT / "data" / "external" / "fonts" / "source-sans-3" / "Source
 needs_font = pytest.mark.skipif(not Path(FONT).exists(), reason="font file not downloaded yet (W1.4)")
 
 
+READERS = {
+    reader["name"]: reader
+    for reader in yaml.safe_load((REPO_ROOT / "configs" / "readers.yaml").read_text(encoding="utf-8"))["readers"]
+}
+DEFAULTS = yaml.safe_load((REPO_ROOT / "configs" / "render_defaults.yaml").read_text(encoding="utf-8"))
+PERSUASION = REPO_ROOT / "data" / "raw" / "texts" / "pg105-images-3.epub"
+# Section 2.4, step 1: each reader's phase allowances (x, y) in the full run.
+ALLOWANCES = {"qwen": (105, 26), "smolvlm": (40, 40), "smolvlm500m": (60, 60)}
+
+
+def _cfg(reader, **overrides):
+    """One reader's render config, resolved as the sweep resolves it, with the font at FONT."""
+    return resolve_render_cfg(DEFAULTS, READERS[reader], font_file=FONT, **overrides)
+
+
 @pytest.fixture
 def cfg():
-    c = yaml.safe_load((REPO_ROOT / "configs" / "render_defaults.yaml").read_text(encoding="utf-8"))
-    if not Path(str(c["font_file"])).exists():
+    if not Path(FONT).exists():
         pytest.skip("font file not downloaded yet (W1.4)")
-    return c
+    return _cfg("qwen")  # phase allowances of 111 px, the sweep period - 1
 
 
-@pytest.mark.todo  # TODO[W1.5]: remove once render_page is implemented
+@pytest.fixture(scope="module")
+def persuasion():
+    if not (PERSUASION.exists() and Path(FONT).exists()):
+        pytest.skip("book or font not present")
+    return normalise_text(skip_front_matter(strip_gutenberg_boilerplate(load_book(PERSUASION)), "CHAPTER I.", 2))
+
+
+def _first_page(text, *cfgs):
+    return paginate(text, lambda page: all(fits_page(page, cfg) for cfg in cfgs), n_pages=1)[0]
+
+
 def test_phase_one_cell_equals_shift(cfg):
-    from mrr.render import render_page
-
     text = "The quick brown fox"
     a = render_page(text, {**cfg, "phase_x_px": 0})
     b = render_page(text, {**cfg, "phase_x_px": CELL})
@@ -58,10 +84,7 @@ def test_phase_one_cell_equals_shift(cfg):
     np.testing.assert_array_equal(a[:, : a.shape[1] - CELL], b[:, CELL:])
 
 
-@pytest.mark.todo  # TODO[W1.5]: remove once render_page is implemented
 def test_output_shape_is_native(cfg):
-    from mrr.render import render_page
-
     img = render_page("abc", cfg)
     assert img.shape == (int(cfg["page_height_px"]), int(cfg["page_width_px"]), 3)
 
@@ -231,30 +254,6 @@ def test_composite_ignores_a_block_wholly_off_the_page():
 
 
 # Layout (section 1A.4 of the build guide; D10).
-
-READERS = {
-    reader["name"]: reader
-    for reader in yaml.safe_load((REPO_ROOT / "configs" / "readers.yaml").read_text(encoding="utf-8"))["readers"]
-}
-DEFAULTS = yaml.safe_load((REPO_ROOT / "configs" / "render_defaults.yaml").read_text(encoding="utf-8"))
-PERSUASION = REPO_ROOT / "data" / "raw" / "texts" / "pg105-images-3.epub"
-# Section 2.4, step 1: each reader's phase allowances (x, y) in the full run.
-ALLOWANCES = {"qwen": (105, 26), "smolvlm": (40, 40), "smolvlm500m": (60, 60)}
-
-
-def _cfg(reader, **overrides):
-    return resolve_render_cfg(DEFAULTS, READERS[reader], font_file=FONT, **overrides)
-
-
-@pytest.fixture(scope="module")
-def persuasion():
-    if not (PERSUASION.exists() and Path(FONT).exists()):
-        pytest.skip("book or font not present")
-    return normalise_text(skip_front_matter(strip_gutenberg_boilerplate(load_book(PERSUASION)), "CHAPTER I.", 2))
-
-
-def _first_page(text, *cfgs):
-    return paginate(text, lambda page: all(fits_page(page, cfg) for cfg in cfgs), n_pages=1)[0]
 
 
 @pytest.mark.parametrize(("size", "pitch"), [(12, 15), (14, 18), (16, 20), (18, 23)])
@@ -446,3 +445,132 @@ def test_no_ink_reaches_smolvlm_blind_strip(persuasion, mode):
     far = {**cfg, "phase_x_px": cfg["max_phase_x_px"], "phase_y_px": cfg["max_phase_y_px"]}
     last_row, last_col = _ink_extent(layout_page(_first_page(persuasion, cfg), far), far)
     assert max(last_row, last_col) < READERS["smolvlm"]["blind_from_px"]  # 378
+
+
+# The page (section 1A.5): one coverage canvas, one composite, one rounding (D11).
+
+
+@pytest.fixture(scope="module")
+def qwen_page(persuasion):
+    return _first_page(persuasion, _cfg("qwen"))
+
+
+@needs_font
+@pytest.mark.parametrize("s", [1, 7, 13, 14, 28, 111])
+def test_a_whole_pixel_phase_translates_the_page_exactly(qwen_page, s):
+    cfg = _cfg("qwen")
+    a = render_page(qwen_page, cfg)
+    right = render_page(qwen_page, {**cfg, "phase_x_px": s})
+    down = render_page(qwen_page, {**cfg, "phase_y_px": s})
+    height, width = a.shape[:2]
+    assert np.array_equal(a[:, : width - s], right[:, s:]) and (right[:, :s] == 255).all()
+    assert np.array_equal(a[: height - s], down[s:]) and (down[:s] == 255).all()
+
+
+@needs_font
+@pytest.mark.parametrize(("s", "changed", "most"), [(0.25, 343, 64), (0.5, 388, 128), (0.75, 408, 192)])
+def test_a_sub_pixel_phase_changes_the_coverage_values(s, changed, most):
+    cfg = _cfg("qwen")
+    a = render_coverage("minimum", cfg)
+    b = render_coverage("minimum", {**cfg, "phase_x_px": s})
+    levels = np.abs(np.round(255 * b) - np.round(255 * a))  # the guide's comparison; the renderer never rounds so
+    assert np.count_nonzero(levels) == changed and levels.max() <= most
+    assert abs(math.fsum(b.ravel()) / math.fsum(a.ravel()) - 1) < 0.001
+
+
+@needs_font
+def test_the_same_page_renders_to_the_same_bytes(qwen_page):
+    cfg = _cfg("qwen")
+    first = render_page(qwen_page, cfg).tobytes()
+    load_glyph.cache_clear()  # rasterise every glyph again
+    assert render_page(qwen_page, cfg).tobytes() == first
+
+
+@needs_font
+@pytest.mark.parametrize("mode", ["conventional", "patch_aware"])
+def test_no_ink_is_lost_at_the_largest_phase(persuasion, mode):
+    cfg = _cfg("qwen", render_mode=mode)
+    page = _first_page(persuasion, cfg)
+    far = {**cfg, "phase_x_px": cfg["max_phase_x_px"], "phase_y_px": cfg["max_phase_y_px"]}
+    # math.fsum, because a translation changes the order in which a NumPy sum adds the same values.
+    assert math.fsum(render_coverage(page, far).ravel()) == math.fsum(render_coverage(page, cfg).ravel())
+
+
+@needs_font
+@pytest.mark.parametrize("mode", ["conventional", "patch_aware"])
+def test_smolvlm_blind_strip_gets_no_coverage(persuasion, mode):
+    cfg = _cfg("smolvlm", render_mode=mode)
+    far = {**cfg, "phase_x_px": cfg["max_phase_x_px"], "phase_y_px": cfg["max_phase_y_px"]}
+    coverage = render_coverage(_first_page(persuasion, cfg), far)
+    blind = READERS["smolvlm"]["blind_from_px"]  # 378
+    assert coverage[:blind, :blind].any()
+    assert not coverage[blind:].any() and not coverage[:, blind:].any()
+
+
+@needs_font
+def test_render_coverage_clips_left_edge():
+    glyph = load_glyph(FONT, 16, "j")
+    assert glyph.left < 0  # the tail of "j" starts one column left of its pen position
+    coverage = render_coverage("j", _cfg("qwen", margin_px=0))
+    visible = glyph.coverage[:, -glyph.left :]
+    top = 16 - glyph.top  # the first baseline sits one ascender, 16 px, below the top
+    np.testing.assert_array_equal(coverage[top : top + visible.shape[0], : visible.shape[1]], visible)
+    assert not coverage[:, -5:].any()  # a negative slice start would have wrapped to the right edge
+    assert math.fsum(coverage.ravel()) == math.fsum(visible.ravel())  # nothing is written anywhere else
+
+
+@needs_font
+def test_render_page_composites_with_the_configured_colours():
+    cfg = _cfg("qwen", text_color=[0, 0, 128], background_color=[250, 240, 230])
+    img = render_page("Hm", cfg)
+    assert tuple(img[0, 0]) == (250, 240, 230)
+    covered = render_coverage("Hm", cfg) == 1
+    assert covered.any() and (img[covered] == (0, 0, 128)).all()
+
+
+@needs_font
+def test_render_page_rejects_a_bad_background(cfg):
+    with pytest.raises(ValueError, match="background_color"):
+        render_page("Hm", {**cfg, "background_color": [255, 255]})
+
+
+# The grid overlay (section 1A.6), for eyes only.
+
+
+def test_overlay_grid_draws_each_grid_on_a_copy():
+    img = np.full((448, 448, 3), 255, np.uint8)
+    out = overlay_grid(img, 28, patch_px=14, window_px=112)
+    assert out.dtype == np.uint8 and out.shape == img.shape and (img == 255).all()
+    assert (out[5, 5] == 255).all() and (out[5, 29] == 255).all()  # off every line
+    patch, cell, window = (out[5, x].astype(int).sum() for x in (14, 28, 113))
+    assert 3 * 255 > patch > cell  # patch lines are lighter than cell lines
+    assert window < 3 * 255  # window lines are two pixels wide: 112 and 113
+    assert (out[14, 5] != 255).any() and (out[28, 5] != 255).any()  # rows as well as columns
+
+
+def test_overlay_grid_shades_the_blind_strip():
+    out = overlay_grid(np.full((384, 384, 3), 255, np.uint8), 42, patch_px=14, blind_from_px=378)
+    assert (out[380, 5] != 255).any() and (out[5, 380] != 255).any()
+    assert (out[377, 5] == 255).all() and (out[5, 377] == 255).all()
+
+
+def test_overlay_grid_rejects_a_page_that_is_not_uint8_rgb():
+    with pytest.raises(ValueError):
+        overlay_grid(np.ones((8, 8, 3)), 4)
+    with pytest.raises(ValueError):
+        overlay_grid(np.full((8, 8), 255, np.uint8), 4)
+
+
+def test_the_sweep_never_uses_overlay_grid():
+    # Section 1A.6: no page with an overlay may reach a reader, so only render.py and the render check use it.
+    allowed = {REPO_ROOT / "src" / "mrr" / "render.py", REPO_ROOT / "scripts" / "02_render_check.py"}
+    paths = [*(REPO_ROOT / "src" / "mrr").glob("*.py"), *(REPO_ROOT / "scripts").glob("*.py")]
+    users = []
+    for path in sorted(set(paths) - allowed):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        names = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)}
+        names |= {n.attr for n in ast.walk(tree) if isinstance(n, ast.Attribute)}
+        names |= {a.name for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) for a in n.names}
+        if "overlay_grid" in names:
+            users.append(path.name)
+    assert not users

@@ -440,27 +440,122 @@ def fits_page(text: str, cfg: Mapping[str, Any]) -> bool:
     return n_lines <= (math.floor(room / pitch) + 1 if room >= 0 else 0)
 
 
-def render_page(text: str, cfg: Mapping[str, Any]) -> np.ndarray:
-    """Render a full page of text.
+def render_coverage(text: str, cfg: Mapping[str, Any]) -> np.ndarray:
+    """Accumulate the coverage of one page on one page-sized canvas (section 1A.5 of the build guide).
+
+    Each glyph from layout_page is rasterised at the fractional part of its position, f = v & 63, and placed
+    at the whole part, n = v >> 6: the first row of its bitmap is n_y - top and the first column n_x + left.
+    Coverage is added and clipped at 1, and whatever falls outside the page is discarded. One canvas gives
+    the same result as one per line, because lines never overlap at the pitches used: at 16 px the ink spans
+    12 px above the baseline and 4 px below it.
 
     Args:
-        text: page text.
-        cfg: resolved render config (see configs/render_defaults.yaml).
+        text: normalised page text.
+        cfg: render config resolved by grid.resolve_render_cfg.
+
+    Returns:
+        float64 array (page_height_px, page_width_px) of coverage in [0, 1], before the anti-aliasing curve.
+
+    Raises:
+        ValueError: as layout_page, or if the font has no glyph for a character.
+    """
+    height, width = cfg["page_height_px"], cfg["page_width_px"]
+    coverage = np.zeros((height, width))
+    for g in layout_page(text, cfg):
+        glyph = load_glyph(str(cfg["font_file"]), cfg["font_size_px"], g.char, g.x_64 & 63, g.baseline_64 & 63)
+        top, left = (g.baseline_64 >> 6) - glyph.top, (g.x_64 >> 6) + glyph.left
+        rows, cols = glyph.coverage.shape
+        r0, r1 = max(0, top), min(height, top + rows)
+        c0, c1 = max(0, left), min(width, left + cols)
+        if r0 < r1 and c0 < c1:  # clip first: a slice with a negative start would wrap round the page
+            target = coverage[r0:r1, c0:c1]
+            np.minimum(1.0, target + glyph.coverage[r0 - top : r1 - top, c0 - left : c1 - left], out=target)
+    return coverage
+
+
+def render_page(text: str, cfg: Mapping[str, Any]) -> np.ndarray:
+    """Render one page: its coverage, one composite and one rounding (section 1A.5; D11).
+
+    The coverage from render_coverage is mixed into a float64 background page by a single call to
+    composite_coverage, and equation (6), floor(255 * clip(o, 0, 1) + 0.5), converts the page to 8 bits
+    once, at the end.
+
+    Args:
+        text: normalised page text.
+        cfg: render config resolved by grid.resolve_render_cfg.
 
     Returns:
         uint8 array (page_height_px, page_width_px, 3).
+
+    Raises:
+        ValueError: as render_coverage and composite_coverage, or if background_color is not three values
+            from 0 to 255.
     """
-    raise NotImplementedError("TODO[W1.5]: lay out lines, apply phase and render_mode, composite every glyph")
+    background = np.asarray(cfg["background_color"], dtype=np.float64)
+    if background.shape != (3,) or not np.all((background >= 0) & (background <= 255)):
+        raise ValueError(f"background_color must be three values from 0 to 255, got {cfg['background_color']!r}")
+    coverage = render_coverage(text, cfg)
+    page = np.empty((*coverage.shape, 3))
+    page[...] = background / 255.0
+    composite_coverage(page, coverage, 0, 0, cfg["text_color"], cfg["aa_mode"])
+    return np.floor(255 * np.clip(page, 0.0, 1.0) + 0.5).astype(np.uint8)
 
 
-def overlay_grid(img: np.ndarray, cell_px: int) -> np.ndarray:
-    """Draw the token grid over an image for visual checks.
+_GRID_RGB = (230, 0, 0)  # patch, token-cell and window lines
+_BLIND_RGB = (255, 200, 0)  # the strip the encoder never sees
+
+
+def overlay_grid(
+    img: np.ndarray,
+    cell_px: int,
+    patch_px: int | None = None,
+    window_px: int | None = None,
+    blind_from_px: int | None = None,
+) -> np.ndarray:
+    """Draw a reader's grids over a page, for eyes only (section 1A.6).
+
+    Each line marks the first column or row of a patch, a token cell or an attention window, counting from
+    the page's top-left corner. Patch lines are faint, cell lines strong and window lines two pixels wide,
+    and the strip from blind_from_px to the right and bottom edges is shaded. Lines are blended with the
+    page, so the ink under them stays visible. The sweep never calls this function: no page with an overlay
+    may reach a reader.
 
     Args:
-        img: uint8 array (H, W, 3).
-        cell_px: cell side length in pixels.
+        img: uint8 array (H, W, 3), a rendered page.
+        cell_px: token cell side in pixels.
+        patch_px: patch side in pixels, or None for no patch lines.
+        window_px: attention window side in pixels, or None for no window lines.
+        blind_from_px: the first row and column the encoder never sees, or None.
 
     Returns:
-        A copy of img with grid lines drawn every cell_px pixels.
+        A new uint8 array (H, W, 3); img is not changed.
+
+    Raises:
+        ValueError: if img is not a uint8 array (H, W, 3), or a size is not a positive whole number.
     """
-    raise NotImplementedError("TODO[W1.5]: draw thin coloured lines every cell_px pixels")
+    if not (isinstance(img, np.ndarray) and img.dtype == np.uint8 and img.ndim == 3 and img.shape[2] == 3):
+        raise ValueError(
+            f"img must be a uint8 array (H, W, 3), got {getattr(img, 'dtype', type(img).__name__)} "
+            f"{getattr(img, 'shape', '')}"
+        )
+    sizes = {"cell_px": cell_px, "patch_px": patch_px, "window_px": window_px, "blind_from_px": blind_from_px}
+    for name, value in sizes.items():
+        if value is not None and (not isinstance(value, (int, np.integer)) or isinstance(value, bool) or value < 1):
+            raise ValueError(f"{name} must be a positive whole number of pixels, got {value!r}")
+    out = img.astype(np.float64)
+    height, width = img.shape[:2]
+
+    def blend(region: np.ndarray, rgb: Sequence[int], alpha: float) -> None:
+        region[...] = (1 - alpha) * region + alpha * np.asarray(rgb, dtype=np.float64)
+
+    if blind_from_px is not None:
+        blend(out[blind_from_px:], _BLIND_RGB, 0.35)
+        blend(out[:blind_from_px, blind_from_px:], _BLIND_RGB, 0.35)
+    for period, alpha, thickness in ((patch_px, 0.25, 1), (cell_px, 0.6, 1), (window_px, 0.6, 2)):
+        if period is None:
+            continue
+        for k in range(0, width, period):
+            blend(out[:, k : k + thickness], _GRID_RGB, alpha)
+        for k in range(0, height, period):
+            blend(out[k : k + thickness], _GRID_RGB, alpha)
+    return np.floor(out + 0.5).astype(np.uint8)

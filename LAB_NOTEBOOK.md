@@ -183,3 +183,33 @@ Broke:
 - Nothing. The old `layout_lines` stub had no callers. The two `todo` tests in `tests/test_render.py` still read the unresolved defaults; Task P1.9 gives them a resolved Qwen config when `render_page` exists.
 Next:
 - `render_coverage`, `render_page` and `overlay_grid` (W1.5, sections 1A.5 and 1A.6).
+
+## 2026-10-13, Claude (D22): W1.5, page
+Did:
+- `src/mrr/render.py`:
+  - `render_coverage(text, cfg)` puts the coverage of every glyph from `layout_page` on one page-sized float64 canvas. Each glyph is rasterised at f = v & 63 and placed at n = v >> 6, with its first row at n_y − top and its first column at n_x + left. Coverage is added with `np.minimum(1, ...)` inside a slice that is clipped to the page before it is indexed.
+  - `render_page(text, cfg)` checks `background_color`, composites once with `composite_coverage(page, coverage, 0, 0, text_color, aa_mode)` and applies equation (6) once: floor(255·clip(o, 0, 1) + 0.5). Step 5 of the plan writes the conversion without the clip, which equation (6) has.
+  - `overlay_grid(img, cell_px, patch_px=None, window_px=None, blind_from_px=None)` returns a new uint8 image. Its lines are blended with the page, so the ink under them stays visible: patch lines faint, cell lines strong, window lines two pixels wide, and the blind strip shaded.
+- `tests/test_render.py`:
+  - The two `todo` tests now run on a resolved Qwen config (allowances 111 px), with `render_page` imported at the top. The shared setup (`READERS`, `DEFAULTS`, `_cfg` and the Persuasion fixture) moved to the top of the file.
+  - 21 new tests:
+    - exact translation by s ∈ {1, 7, 13, 14, 28, 111} in x and in y, with the vacated strip white;
+    - the sub-pixel changes of "minimum";
+    - identical bytes after the glyph cache is cleared;
+    - no ink lost at the largest phase, in both layouts, compared with `math.fsum` (plan finding F18);
+    - no coverage in SmolVLM-2.2B's blind strip at the largest phase;
+    - left-edge clipping at margin 0 (Review Focus 5);
+    - the configured colours, and a bad background refused;
+    - the overlay: a copy, the line strengths, the window width, rows and columns, the blind strip and bad input;
+    - a guard that no module under `src/mrr/` and no script except `02_render_check.py` uses `overlay_grid` (section 1A.6).
+Found:
+- "minimum" at 16 px moved by 0.25, 0.5 and 0.75 px changes 343, 388 and 408 pixels by at most 64, 128 and 192 levels, exactly the guide's values. Its total coverage changes by −0.041%, −0.051% and −0.032%.
+- The coverage of a Qwen first page sums to the same value at phase 0 and at (111, 111), in both layouts: 12,163.6549 conventional and 5,602.4706 patch-aware. `np.sum` happened to agree as well; `math.fsum` is the check that does not depend on the order of addition.
+- "j" starts one column left of its pen position (bitmap_left −1). At margin 0 its first column is cut off, and nothing reaches the right edge.
+- One Qwen page of 651 characters renders in about 17 ms with the glyphs cached (16.9 and 17.1 ms in two runs of 20 pages).
+- On that page `binary` uses 2 levels, `coverage_srgb` 256 and `coverage_linear` 183. The mean pixel is 239.7, 239.5 and 244.4: mixing in linear light draws lighter text, as note A4 predicts.
+- `make test`, run as its recipe: 197 passed, 6 deselected. `pytest tests/test_render.py -q`, the guide's acceptance command: 105 passed.
+Broke:
+- Nothing. `render_page` and `overlay_grid` were stubs; `overlay_grid` gained four keyword arguments with defaults.
+Next:
+- `scripts/02_render_check.py` and `make render-check` (W1.5, section 1A.10).
