@@ -25,7 +25,7 @@ Dates follow the re-plan of 12 October 2026 (D21). If G1 has not passed by Wed 1
 - [ ] **W1.4** Download fonts and texts into `data/external/` and `data/raw/`; record licences and sources.
   - Files: `data/external/fonts/README.md`, `data/raw/texts/README.md`, `src/mrr/text_source.py`
   - Done when: each font has its licence file beside it; each text has book ID and title recorded; `text_source.py` is implemented.
-- [ ] **W1.5** Implement `src/mrr/color.py` and `src/mrr/render.py`; make `tests/test_color.py` and `tests/test_render.py` pass.
+- [x] **W1.5** Implement `src/mrr/color.py` and `src/mrr/render.py`; make `tests/test_color.py` and `tests/test_render.py` pass.
   - Files: `src/mrr/color.py`, `src/mrr/render.py`, `src/mrr/grid.py`, `configs/render_defaults.yaml`, `scripts/02_render_check.py`, tests
   - Done when: both test files pass without the todo mark and `make render-check` writes overlay images.
 - [ ] **W1.6** Implement `src/mrr/readers.py`; confirm model IDs, revisions and token formulas; run `scripts/01_check_readers.py`.

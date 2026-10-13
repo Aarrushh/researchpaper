@@ -213,3 +213,56 @@ Broke:
 - Nothing. `render_page` and `overlay_grid` were stubs; `overlay_grid` gained four keyword arguments with defaults.
 Next:
 - `scripts/02_render_check.py` and `make render-check` (W1.5, section 1A.10).
+
+## 2026-10-13, Claude (D22): W1.5, render check
+Did:
+- `scripts/02_render_check.py` (section 1A.10):
+  - `--reader` takes the cell, the native page and the grids from `configs/readers.yaml`, through `grid.token_cell_px` and `grid.resolve_render_cfg`. Without `--reader`, the cell is `--cell-px` (default 28) on the render defaults' own 448 × 448 page, with allowances of one cell less a pixel and only cell lines drawn.
+  - It renders the first page of Persuasion after its front matter at `grid.phase_offsets(cell, 4)` and at 0.5 px. Each phase moves the text right and down by the same amount, so one image checks both axes.
+  - For each phase it saves `render_check_<reader>_<phase>.png`, the page under `overlay_grid` with the reader's patch, cell and window lines and blind strip. It also saves `render_check_<reader>_<phase>_crop.png`, the overlay around the first word, "Sir", enlarged 10 times by repeating pixels. The crop box is the same at every phase: the whole cells that hold the word's ink at all five phases, plus the next cell line. That is rows and columns 0–56 for Qwen, 0–84 for SmolVLM-2.2B and 0–128 for SmolVLM-500M.
+  - It prints the SHA-1 of each raw page before the overlay, the commit, and whether the tree had uncommitted changes.
+  - The scaffold's run folder and manifest under `results/runs/` are gone: a render check is not a run, and section 1A.10 keeps its record in this notebook.
+- `Makefile`: `render-check` runs the script for qwen, smolvlm and smolvlm500m and stops at the first failure. It calls `$(PYTHON)` unquoted, like every other recipe; the plan had it in quotes.
+- This laptop has no `make`, so the recipe's loop ran by hand with `.venv/Scripts/python.exe`: 4.3 s for the three readers.
+- The 30 images (1.5 MB) are committed. Appendix B.2 of the guide lists `reports/figures/render_check/` among the files programs write and marks the outputs that git ignores; this folder is not marked.
+- `docs/03_pipeline.md`: W1.5 ticked. Both test files pass without todo marks, and the render check writes its overlays.
+Found:
+- The SHA-1 of each raw page (uint8, H × W × 3). The pages hold 651 characters on Qwen and SmolVLM-2.2B and 1,207 on SmolVLM-500M, in Source Sans 3 at 16 px, `coverage_srgb`, conventional layout, pitch 20 px and the default allowances. The renderer is that of commit e113777.
+
+| Reader | Page (px) | Phase (px) | SHA-1 of the raw page |
+|---|---|---|---|
+| qwen | 448 × 448 | 0 | c5870615c5911407077fe39e7c403b18a772020a |
+| qwen | 448 × 448 | 7 | 23fef6d11c538a82bf4937308319a9739a6ec5fe |
+| qwen | 448 × 448 | 14 | 8d72f65c6e0dc826620e168cfee82564c96f2436 |
+| qwen | 448 × 448 | 21 | 7cbe1d4d375a1005dbaa90d8b19e013fc0cb1fed |
+| qwen | 448 × 448 | 0.5 | bd3fe51d8f33c8e9222412ba6a792a7243d1d6d6 |
+| smolvlm | 384 × 384 | 0 | 9f5a0fa3de1062c9ce2716cc8d28833a80237907 |
+| smolvlm | 384 × 384 | 10.5 | 8aa1c6c888e9c82544403e9f6fe333aa731336f0 |
+| smolvlm | 384 × 384 | 21 | b876632151f2bc54050ecf3d2a641bdae2ce66c3 |
+| smolvlm | 384 × 384 | 31.5 | d5f0b06b082bdac7cd6fc92ea8657b178436f312 |
+| smolvlm | 384 × 384 | 0.5 | b314195c4e09e4f1290d2fe02324beec0b8e3344 |
+| smolvlm500m | 512 × 512 | 0 | 05c9d5a73ba29806723b54752787abc8b4181ab6 |
+| smolvlm500m | 512 × 512 | 16 | 49653040226dd950132020dbee75d360d13656f2 |
+| smolvlm500m | 512 × 512 | 32 | 0e6e3918e6f9c176aa057be52107a21f5399e470 |
+| smolvlm500m | 512 × 512 | 48 | 50bc130864774935d97374292b2dfbeab0e98fbf |
+| smolvlm500m | 512 × 512 | 0.5 | 4370419e99f0f3de3627bb4e26a889aa4430dfb5 |
+
+- On the same pages, every whole-pixel phase equals phase 0 moved right and down by the phase, with white where the text moved away: Qwen 7, 14 and 21, SmolVLM-2.2B 21, and SmolVLM-500M 16, 32 and 48.
+- SmolVLM-2.2B's cell is 42 px, so `phase_offsets(42, 4)` gives 0, 10.5, 21 and 31.5: two of its four cell phases are half-pixel phases. The 10.5 and 31.5 pages equal the 0.5 page moved by 10 and 31 px. The fraction sets the coverage and the whole part only moves it, so on the crops the 10.5 and 31.5 letters match the 0.5 letters, not the 0 letters.
+- The 0.5 px phase changes 28,060 pixels, by up to 192 levels, on the Qwen and SmolVLM-2.2B pages (the same 651 characters in the same 309 px block), and 52,180 pixels on the SmolVLM-500M page.
+- I looked at seven of the 30 images: the Qwen crops at 0, 7 and 0.5; the SmolVLM-2.2B crops at 0 and 21 and its page at 31.5; and the SmolVLM-500M crop at 48. Whole-pixel phases keep the letters' shapes and move them against the grid. The 0.5 crop has different edge greys; for example, the stem of "i" spreads over two grey columns. No ink reaches the SmolVLM-2.2B blind strip. The authors' own inspection at 1,000% zoom (section 1A.11, check 2) is still to come.
+- Versions: Source Sans 3 "Version 3.052" and Source Serif 4 Display "Version 4.005", read from name ID 5 of the committed files; FreeType 2.13.2, bundled with freetype-py 2.5.1.
+- Section 1A.11, check by check:
+  1. `pytest -m "not todo" -q`: 197 passed, 6 deselected. The 6 are the todo tests of later steps; no `model` tests exist yet.
+  2. Five overlays and five crops per reader. My look is above; the authors' is to come.
+  3. `grep -rnE "ImageDraw|ImageFont|truetype\(" src/` prints nothing when run as `/usr/bin/grep`. Plain `grep` in Claude's shell here stops with "Unmatched ( or \(" on this pattern, though the same pattern works on piped text, so something between the command and grep drops the backslash.
+  4. `grep -rnE "FT_LOAD_DEFAULT|FT_LOAD_TARGET|advance\.x" src/` prints nothing.
+  5. This entry records the versions and the hashes.
+- Plan findings F5, F6 and F7 at the end of Phase 1A:
+  - F5 (allowance keys): closed. `render_defaults.yaml` sets them null, and `resolve_render_cfg` fills in the sweep period − 1 for each reader (111, 41 and 63 px). The narrower allowances of section 2.4 will come in as overrides.
+  - F6 (reader geometry): closed by `resolve_render_cfg` for the page size, margin, slot, blind strip and allowances. Still open: `line_pitch_mode` exists only in the sweep configs (`TODO[W2.2]`, `TODO[W3.2]`) and in the results columns. The sweep runner (Phase 2) must turn it into `line_pitch_px`: `aligned_pitch_px` from `readers.yaml` (28, 42 and 64 px), or floor(1.25 · size + 0.5).
+  - F7 (coherence test): moved to Task P2.2, as the layout entry says.
+Broke:
+- Nothing. The script's interface changed: `--config` now has a default, `--reader` and `--readers-config` are new, `--out-dir` defaults to `reports/figures/render_check`, and `--output-root` is gone. Only the `render-check` recipe called the script.
+Next:
+- `src/mrr/readers.py` and the position-id fix (W1.6, sections 1B.4 and 1B.5).

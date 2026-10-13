@@ -31,8 +31,8 @@ test-all: ## Run every test, including todo tests
 readers: ## Check reader resize and token counts (W1.6)
 	$(PYTHON) scripts/01_check_readers.py --config configs/readers.yaml
 
-render-check: ## Render one line at four phases with grid overlay (W1.5)
-	$(PYTHON) scripts/02_render_check.py --config configs/render_defaults.yaml
+render-check: ## Render one page per reader at four cell phases and 0.5 px, with grid overlays (W1.5)
+	for r in qwen smolvlm smolvlm500m; do $(PYTHON) scripts/02_render_check.py --reader $$r || exit 1; done
 
 pilot: ## Run the pilot sweep (W2.3)
 	$(PYTHON) scripts/10_run_sweep.py --config configs/sweeps/pilot.yaml
