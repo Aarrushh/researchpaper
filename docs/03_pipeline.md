@@ -28,7 +28,7 @@ Dates follow the re-plan of 12 October 2026 (D21). If G1 has not passed by Wed 1
 - [x] **W1.5** Implement `src/mrr/color.py` and `src/mrr/render.py`; make `tests/test_color.py` and `tests/test_render.py` pass.
   - Files: `src/mrr/color.py`, `src/mrr/render.py`, `src/mrr/grid.py`, `configs/render_defaults.yaml`, `scripts/02_render_check.py`, tests
   - Done when: both test files pass without the todo mark and `make render-check` writes overlay images.
-- [ ] **W1.6** Implement `src/mrr/readers.py`; confirm model IDs, revisions and token formulas; run `scripts/01_check_readers.py`.
+- [x] **W1.6** Implement `src/mrr/readers.py`; confirm model IDs, revisions and token formulas; run `scripts/01_check_readers.py`.
   - Files: `src/mrr/readers.py`, `src/mrr/grid.py`, `configs/readers.yaml`, `configs/render_defaults.yaml`
   - Done when: `configs/readers.yaml` has no W1.6 TODOs and `make readers` shows token counts equal to the formula.
 - [ ] **W1.7** Time one transcription per model; record in `LAB_NOTEBOOK.md`.

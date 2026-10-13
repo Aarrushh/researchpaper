@@ -29,8 +29,8 @@ Examples are illustrative formats only, not results.
 | `render_mode` | string | none | `conventional`, `patch_aware` | `patch_aware` |
 | `phase_x_px` | float | pixels | 0 to cell size (exclusive) | `3.5` |
 | `phase_y_px` | float | pixels | 0 to cell size (exclusive) | `0.0` |
-| `image_width_px` | int | pixels | multiple of the reader's cell size | `896` |
-| `image_height_px` | int | pixels | multiple of the reader's cell size | `1176` |
+| `image_width_px` | int | pixels | the reader's native page size (D8): 448, 384 or 512 | `448` |
+| `image_height_px` | int | pixels | the reader's native page size (D8): 448, 384 or 512 | `448` |
 | `vision_tokens` | int | tokens | positive | `1344` |
 | `reference_chars` | int | characters | positive | `2000` |
 | `transcription_file` | string | none | path relative to the run folder | `transcriptions/1342_p0007__a1b2c3d4.txt` |

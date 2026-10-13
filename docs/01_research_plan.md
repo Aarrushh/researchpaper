@@ -24,7 +24,7 @@ Text rendering was designed for the human visual system. In visual text compress
 
 ## Design
 
-- **Two readers with different grids** (Qwen2.5-VL-3B-Instruct, cell 28 px; SmolVLM-2.2B, cell TODO[W1.6]: confirm effective cell size). If the error period tracks each reader's own cell size, the effect is traced to the grid.
+- **Three readers with different grids** (D7): Qwen2.5-VL-3B-Instruct (patch 14 px, token cell 28 px, attention windows 112 px), SmolVLM-2.2B (patch 14 px, token cell 42 px; its 27 × 27 patches see only the first 378 px of its 384 px page) and SmolVLM-500M (patch 16 px, token cell 64 px). If the error period tracks each reader's own grid, the effect is traced to the grid; the third reader's 16 px patch separates the patch embedding from the merge.
 - **Factors** varied in a Cartesian sweep (table below).
 - **Paired comparison:** the same pages are rendered under conventional and patch-aware modes and read by the same reader. Each page is its own control.
 

@@ -115,7 +115,9 @@ Load each reader, feed it one rendered page, and read back the transcription and
 **Resources:**
 - https://huggingface.co/docs/transformers/model_doc/qwen2_vl
 - https://huggingface.co/Qwen/Qwen2.5-VL-3B-Instruct-AWQ
-- https://huggingface.co/HuggingFaceTB/SmolVLM-256M-Instruct (sibling model card; the 2.2B card is TODO[W1.6]: find and read the SmolVLM-2.2B model card)
+- https://huggingface.co/HuggingFaceTB/SmolVLM-Instruct (the SmolVLM-2.2B card, read at the pinned revision on 13 Oct: 81 visual tokens per 384 × 384 tile; larger images are split into tiles, with `longest_edge` N × 384 and N = 4 by default; SigLIP so400m-patch14-384 encoder, SmolLM2-1.7B-Instruct decoder, built on Idefics3)
+- https://huggingface.co/HuggingFaceTB/SmolVLM-500M-Instruct (the third reader, D7)
+- https://huggingface.co/HuggingFaceTB/SmolVLM-256M-Instruct (a smaller sibling; not a reader)
 
 ### B2. Rendering
 

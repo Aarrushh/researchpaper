@@ -362,3 +362,33 @@ Broke:
 Next:
 - Task P1.13: `scripts/01_check_readers.py` and `make readers` (W1.6).
 - D15 for Gate 1: when the bfloat16 cast entered transformers, and CER with and without the fix on more pages.
+
+## 2026-10-13, Claude (D22): W1.6, check readers
+Did:
+- `scripts/01_check_readers.py` (section 1B.7), committed as e4ec23b and run as the `make readers` recipe by hand, with `HF_HUB_OFFLINE=1`. Before and after the run, `git status --porcelain -- src scripts configs pyproject.toml requirements.lock.txt` printed nothing.
+  - One native page per reader, the first page of Persuasion, in place of the scaffold's three sizes and `token_check.csv`: under D8 each reader has one page size, and the shape check in `readers.processor_inputs` refuses any other.
+  - Checks before the transcription: the model is in the configured dtype; with `device_map: cuda`, every parameter is on the GPU; the processor takes the page unchanged; `readers.count_vision_tokens` equals `grid.token_count`. A failed check stops the script, and a reader's manifest is written only after its checks pass (section 1B.7, item 2).
+  - Until W1.7 sets `max_new_tokens`, the limit is ⌈1.5 × the page's reference tokens⌉, the rule of section 1B.9 applied to this page.
+- D7 and D8 decided; D1 superseded by D7. `docs/01_research_plan.md:27` names the three readers with their patches and cells, `docs/02_learning_guide.md` links the SmolVLM-2.2B card, read at the pinned revision, and `docs/04_data_dictionary.md` gives D8's page sizes.
+Found:
+
+| Reader | Page | Encoder input | Vision tokens (`grid.token_count`) | New tokens, ended by | First call | Peak allocated |
+|---|---|---|---|---|---|---|
+| qwen | 448 × 448 | `image_grid_thw [[1, 32, 32]]`: 32 × 32 patches of 14 px, 16 × 16 tokens | 256 (256) | 150 of 197, end token | 47.6 s | 7.07 GiB |
+| smolvlm | 384 × 384 | `pixel_values (1, 1, 3, 384, 384)`: 27 × 27 patches of 14 px, 9 × 9 tokens | 81 (81) | 200 of 200, the limit | 57.7 s | 4.29 GiB |
+| smolvlm500m | 512 × 512 | `pixel_values (1, 1, 3, 512, 512)`: 32 × 32 patches of 16 px, 8 × 8 tokens | 64 (64) | 54 of 462, end token | 15.4 s | 1.00 GiB |
+
+- All three load in bfloat16, with every parameter on the GPU and no `hf_device_map`. Manifests: `results/runs/20261013-1123_checkreaders_qwen_e4ec23b/`, `20261013-1124_checkreaders_smolvlm_e4ec23b/` and `20261013-1125_checkreaders_smolvlm500m_e4ec23b/`.
+- Reading, with whitespace collapsed (`score.py` comes at W2.4):
+  - Qwen: the transcription equals the page's 651 characters, CER 0.
+  - SmolVLM-2.2B: CER 0.677. It reads the first 209 characters, then writes 151 semicolons until the limit.
+  - SmolVLM-500M: CER 0.825. It paraphrases the opening ("Walter Elliot, Kellylynn Hall, was a man who found his own amusement, …") and stops after 234 of the page's 1,207 characters.
+  - All three pages use 16 px text. The size ladder (W2.x) chooses the sizes the sweep reads at.
+- Provenance: the Qwen manifest has `git_dirty: false`; the two SmolVLM manifests have `git_dirty: true`. That is only because the Qwen run folder was untracked when they were written: `git_dirty` reads `git status --porcelain`, which lists untracked files. Section 2.5 of the guide keeps `git_dirty` as it is and adds `code_dirty` for the runner (Task P2.5).
+- Power: the GPU's enforced power limit was 30 W of a possible 100 W, and while generating it drew 27 to 30 W (nvidia-smi every 5 s). At this morning's 20 W limit the same three calls took 172.3, 157.6 and 19.8 s. These latencies are first calls, with warm-up, not W1.7's t.
+- Memory: during Qwen's call nvidia-smi showed at most 7,424 MiB used of 8,151 MiB, so Qwen fits in the card's own memory with about 0.7 GiB to spare. The sysmem fallback is on (a probe allocated 9.00 GiB on the 7.96 GiB card), so a shortage of memory would show as slowness, not as an error. Task P1.14 settles the placement (D18).
+Broke:
+- Nothing. This morning's first run used the uncommitted script, so its manifests had `git_dirty: true`. They were moved out of the repository and the run was repeated after the commit.
+Next:
+- Task P1.14 (D18): Qwen's placement, from the peak memory above.
+- Task P1.15 (W1.7): t per reader at full power, and `max_new_tokens`.

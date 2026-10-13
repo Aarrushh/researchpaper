@@ -24,7 +24,7 @@ DO NOT: Delete or rewrite old entries. Supersede them with a new entry that refe
 
 ### D1. Two readers with different grids
 - ID: D1
-- Status: decided
+- Status: superseded by D7
 - Date: 2026-09-27 (recorded at scaffold time; decided before it)
 - Decision: Use two VLM readers whose encoders have different token cell sizes (Qwen2.5-VL-3B-Instruct and SmolVLM-2.2B).
 - Options considered: one reader; two readers with the same grid; two readers with different grids.
@@ -78,20 +78,20 @@ DO NOT: Delete or rewrite old entries. Supersede them with a new entry that refe
 
 ### D7. Three readers: two share the 14 px patch, one has a 16 px patch
 - ID: D7
-- Status: open
-- Date: 2026-10-12 (opened; to be decided at W1.6)
+- Status: decided
+- Date: 2026-10-13 (decided at W1.6)
 - Decision: Read with Qwen2.5-VL-3B-Instruct (patch 14 px, token cell 28 px, attention windows 112 px), SmolVLM-Instruct, the 2.2B model (patch 14 px, token cell 42 px), and SmolVLM-500M-Instruct (patch 16 px, token cell 64 px), each at the revision pinned in `configs/readers.yaml`.
 - Options considered: the two readers of D1; those two plus SmolVLM-500M; SmolVLM-500M in place of SmolVLM-2.2B.
-- Evidence: The `config.json` of each repository at its pinned revision. Qwen and SmolVLM-2.2B both cut 14 px patches, so with D1's two readers a 14 px period cannot separate the patch embedding from the merge. A third reader with a 16 px patch can: if the dominant period reads 14, 14 and 16 px, the patch embedding drives the effect; if it reads 28, 42 and 64 px, the merge does. `make readers` confirms the token counts at W1.6.
+- Evidence: The `config.json` of each repository at its pinned revision. Qwen and SmolVLM-2.2B both cut 14 px patches, so with D1's two readers a 14 px period cannot separate the patch embedding from the merge. A third reader with a 16 px patch can: if the dominant period reads 14, 14 and 16 px, the patch embedding drives the effect; if it reads 28, 42 and 64 px, the merge does. `make readers` confirms the token counts at W1.6. It did on 13 October: 256, 81 and 64 vision tokens, each equal to `grid.token_count`, from 32 × 32 patches of 14 px, 27 × 27 patches of 14 px and 32 × 32 patches of 16 px (`LAB_NOTEBOOK.md`, W1.6).
 - Consequences: A third entry in `configs/readers.yaml`. When this entry is decided, D1's status becomes "superseded by D7". SmolVLM-500M is the third item in the cut order.
 
 ### D8. Each reader's page is its native frame
 - ID: D8
-- Status: open
-- Date: 2026-10-12 (opened; to be decided at W1.8)
+- Status: decided
+- Date: 2026-10-13 (decided at W1.8)
 - Decision: Render 448 × 448 pages for Qwen, 384 × 384 for SmolVLM-2.2B and 512 × 512 for SmolVLM-500M, and process them with `do_resize=False`.
 - Options considered: the consequence of D3, page sides that are multiples of the reader's token cell; each reader's native frame.
-- Evidence: 448 is a fixed point of Qwen's `smart_resize`, while 384 becomes 392 and 512 becomes 504. 384 is SmolVLM-2.2B's frame but is not a multiple of its 42 px cell, and its 27 × 27 patches cover only the first 378 px, so columns and rows 378 to 383 are never seen. `tests/test_no_resize.py` and `tests/test_reader_facts.py` check both at W1.8.
+- Evidence: 448 is a fixed point of Qwen's `smart_resize`, while 384 becomes 392 and 512 becomes 504. 384 is SmolVLM-2.2B's frame but is not a multiple of its 42 px cell, and its 27 × 27 patches cover only the first 378 px, so columns and rows 378 to 383 are never seen. `tests/test_no_resize.py` and `tests/test_reader_facts.py` check both at W1.8. Both passed on 13 October: undoing each processor gives back the rendered bytes, and noise in columns or rows 378 to 383 of a SmolVLM-2.2B page leaves the outputs of the vision encoder and the connector bit-identical (`LAB_NOTEBOOK.md`, W1.8).
 - Consequences: D3's decision stands; its consequence about page sizes is superseded. The DO NOT line of `configs/render_defaults.yaml` changes. In `docs/04_data_dictionary.md`, `image_width_px` and `image_height_px` become "the reader's native page size". `grid.page_size_px` replaces `grid.native_size`.
 
 ### D9. Phases are recorded over each reader's longest period
