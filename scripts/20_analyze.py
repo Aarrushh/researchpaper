@@ -34,10 +34,8 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
-import json
 import logging
 import math
-import re
 import sys
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -48,18 +46,7 @@ import yaml
 from mrr import grid, stats
 from mrr.manifest import new_run_id, write_manifest
 from mrr.score import CharCounts, pooled_cer
-from mrr.sweep import (
-    COHERENCE_FILE,
-    DETERMINISM_FILE,
-    SHARED,
-    Z_MODE_TAGS,
-    condition_hash,
-    expand_conditions,
-    load_results,
-    pagination_key,
-    reader_periods,
-    sweep_run_dirs,
-)
+from mrr.sweep import RunFolder, complete_rows, load_results, reader_periods, sweep_run_dirs
 
 RESAMPLES = 2000  # PREREGISTRATION.md section 9: every resampling is by page, with 2,000 resamples
 SEED = 20261014  # and this seed
@@ -93,8 +80,6 @@ COLUMNS = {
         "R_min", "R_max", "n_pages", "rms", "status", "family",
     ],
 }
-Z_PAGE = re.compile(r"_z(?P<size>[0-9.]+)_(?P<mode>conv|pa)_p\d{4}$")  # <book>_z<size>_<conv|pa>_p<NNNN>
-Z_MODES = {tag: mode for mode, tag in Z_MODE_TAGS.items()}
 NAN = float("nan")
 
 _log = logging.getLogger("analyze")
@@ -106,71 +91,6 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     p.add_argument("--runs-root", default="results/runs", help="where the run folders are (default results/runs)")
     p.add_argument("--out-dir", default="reports/tables", help="the parent of the sweep's table folder")
     return p.parse_args(argv)
-
-
-# --------------------------------------------------------------------------- the run folders and their side files
-
-
-def _read_csv_rows(path: Path) -> list[dict[str, str]]:
-    """Every row of a small CSV as strings; an empty list without the file."""
-    if not path.exists():
-        return []
-    with open(path, encoding="utf-8", newline="") as fh:
-        return list(csv.DictReader(fh))
-
-
-class RunFolder:
-    """One run folder: its manifest, the conditions its reader was to run, and its coherence and determinism rows."""
-
-    def __init__(self, run_dir: Path):
-        self.run_dir = Path(run_dir)
-        self.manifest = json.loads((self.run_dir / "manifest.json").read_text(encoding="utf-8"))
-        cfg = self.manifest["config"]
-        self.reader_cfg: Mapping[str, Any] = cfg["reader"]
-        self.reader = str(self.reader_cfg["name"])
-        self.sweep: Mapping[str, Any] = cfg["sweep"]
-        self.blocks: dict[str, Mapping[str, Any]] = {str(k): v for k, v in self.sweep["blocks"].items()}
-        self.repeats = int(cfg.get("repeats", 1))
-        self.rows_planned = int(cfg.get("rows_planned", 0))
-        self.conditions = expand_conditions(self.sweep, self.reader_cfg)
-        self.hashes_by_key: dict[str, list[str]] = {}
-        for c in self.conditions:
-            self.hashes_by_key.setdefault(pagination_key(c), []).append(condition_hash(c))
-        self.coherence = _read_csv_rows(self.run_dir / COHERENCE_FILE)
-        self.determinism = _read_csv_rows(self.run_dir / DETERMINISM_FILE)
-
-    @staticmethod
-    def page_key(page_id: str) -> str:
-        """The pagination key a page id belongs to: ``shared`` or ``z:<render_mode>:<size>`` (sweep.pagination_key)."""
-        m = Z_PAGE.search(page_id)
-        if m is None:
-            return SHARED
-        return f"z:{Z_MODES[m['mode']]}:{float(m['size']):g}"
-
-    def planned_rows(self, page_id: str) -> set[tuple[str, int]]:
-        """The (condition hash, repeat) pairs the runner was to write for this page."""
-        return {(h, r) for h in self.hashes_by_key.get(self.page_key(page_id), []) for r in range(self.repeats)}
-
-    def reference_symbols(self, page_id: str) -> float:
-        """The page's reference length without whitespace, from references/<page_id>.txt; NaN without the file."""
-        path = self.run_dir / "references" / f"{page_id}.txt"
-        if not path.exists():
-            return NAN
-        return float(len("".join(path.read_text(encoding="utf-8").split())))
-
-
-def excluded_pages(df, folders: Sequence[RunFolder]) -> dict[str, set[str]]:
-    """Section 8: the pages of each run folder that miss a planned (condition, repeat) row, by run folder path."""
-    out: dict[str, set[str]] = {}
-    for folder in folders:
-        rows = df[df["run_dir"] == str(folder.run_dir)]
-        missing: set[str] = set()
-        for page_id, group in rows.groupby("page_id", sort=True):
-            done = set(zip(group["condition_hash"].tolist(), (int(r) for r in group["repeat"].tolist())))
-            if folder.planned_rows(str(page_id)) - done:
-                missing.add(str(page_id))
-        out[str(folder.run_dir)] = missing
-    return out
 
 
 # --------------------------------------------------------------------------- pooled counts (D13)
@@ -462,12 +382,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         folders_by_reader.setdefault(folder.reader, folder)
 
     df_all = load_results(sweep_path, runs_root)  # raises on a repeated key or an edited sweep file
-    excluded = excluded_pages(df_all, folders)
-    keep = np.ones(len(df_all), dtype=bool)
-    for run_dir, pages in excluded.items():
-        if pages:
-            keep &= ~((df_all["run_dir"] == run_dir) & df_all["page_id"].isin(pages)).to_numpy()
-    df = df_all[keep].reset_index(drop=True)
+    df, excluded = complete_rows(df_all, folders)  # section 8: a page missing a planned row leaves every table but checks
     _log.info("%s: %d rows in %d run folder(s); %d page(s) excluded under section 8; %d rows analysed",
               sweep_name, len(df_all), len(folders), sum(len(p) for p in excluded.values()), len(df))
 

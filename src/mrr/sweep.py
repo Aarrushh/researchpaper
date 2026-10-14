@@ -24,6 +24,7 @@ import logging
 import math
 import numbers
 import os
+import re
 from collections import deque
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PureWindowsPath
@@ -1120,3 +1121,90 @@ def load_results(sweep_path: Path, runs_root: Path) -> "pandas.DataFrame":
             "was written twice (section 8 of PREREGISTRATION.md); resume a run, never start it again"
         )
     return df.sort_values(["reader", "page_id", "block", "condition_hash"], kind="stable").reset_index(drop=True)
+
+
+# --------------------------------------------------------------------------- the run folders of a sweep (sections 3.2, 3.3)
+
+Z_PAGE = re.compile(r"_z(?P<size>[0-9.]+)_(?P<mode>conv|pa)_p\d{4}$")  # <book>_z<size>_<conv|pa>_p<NNNN>
+_Z_MODES = {tag: mode for mode, tag in Z_MODE_TAGS.items()}
+
+
+def _read_csv_rows(path: Path) -> list[dict[str, str]]:
+    """Every row of a small CSV as strings; an empty list without the file."""
+    if not path.exists():
+        return []
+    with open(path, encoding="utf-8", newline="") as fh:
+        return list(csv.DictReader(fh))
+
+
+class RunFolder:
+    """One run folder: its manifest, the conditions its reader was to run, and its coherence and determinism rows.
+
+    The plan is rebuilt from the manifest's ``config.sweep`` and ``config.reader`` as the runner froze them, so a
+    page's planned rows are what that run set out to write. ``scripts/20_analyze.py`` and
+    ``scripts/30_make_figures.py`` both read run folders through this class, so the tables and the figures drop the
+    same pages.
+    """
+
+    def __init__(self, run_dir: Path):
+        self.run_dir = Path(run_dir)
+        self.manifest = json.loads((self.run_dir / "manifest.json").read_text(encoding="utf-8"))
+        cfg = self.manifest["config"]
+        self.reader_cfg: Mapping[str, Any] = cfg["reader"]
+        self.reader = str(self.reader_cfg["name"])
+        self.sweep: Mapping[str, Any] = cfg["sweep"]
+        self.blocks: dict[str, Mapping[str, Any]] = {str(k): v for k, v in self.sweep["blocks"].items()}
+        self.repeats = int(cfg.get("repeats", 1))
+        self.rows_planned = int(cfg.get("rows_planned", 0))
+        self.conditions = expand_conditions(self.sweep, self.reader_cfg)
+        self.hashes_by_key: dict[str, list[str]] = {}
+        for c in self.conditions:
+            self.hashes_by_key.setdefault(pagination_key(c), []).append(condition_hash(c))
+        self.coherence = _read_csv_rows(self.run_dir / COHERENCE_FILE)
+        self.determinism = _read_csv_rows(self.run_dir / DETERMINISM_FILE)
+
+    @staticmethod
+    def page_key(page_id: str) -> str:
+        """The pagination key a page id belongs to: ``shared`` or ``z:<render_mode>:<size>`` (``pagination_key``)."""
+        m = Z_PAGE.search(page_id)
+        if m is None:
+            return SHARED
+        return f"z:{_Z_MODES[m['mode']]}:{float(m['size']):g}"
+
+    def planned_rows(self, page_id: str) -> set[tuple[str, int]]:
+        """The (condition hash, repeat) pairs the runner was to write for this page."""
+        return {(h, r) for h in self.hashes_by_key.get(self.page_key(page_id), []) for r in range(self.repeats)}
+
+    def reference_symbols(self, page_id: str) -> float:
+        """The page's reference length without whitespace, from references/<page_id>.txt; NaN without the file."""
+        path = self.run_dir / "references" / f"{page_id}.txt"
+        if not path.exists():
+            return float("nan")
+        return float(len("".join(path.read_text(encoding="utf-8").split())))
+
+
+def excluded_pages(df, folders: Sequence[RunFolder]) -> dict[str, set[str]]:
+    """Section 8 of PREREGISTRATION.md: the pages of each run folder that miss a planned (condition, repeat) row.
+
+    Keyed by run folder path, as the ``run_dir`` column of ``load_results`` writes it. Nothing else is ever excluded.
+    """
+    out: dict[str, set[str]] = {}
+    for folder in folders:
+        rows = df[df["run_dir"] == str(folder.run_dir)]
+        missing: set[str] = set()
+        for page_id, group in rows.groupby("page_id", sort=True):
+            done = set(zip(group["condition_hash"].tolist(), (int(r) for r in group["repeat"].tolist())))
+            if folder.planned_rows(str(page_id)) - done:
+                missing.add(str(page_id))
+        out[str(folder.run_dir)] = missing
+    return out
+
+
+def complete_rows(df, folders: Sequence[RunFolder]) -> tuple[Any, dict[str, set[str]]]:
+    """``df`` without the rows of the pages ``excluded_pages`` names, and those pages by run folder path."""
+    excluded = excluded_pages(df, folders)
+    keep = np.ones(len(df), dtype=bool)
+    for run_dir, pages in excluded.items():
+        if pages:
+            keep &= ~((df["run_dir"] == run_dir) & df["page_id"].isin(pages)).to_numpy()
+    return df[keep].reset_index(drop=True), excluded
