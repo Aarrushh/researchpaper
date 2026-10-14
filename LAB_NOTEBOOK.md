@@ -629,3 +629,17 @@ Broke:
 - Nothing. Full CPU suite by hand in this worktree: 386 passed, 1 skipped, 110 deselected.
 Next:
 - Task P2.6: `score.char_counts`, `pooled_cer`, the `todo` mark off `tests/test_score.py`; then P2.8, the runner.
+
+## 2026-10-14, Claude (D22): W2.4, score.py: the four character counts and the pooled CER (section 2.6, D13)
+Did:
+- `src/mrr/score.py`: `CharCounts` (frozen: hits, substitutions, deletions, insertions), `char_counts` from `jiwer.process_characters`, `pooled_cer` = (S + D + I) / (H + S + D) over every row, `cer` as the pooled CER of one row, `wer` from `jiwer.process_words(...).wer`. Both strings pass through `text_source.normalise_text` first; an empty normalised reference raises `ValueError`, because `jiwer.cer("", "abc")` returns 3 instead of failing. The docstring now says Learn B5.
+- `tests/test_score.py`: the `todo` mark is off; the two scaffold tests are unchanged; eleven more from the table of section 2.6, every value reproduced with jiwer 4.0.0 before the tests were written.
+- `pyproject.toml`: jiwer moved from the test extras to the core dependencies, because `mrr.score` imports it at module level and the runner scores every row with it. `requirements.lock.txt` already pins 4.0.0; CI installs `.[test]` and is unchanged.
+Found:
+- jiwer 4.0.0 reproduces every value of the guide's table: the transposition is D = 1, I = 1 (CER 2/7); the raw strings with a line break give 1/11 and 0 after normalisation; an empty transcription is three deletions and CER 1.0 with no exception; `CharacterOutput` has no `wer`.
+- `pooled_cer` on the pages `ab`/`xb` and `abcd`/`abcd` is 1/6; the mean of the two page CERs would be 1/4, the number D13 forbids.
+Broke:
+- Nothing. Full CPU suite by hand in this worktree: 403 passed, 1 skipped, 106 deselected (the `todo` tests of `tests/test_stats.py` are among those that remain).
+Next:
+- Task P2.8: the runner (`sweep.run_sweep`, `scripts/10_run_sweep.py`), then the ladder on the GPU (P2.9).
+- `docs/03_pipeline.md` W2.4 stays unticked until `stats.py` lands with the Phase 3 analysis.

@@ -16,10 +16,11 @@ dependencies = [
     "pyyaml",
     "freetype-py==2.5.1",  # bundles FreeType 2.13.2: the pixel tests and the recorded hashes depend on it (1A.11)
     "pillow",
+    "jiwer",  # mrr.score imports it and the runner scores every row with it; pinned in requirements.lock.txt
 ]
 
 [project.optional-dependencies]
-test = ["pytest", "scipy", "jiwer", "pandas", "matplotlib"]
+test = ["pytest", "scipy", "pandas", "matplotlib"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
