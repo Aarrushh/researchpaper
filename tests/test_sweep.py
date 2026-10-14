@@ -7,6 +7,8 @@
 from __future__ import annotations
 
 import copy
+import hashlib
+import json
 import string
 
 import pytest
@@ -15,7 +17,16 @@ import yaml
 from conftest import REPO_ROOT
 from mrr.grid import resolve_render_cfg
 from mrr.render import fits_page
-from mrr.sweep import RANDOM_STREAM_CHARS, Page, expand_conditions, pagination_key, phase_allowances, plan_pages
+from mrr.sweep import (
+    RANDOM_STREAM_CHARS,
+    Condition,
+    Page,
+    condition_hash,
+    expand_conditions,
+    pagination_key,
+    phase_allowances,
+    plan_pages,
+)
 from mrr.text_source import BOOKS, TEXTS_DIR, book_text, random_text
 
 READERS = {
@@ -265,3 +276,68 @@ def test_a_later_sweep_starts_each_book_after_the_last_word_any_earlier_reader_u
     later["seed"] = earlier["seed"]
     with pytest.raises(ValueError, match="seed"):
         _plan(later, "smolvlm", readers=READERS)
+
+
+# Section 2.5: the test vector of the condition hash and its hash [Measured 10 Oct; recomputed 14 Oct].
+VECTOR = {
+    "aa_mode": "coverage_srgb",
+    "block": "C",
+    "font_file": "SourceSans3-Regular.ttf",
+    "font_size_px": 16.0,
+    "line_pitch_mode": "unaligned",
+    "line_pitch_px": 20.0,
+    "patch_aware_slot_px": None,
+    "phase_x_px": 7.0,
+    "phase_y_px": 0.0,
+    "render_mode": "conventional",
+}
+VECTOR_HASH = "9c811d1777d4"
+
+
+def test_condition_hash_matches_the_test_vector_of_section_2_5():
+    assert condition_hash(VECTOR) == VECTOR_HASH
+    # Step 2 of the rule exists because json writes 7 and 7.0 differently: the uncast string hashes to something else.
+    uncast = json.dumps({**VECTOR, "phase_x_px": 7}, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    assert hashlib.sha1(uncast).hexdigest()[:12] == "bc2ca5dcb62f"
+    assert condition_hash({**VECTOR, "phase_x_px": 7}) == VECTOR_HASH  # the cast gives the same hash
+    assert condition_hash({**VECTOR, "line_pitch_px": 20}) == VECTOR_HASH
+
+
+def test_condition_hash_ignores_key_order_and_changes_with_every_value():
+    assert condition_hash(dict(reversed(list(VECTOR.items())))) == VECTOR_HASH
+    changed = {
+        "aa_mode": "binary", "block": "A", "font_file": "SourceSerif4-Regular.ttf", "font_size_px": 14.0,
+        "line_pitch_mode": "aligned", "line_pitch_px": 28.0, "patch_aware_slot_px": 14, "phase_x_px": 8.0,
+        "phase_y_px": 1.0, "render_mode": "patch_aware",
+    }
+    hashes = {key: condition_hash({**VECTOR, key: value}) for key, value in changed.items()}
+    assert VECTOR_HASH not in hashes.values()
+    assert len(set(hashes.values())) == len(hashes)
+    assert all(len(h) == 12 and set(h) <= set("0123456789abcdef") for h in hashes.values())
+
+
+def test_condition_hash_takes_a_condition_and_keeps_only_the_font_file_name():
+    cond = Condition(
+        block="C", render_mode="conventional", line_pitch_mode="unaligned", line_pitch_px=20,
+        font_file="SourceSans3-Regular.ttf", font_size_px=16, aa_mode="coverage_srgb",
+        phase_x_px=7, phase_y_px=0, patch_aware_slot_px=None, paginate="shared",
+    )
+    assert condition_hash(cond) == VECTOR_HASH  # paginate is not one of the ten keys
+    for path in ("data/external/fonts/source-sans-3/SourceSans3-Regular.ttf", r"data\external\fonts\SourceSans3-Regular.ttf"):
+        assert condition_hash({**VECTOR, "font_file": path}) == VECTOR_HASH
+
+
+def test_condition_hash_refuses_a_missing_key():
+    incomplete = {key: value for key, value in VECTOR.items() if key != "patch_aware_slot_px"}
+    with pytest.raises(ValueError, match="patch_aware_slot_px"):
+        condition_hash(incomplete)
+
+
+def test_every_pilot_condition_has_its_own_hash_and_h0_differs_from_s0():
+    for name in PILOT["readers"]:
+        conds = expand_conditions(_pilot(16), READERS[name])
+        hashes = [condition_hash(c) for c in conds]
+        assert len(set(hashes)) == len(hashes)
+        h0 = next(c for c in conds if c.block == "H" and c.phase_x_px == 0 and c.phase_y_px == 0)
+        s0 = next(c for c in conds if c.block == "S" and c.phase_x_px == 0 and c.phase_y_px == 0)
+        assert condition_hash(h0) != condition_hash(s0)

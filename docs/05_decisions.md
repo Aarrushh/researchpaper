@@ -188,11 +188,11 @@ DO NOT: Delete or rewrite old entries. Supersede them with a new entry that refe
 
 ### D19. The results schema has 33 columns
 - ID: D19
-- Status: open
-- Date: 2026-10-12 (opened; to be decided at W2.3)
+- Status: decided
+- Date: 2026-10-12 (opened); 2026-10-14 (decided at W2.3)
 - Decision: `RESULTS_COLUMNS` grows from the scaffold's 24 columns to 33, adding `text_type`, `block`, `condition_hash`, `output_tokens`, `hit_limit` and the four jiwer counts `hits`, `substitutions`, `deletions` and `insertions`.
 - Options considered: keep 24 columns and recover the block, the text type and the counts at analysis time from page ids, configs and transcriptions; store them in every row.
-- Evidence: D13 pools the jiwer counts over pages, so every row needs its counts. The analysis groups rows by block and text type. D13 keeps and reports the rows that stop at `max_new_tokens`, which needs `hit_limit`.
+- Evidence: D13 pools the jiwer counts over pages, so every row needs its counts. The analysis groups rows by block and text type. D13 keeps and reports the rows that stop at `max_new_tokens`, which needs `hit_limit`. Landed on 14 October: `tests/test_manifest.py` pins the 33 names and `tests/test_smoke.py` checks the data dictionary against them.
 - Consequences: `RESULTS_COLUMNS` in `src/mrr/manifest.py` and the table in `docs/04_data_dictionary.md` change in one commit, as the DO NOT lines of both files require. The condition hash moves from `scripts/10_run_sweep.py` to `sweep.condition_hash`, and the data dictionary says so.
 
 ### D20. One laptop runs all three readers

@@ -613,3 +613,19 @@ Broke:
 - Nothing.
 Next:
 - P2.5 to P2.8 today; the ladder as soon as the GPU is free of the sysmem fallback.
+
+## 2026-10-14, Claude (D22): W2.3, the results schema (D19), the condition hash and the code-cleanliness checks (section 2.5)
+Did:
+- `src/mrr/manifest.py`: `RESULTS_COLUMNS` is now the 33 names of section 2.5 in order; `CODE_PATHS` (`src`, `scripts`, `configs`, `pyproject.toml`, `requirements.lock.txt`); `code_dirty(paths, cwd)` from `git status --porcelain -- <paths>` and `code_changed_since(commit, paths, cwd)` from `git diff --name-only <commit> HEAD -- <paths>`, both through the existing `_git` argument-list runner, both None when git cannot answer. `git_dirty` kept as it was.
+- `src/mrr/sweep.py`: `condition_hash(cond)`, the ten `HASH_KEYS` only, numbers cast to float, `font_file` reduced to its name, `json.dumps(sort_keys=True, separators=(",", ":"))`, SHA-1, the first 12 hexadecimal characters; a missing key raises `ValueError`, extra keys are ignored.
+- `docs/04_data_dictionary.md`: the 33-row table (D19), the phase rows over the reader's sweep period (D9), the hash rule with its test vector, and `coherence.csv`, `determinism.csv`, `progress.log` and `references/<page_id>.txt` in the run-folder layout.
+- Tests first: `tests/test_manifest.py` (new: the 33 names, `CODE_PATHS`, the two checks on a throwaway repository in `tmp_path / "repo with space"`) and five hash tests in `tests/test_sweep.py`. `tests/test_smoke.py` is unchanged: `mrr.sweep` was already in MODULES and its column regex already forbids digits.
+Found:
+- The guide's test vector recomputed: `9c811d1777d4`; the same dictionary with the integer 7 for `phase_x_px` gives `bc2ca5dcb62f`, so the float cast is load-bearing.
+- Every pilot condition of every reader has a distinct hash, and (H, 0) and (S, 0) differ by their block label only, which is what `determinism.csv` will compare.
+- `TRACKED_PACKAGES` has tracked freetype-py since W1.3 under the key `freetype-py`; the guide's `"freetype": "freetype-py"` would duplicate it, so the key stays as the equivariance manifest already records it.
+- [Flag, runner] `transcriptions/<page_id>__<condition_hash>.txt` has no repeat in its name while the resume key has one. Every sweep config has `repeats: 1`, so nothing collides; if a repeat count above 1 is ever set, the file name needs a repeat suffix and a dictionary change.
+Broke:
+- Nothing. Full CPU suite by hand in this worktree: 386 passed, 1 skipped, 110 deselected.
+Next:
+- Task P2.6: `score.char_counts`, `pooled_cer`, the `todo` mark off `tests/test_score.py`; then P2.8, the runner.

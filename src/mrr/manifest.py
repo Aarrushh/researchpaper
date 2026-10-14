@@ -1,6 +1,6 @@
 # PURPOSE: Run bookkeeping: run IDs and manifest.json for every run folder.
-# WHAT GOES HERE: Run ID generation, environment capture, the results CSV column list.
-# FILLED IN AT STEP: Fully implemented at setup. Used from W2.3 onward.
+# WHAT GOES HERE: Run ID generation, environment capture, the results CSV column list, the code-cleanliness checks the runner makes before it starts.
+# FILLED IN AT STEP: Scaffolded at setup; the 33-column schema (D19), CODE_PATHS, code_dirty and code_changed_since at W2.3.
 # DO NOT: Write results here. Do not change RESULTS_COLUMNS without updating docs/04_data_dictionary.md.
 """Run bookkeeping.
 
@@ -17,15 +17,18 @@ import sys
 from datetime import datetime, timezone
 from importlib import metadata
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
-# Column order of results.csv. Documented in docs/04_data_dictionary.md.
+# Column order of results.csv: the 33 columns of build guide section 2.5 (D19). Documented in docs/04_data_dictionary.md.
 RESULTS_COLUMNS: tuple[str, ...] = (
     "run_id",
     "reader",
     "reader_revision",
     "page_id",
     "book_id",
+    "text_type",
+    "block",
+    "condition_hash",
     "repeat",
     "font_file",
     "font_size_px",
@@ -40,8 +43,14 @@ RESULTS_COLUMNS: tuple[str, ...] = (
     "vision_tokens",
     "reference_chars",
     "transcription_file",
+    "output_tokens",
+    "hit_limit",
     "cer",
     "wer",
+    "hits",
+    "substitutions",
+    "deletions",
+    "insertions",
     "latency_s",
     "timestamp_utc",
     "git_commit",
@@ -88,6 +97,33 @@ def git_dirty(cwd: str | Path | None = None) -> bool | None:
     if status is None:
         return None
     return status != ""
+
+
+# The paths a run's results depend on. A run refuses to start while any of them has uncommitted changes (section 2.8).
+CODE_PATHS: tuple[str, ...] = ("src", "scripts", "configs", "pyproject.toml", "requirements.lock.txt")
+
+
+def code_dirty(paths: Sequence[str] = CODE_PATHS, cwd: str | Path | None = None) -> bool | None:
+    """Return True if any of ``paths`` has uncommitted changes, untracked files included; None if git cannot answer.
+
+    Narrower than ``git_dirty``: notes, figures and reports may change while a run is going, the code may not.
+    """
+    status = _git("status", "--porcelain", "--", *paths, cwd=cwd)
+    if status is None:
+        return None
+    return status != ""
+
+
+def code_changed_since(commit: str, paths: Sequence[str] = CODE_PATHS, cwd: str | Path | None = None) -> bool | None:
+    """Return True if any of ``paths`` differs between ``commit`` and HEAD; None if git cannot answer.
+
+    For a resumed run: the manifest's commit must still describe the code (section 2.8). Uncommitted changes are
+    ``code_dirty``'s business.
+    """
+    changed = _git("diff", "--name-only", commit, "HEAD", "--", *paths, cwd=cwd)
+    if changed is None:
+        return None
+    return changed != ""
 
 
 def package_version(dist_name: str) -> str:

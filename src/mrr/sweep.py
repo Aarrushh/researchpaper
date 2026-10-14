@@ -16,7 +16,9 @@ allowances of section 2.4, and one pagination per block Z layout, on its own pag
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import itertools
+import json
 import math
 import numbers
 from pathlib import Path, PureWindowsPath
@@ -106,6 +108,30 @@ def _per_reader(value: Any, reader: str, key: str) -> Any:
 def _file_name(path: str) -> str:
     """Return the last component of a path written with either separator."""
     return PureWindowsPath(path).name
+
+
+def condition_hash(cond: Mapping[str, Any] | Condition) -> str:
+    """Return the 12-character condition hash of section 2.5: the row's identity across runs and machines.
+
+    Exactly the ten ``HASH_KEYS`` are hashed, every number cast to float and ``font_file`` reduced to its file name,
+    through ``json.dumps(..., sort_keys=True, separators=(",", ":"))`` and SHA-1. Nothing else goes in: a path or a
+    page size would tie the hash to the machine, and Python's ``hash()`` changes between processes. A missing key
+    raises ``ValueError``; extra keys are ignored. The key set is frozen once the pilot has run.
+    """
+    source = cond.hash_keys() if isinstance(cond, Condition) else cond
+    missing = [key for key in HASH_KEYS if key not in source]
+    if missing:
+        raise ValueError(f"condition_hash: missing {', '.join(missing)}")
+    keyed: dict[str, Any] = {}
+    for key in HASH_KEYS:
+        value = source[key]
+        if key == "font_file":
+            value = _file_name(str(value))
+        elif isinstance(value, numbers.Real) and not isinstance(value, bool):
+            value = float(value)
+        keyed[key] = value
+    canonical = json.dumps(keyed, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha1(canonical.encode("utf-8")).hexdigest()[:12]
 
 
 def expand_conditions(sweep: Mapping[str, Any], reader_cfg: Mapping[str, Any]) -> list[Condition]:
