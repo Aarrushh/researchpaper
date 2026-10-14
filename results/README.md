@@ -15,8 +15,11 @@ results/
 │   ├── manifest.json
 │   ├── results.csv
 │   ├── transcriptions/<page_id>__<condition_hash>.txt
+│   ├── references/<page_id>.txt, coherence.csv, determinism.csv, progress.log
 │   └── images/            (gitignored)
-└── final/                 frozen CSVs only, copied at W3.5
+├── equivariance/          <reader>_<text_type>.csv and manifest.json (W1.9)
+└── final/                 the freeze (W3.5): copies of runs/, equivariance/ and the stretch folders,
+                           without images/, plus README.md with the SHA-256 of every file
 ```
 
 Column definitions and the run ID format are in `docs/04_data_dictionary.md`.
@@ -24,5 +27,5 @@ Column definitions and the run ID format are in `docs/04_data_dictionary.md`.
 ## Rules
 
 - Never edit a results CSV by hand.
-- `results/final/` holds only frozen CSVs copied at W3.5, then tagged `data-freeze-v1`.
+- `results/final/` is written by `scripts/40_freeze.py` (`make freeze`) at W3.5 and never by hand; `make freeze-check SWEEP=...` recomputes every hash and regenerates the tables from the frozen runs, which must match byte for byte; then the owner tags `data-freeze-v1`.
 - Every number in the paper traces to a file in `results/final/` or a table in `reports/tables/` generated from it.

@@ -11,7 +11,7 @@ RESUME ?=                         # e.g. RESUME=results/runs/<run_id> continues 
 
 .DEFAULT_GOAL := help
 .PHONY: help env check-env test test-models test-all readers render-check equivariance coherence
-.PHONY: ladder pilot sweep analyze figures clean-interim
+.PHONY: ladder pilot sweep analyze figures freeze freeze-check clean-interim
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -58,6 +58,12 @@ analyze: ## Run statistics and write reports/tables (W2.4, W3.4); SWEEP=... to p
 
 figures: ## Generate Figures 1 and 2 into reports/figures (W2.5, W3.4); SWEEP=... to pick config
 	$(PYTHON) scripts/30_make_figures.py --config "$(SWEEP)"
+
+freeze: ## Copy results into results/final with a README of SHA-256 hashes (W3.5); refuses to overwrite a freeze
+	$(PYTHON) scripts/40_freeze.py
+
+freeze-check: ## Check results/final: every hash, and the tables regenerate byte for byte (W3.5); SWEEP=... to pick config
+	$(PYTHON) scripts/40_freeze.py --check --sweep "$(SWEEP)"
 
 clean-interim: ## Delete regenerable rendered pages in data/interim (keeps README files)
 	find data/interim -type f ! -name 'README.md' ! -name '.gitkeep' -delete

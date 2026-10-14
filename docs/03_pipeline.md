@@ -92,7 +92,7 @@ Dates follow the re-plan of 12 October 2026 (D21). If G1 has not passed by Wed 1
   - Files: `scripts/20_analyze.py`, `scripts/30_make_figures.py`, `src/mrr/plotting.py`, `reports/`
   - Done when: all preregistered tests have a table in `reports/tables/` and Figure 2 exists.
 - [ ] **W3.5** Copy final CSVs to `results/final/`; create git tag `data-freeze-v1`.
-  - Files: `results/final/`
+  - Files: `scripts/40_freeze.py`, `tests/test_freeze.py`, `Makefile` (`freeze`, `freeze-check`), `results/final/`
   - Done when: tag `data-freeze-v1` exists and every paper number traces to a file in `results/final/`.
 - [ ] **W3.6** Layer-0 MTF from the weights (B7, stretch).
   - Files: `src/mrr/mtf.py`, `scripts/04_mtf.py`, `tests/test_mtf.py`, `results/mtf/layer0_<reader>.csv`, `src/mrr/plotting.py` (`plot_mtf`), `scripts/30_make_figures.py`
