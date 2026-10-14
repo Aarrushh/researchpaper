@@ -545,3 +545,24 @@ Next:
 - Gate 1 batch: D9 and D15, recorded as decided on this evidence, for your confirmation.
 - Rerun `scripts/03_equivariance.py` on the committed code, after the Phase 1 GPU jobs, so the manifest is clean (about 25 min), and commit the rerun.
 - Task P2.2 of the build plan.
+
+## 2026-10-14, Claude (D22): W1.10, coherence of the layouts (D10)
+Did:
+- `src/mrr/render.py`: `InkBox` and `glyph_ink_boxes`, which read each glyph's bitmap extent off the layout at the glyph's own fractional phase, as `render_coverage` places it, without clipping to the page. `src/mrr/grid.py`: `coherence` (R_k(T) = |mean exp(2πi k c / T)| over the ink centres c), `class_coherence` (the count-weighted mean over the characters with at least 20 glyphs) and `straddle_share` (the share of glyphs that a patch edge cuts after a whole-pixel shift). Tests first, in `tests/test_grid.py` and `tests/test_render.py`, including the two carried over from W1.5.
+- `scripts/05_coherence.py` (`make coherence`): the first 2,500 glyphs of Persuasion after the front-matter skip and `normalise_text`, in Qwen's 308 px block (`max_phase_x_px` 112), Source Sans 3 at 16 px, pitch 20 px, phase 0, both render modes, every value checked against the table of build guide section 2.2.
+Found:
+- The table reproduces. Every value of the patch_aware row matches the guide to three decimals and its per-class R₁(14) is 1 to 1e-12; the conventional row is within 0.006 of the guide (it allows about 0.01, because the repository loads each glyph at its own fractional phase while the table used phase-0 bitmaps).
+
+| Layout | Glyphs per line | R₁(14) | R₂(14) | R₁(28) | R₁(112) | Per-class R₁(14) | Straddle share over shifts 0 to 13 |
+|---|---|---|---|---|---|---|---|
+| conventional | 35.7 (70 lines) | 0.022 | 0.018 | 0.014 | 0.104 | 0.081 | 0.384 at shift 2 to 0.425 at shift 12 |
+| patch_aware | 16.4 (152 lines) | 0.986 | 0.947 | 0.022 | 0.088 | 1.000 | 0.000 at shift 0 to 1.000 at shift 7 |
+
+- Straddle share by shift. Conventional: 0.397 0.386 0.384 0.394 0.403 0.394 0.397 0.409 0.416 0.418 0.421 0.424 0.425 0.424. Patch_aware: 0.000 0.004 0.042 0.078 0.610 0.853 0.924 1.000 0.884 0.761 0.438 0.048 0.042 0.000.
+- Reading the rows. Conventional glyphs sit at every offset against the 14 px grid, so R₁(14) is at the 1/√N floor (0.020 for N = 2,500) and a block shift leaves the page's set of offsets as it was: the page has no phase. The patch_aware layout puts every glyph of a character at one offset in its slot (per-class 1.000); the pooled 0.986 is the spread of glyph widths between characters, and R₂(14), the same offsets read at a 7 px period, is 0.947 because that spread costs more at half the period. R₁(28) is at the floor in both rows: consecutive 14 px slots alternate between the two halves of a 28 px period and cancel. [Inference] R₁(112) of about 0.1 in both rows is the block's shape, not the glyphs': 308 px is 2.75 periods of 112 px, so the columns the text occupies do not cover the three periods evenly. The straddle share says the same in counts: 38 to 43 percent of conventional glyphs are cut by a patch edge at every shift, while the patch_aware layout goes from none cut at shift 0 to all cut at shift 7.
+- [Inference] On these numbers a block of patch_aware text can show H1 at 14 px and a conventional block cannot, whatever the per-glyph effect; that is the case for D10's blocks H and C. D10 stays open until Gate 1.
+Broke:
+- Nothing. `make test` by hand in this worktree: 299 passed, 110 deselected.
+Next:
+- The size ladder (`configs/sweeps/ladder.yaml`, GPU), the second half of W1.10, follows the runner (Task P2.9).
+- Tasks P2.3 to P2.8.

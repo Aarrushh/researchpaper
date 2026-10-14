@@ -20,15 +20,17 @@ import yaml
 
 from conftest import REPO_ROOT
 from mrr.color import linear_to_srgb, srgb_to_linear
-from mrr.grid import resolve_render_cfg
+from mrr.grid import class_coherence, coherence, resolve_render_cfg
 from mrr.render import (
     AA_MODES,
     FLAGS,
+    InkBox,
     LayoutFont,
     _face,
     block_size_px,
     composite_coverage,
     fits_page,
+    glyph_ink_boxes,
     layout_block,
     layout_lines,
     layout_page,
@@ -716,3 +718,76 @@ def test_src_draws_no_text_with_pillow_or_hinted_freetype(pattern):
         if re.search(pattern, line)
     ]
     assert not hits
+
+
+# Ink boxes for the coherence measurement (section 2.2, D10).
+
+
+def _first_glyphs(text, n):
+    """The shortest prefix of text holding n glyphs, whitespace excluded."""
+    count = 0
+    for i, c in enumerate(text):
+        if not c.isspace():
+            count += 1
+            if count == n:
+                return text[: i + 1]
+    raise ValueError(f"the text holds fewer than {n} glyphs")
+
+
+@needs_font
+def test_glyph_ink_boxes_are_where_render_coverage_puts_the_bitmaps(cfg):
+    text = "Hamburgefonstiv 0123"
+    boxes = glyph_ink_boxes(text, cfg)
+    assert [b.char for b in boxes] == [c for c in text if c != " "]  # the space has no ink
+    for box, g in zip(boxes, layout_page(text, cfg)):
+        glyph = load_glyph(FONT, cfg["font_size_px"], g.char, g.x_64 & 63, g.baseline_64 & 63)
+        assert box == InkBox(g.char, (g.x_64 >> 6) + glyph.left, glyph.coverage.shape[1])
+        assert box.size_px > 0
+
+
+@needs_font
+def test_glyph_ink_boxes_on_axis_y_follow_the_bitmap_rows(cfg):
+    text = "Hg"
+    boxes = glyph_ink_boxes(text, cfg, axis="y")
+    for box, g in zip(boxes, layout_page(text, cfg)):
+        glyph = load_glyph(FONT, cfg["font_size_px"], g.char, g.x_64 & 63, g.baseline_64 & 63)
+        assert box == InkBox(g.char, (g.baseline_64 >> 6) - glyph.top, glyph.coverage.shape[0])
+    assert boxes[1].start_px + boxes[1].size_px > boxes[0].start_px + boxes[0].size_px  # g descends below H
+
+
+@needs_font
+@pytest.mark.parametrize("n", [1, 5, 13])
+def test_glyph_ink_boxes_move_by_exactly_a_whole_pixel_phase(cfg, n):
+    text = "The quick brown fox jumps over the lazy dog"
+    at_zero = glyph_ink_boxes(text, {**cfg, "phase_x_px": 0})
+    assert glyph_ink_boxes(text, {**cfg, "phase_x_px": n}) == [InkBox(b.char, b.start_px + n, b.size_px) for b in at_zero]
+
+
+@needs_font
+def test_glyph_ink_boxes_do_not_clip_to_the_page(cfg):
+    text = " ".join(["word"] * 400)  # far more lines than the page holds
+    boxes = glyph_ink_boxes(text, cfg, axis="y")
+    assert len(boxes) == 1600
+    assert max(b.start_px + b.size_px for b in boxes) > cfg["page_height_px"]
+
+
+@needs_font
+def test_glyph_ink_boxes_refuses_an_unknown_axis(cfg):
+    with pytest.raises(ValueError, match="axis"):
+        glyph_ink_boxes("a", cfg, axis="z")
+
+
+@needs_font
+def test_conventional_glyphs_share_no_phase_and_patch_aware_glyphs_share_one(persuasion):
+    """D10's table on 2,500 glyphs of Persuasion in Qwen's 308 px block: the pooled R_1(14) of the conventional
+    layout sits at the noise floor of random phases (about 0.02 for 2,500 glyphs), the patch-aware layout's is
+    near 1, and its per-class value is exactly 1 because every glyph of a character sits at the same offset in
+    its 14 px slot."""
+    text = _first_glyphs(persuasion, 2500)
+    block = {"max_phase_x_px": 112, "max_phase_y_px": 0}  # 448 - 2 x 14 - 112 = 308 px wide
+    conventional = glyph_ink_boxes(text, _cfg("qwen", **block))
+    patch_aware = glyph_ink_boxes(text, _cfg("qwen", render_mode="patch_aware", **block))
+    assert len(conventional) == len(patch_aware) == 2500
+    assert coherence([b.start_px + b.size_px / 2 for b in conventional], 14) < 0.05
+    assert coherence([b.start_px + b.size_px / 2 for b in patch_aware], 14) > 0.95
+    assert class_coherence(patch_aware, 14) == pytest.approx(1.0, abs=1e-12)

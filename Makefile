@@ -7,7 +7,7 @@ PYTHON ?= python
 SWEEP  ?= configs/sweeps/pilot.yaml
 
 .DEFAULT_GOAL := help
-.PHONY: help env check-env test test-models test-all readers render-check equivariance
+.PHONY: help env check-env test test-models test-all readers render-check equivariance coherence
 .PHONY: pilot sweep analyze figures clean-interim
 
 help: ## Show this help
@@ -37,6 +37,9 @@ render-check: ## Render one page per reader at four cell phases and 0.5 px, with
 
 equivariance: ## Shift-equivariance error per layer of each vision tower, and Figure 0 (W1.9)
 	$(PYTHON) scripts/03_equivariance.py --config configs/readers.yaml
+
+coherence: ## Reproduce the D10 coherence table from the layout code, no model (W1.10)
+	$(PYTHON) scripts/05_coherence.py --config configs/readers.yaml
 
 pilot: ## Run the pilot sweep (W2.3)
 	$(PYTHON) scripts/10_run_sweep.py --config configs/sweeps/pilot.yaml

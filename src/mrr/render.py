@@ -1,6 +1,6 @@
 # PURPOSE: The reference renderer: text to page image with controlled phase, pitch and anti-aliasing.
-# WHAT GOES HERE: Glyph coverage loading, compositing, line layout, full-page render, grid overlay.
-# FILLED IN AT STEP: W1.5.
+# WHAT GOES HERE: Glyph coverage loading, compositing, line layout, full-page render, grid overlay, ink boxes for the coherence of a layout.
+# FILLED IN AT STEP: W1.5; W1.10 (InkBox, glyph_ink_boxes).
 # DO NOT: Let Pillow draw text directly onto the page; composite coverage yourself so aa_mode and phase are controlled.
 """Reference text renderer.
 
@@ -438,6 +438,57 @@ def fits_page(text: str, cfg: Mapping[str, Any]) -> bool:
     n_lines = len(layout_lines(text, font, width, pitch))
     room = height - font.ascender_px - font.descender_room_px
     return n_lines <= (math.floor(room / pitch) + 1 if room >= 0 else 0)
+
+
+@dataclass(frozen=True)
+class InkBox:
+    """The ink of one placed glyph along one axis, for the coherence of a layout (section 2.2, D10).
+
+    Attributes:
+        char: the character.
+        start_px: the page column (axis "x") or row (axis "y") of the bitmap's first pixel.
+        size_px: the bitmap's width (axis "x") or height (axis "y") in pixels.
+    """
+
+    char: str
+    start_px: int
+    size_px: int
+
+
+def glyph_ink_boxes(text: str, cfg: Mapping[str, Any], axis: str = "x") -> list[InkBox]:
+    """Return where every glyph's bitmap lands on the page along one axis, without drawing the page.
+
+    Each glyph from layout_page is loaded at the fractional part of its position, exactly as render_coverage
+    does, and the extent of its bitmap is read off: on axis "x" start = (x_64 >> 6) + left and size = the
+    bitmap width, on axis "y" start = (baseline_64 >> 6) - top and size = the bitmap rows. Nothing is
+    clipped to the page, so a text longer than one page gives every glyph's box, and glyphs without a
+    bitmap, such as the space, are skipped. The ink centre of a box is start_px + size_px / 2; grid.coherence
+    and grid.straddle_share take it from here.
+
+    Args:
+        text: normalised page text.
+        cfg: render config resolved by grid.resolve_render_cfg.
+        axis: "x" for columns or "y" for rows.
+
+    Returns:
+        One InkBox per glyph with ink, in reading order.
+
+    Raises:
+        ValueError: if axis is not "x" or "y", or as render_coverage.
+    """
+    if axis not in ("x", "y"):
+        raise ValueError(f"axis must be 'x' or 'y', got {axis!r}")
+    boxes: list[InkBox] = []
+    for g in layout_page(text, cfg):
+        glyph = load_glyph(str(cfg["font_file"]), cfg["font_size_px"], g.char, g.x_64 & 63, g.baseline_64 & 63)
+        rows, cols = glyph.coverage.shape
+        if rows == 0 or cols == 0:
+            continue
+        if axis == "x":
+            boxes.append(InkBox(g.char, (g.x_64 >> 6) + glyph.left, cols))
+        else:
+            boxes.append(InkBox(g.char, (g.baseline_64 >> 6) - glyph.top, rows))
+    return boxes
 
 
 def render_coverage(text: str, cfg: Mapping[str, Any]) -> np.ndarray:

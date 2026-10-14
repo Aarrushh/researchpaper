@@ -12,6 +12,7 @@ import pytest
 import yaml
 
 from mrr import grid
+from mrr.render import InkBox
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 READERS = {
@@ -157,3 +158,66 @@ def test_resolve_render_cfg_leaves_the_defaults_unchanged():
     cfg = grid.resolve_render_cfg(DEFAULTS, READERS["qwen"])
     cfg["text_color"][0] = 255
     assert DEFAULTS == before
+
+
+# Coherence of the layouts (section 2.2, D10): R_k(T) of ink centres, its per-class mean and the straddle share.
+
+
+def test_coherence_is_one_for_centres_a_period_apart():
+    assert grid.coherence([0, 14, 28], 14) == pytest.approx(1.0)
+
+
+def test_coherence_is_zero_for_centres_half_a_period_apart():
+    assert grid.coherence([0, 7], 14) == pytest.approx(0.0, abs=1e-12)
+
+
+def test_coherence_ignores_a_common_shift():
+    centres = [1.5, 4.0, 9.25, 13.0, 20.5]
+    assert grid.coherence([c + 5 for c in centres], 14) == pytest.approx(grid.coherence(centres, 14), abs=1e-12)
+
+
+def test_coherence_at_the_second_harmonic_sees_half_the_period():
+    assert grid.coherence([0, 7, 14, 21], 14, k=2) == pytest.approx(1.0)
+    assert grid.coherence([0, 7, 14, 21], 14) == pytest.approx(0.0, abs=1e-12)
+
+
+@pytest.mark.parametrize(
+    ("centres", "period", "k"), [([], 14, 1), ([0.0], 0, 1), ([0.0], -14, 1), ([0.0], 14, 0), ([0.0], 14, 1.5)]
+)
+def test_coherence_refuses_no_centres_a_bad_period_or_a_bad_harmonic(centres, period, k):
+    with pytest.raises(ValueError):
+        grid.coherence(centres, period, k)
+
+
+def _boxes(char, starts, size=1):
+    return [InkBox(char, start, size) for start in starts]
+
+
+def test_class_coherence_uses_only_characters_with_enough_glyphs():
+    """19 'a' glyphs alternate between two phases, so their coherence is 1/19; 20 'b' glyphs share one phase."""
+    a = _boxes("a", [14 * i + 7 * (i % 2) for i in range(19)])
+    b = _boxes("b", [14 * i for i in range(20)])
+    assert grid.class_coherence(a + b, 14) == pytest.approx(1.0, abs=1e-12)
+    assert grid.class_coherence(a + b, 14, min_count=19) == pytest.approx((19 * (1 / 19) + 20 * 1.0) / 39)
+
+
+def test_class_coherence_refuses_boxes_without_a_class_large_enough():
+    with pytest.raises(ValueError, match="20"):
+        grid.class_coherence(_boxes("a", range(19)), 14)
+
+
+@pytest.mark.parametrize(("shift", "expected"), [(0, 1.0), (4, 0.0)])
+def test_straddle_share_counts_a_glyph_cut_by_a_patch_edge(shift, expected):
+    assert grid.straddle_share([InkBox("x", 10, 5)], 14, shift) == expected
+
+
+def test_straddle_share_is_the_share_of_cut_glyphs():
+    boxes = [InkBox("a", 0, 14), InkBox("b", 13, 2), InkBox("c", 14, 1), InkBox("d", 20, 10)]  # b and d are cut
+    assert grid.straddle_share(boxes, 14) == 0.5
+
+
+def test_straddle_share_refuses_no_boxes_or_a_bad_patch():
+    with pytest.raises(ValueError):
+        grid.straddle_share([], 14)
+    with pytest.raises(ValueError):
+        grid.straddle_share([InkBox("x", 0, 1)], 0)

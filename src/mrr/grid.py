@@ -1,6 +1,6 @@
 # PURPOSE: Geometry of the encoder's token grid.
-# WHAT GOES HERE: Each reader's periods, token count, blind strip and native page (D7, D8, D9); phase splitting, snapping and the per-reader render config.
-# FILLED IN AT STEP: W1.5 (phase_offsets, snap_to_grid, split_phase_64), W1.6 (reader geometry, page_size_px, resolve_render_cfg).
+# WHAT GOES HERE: Each reader's periods, token count, blind strip and native page (D7, D8, D9); phase splitting, snapping and the per-reader render config; the coherence of a layout against the grid (D10).
+# FILLED IN AT STEP: W1.5 (phase_offsets, snap_to_grid, split_phase_64), W1.6 (reader geometry, page_size_px, resolve_render_cfg), W1.10 (coherence, class_coherence, straddle_share).
 # DO NOT: Hard-code a cell size; always read it from the reader config.
 """Token grid geometry.
 
@@ -12,7 +12,11 @@ from __future__ import annotations
 
 import copy
 import math
-from typing import Any, Mapping
+import numbers
+from typing import TYPE_CHECKING, Any, Mapping, Sequence
+
+if TYPE_CHECKING:
+    from mrr.render import InkBox
 
 
 def token_cell_px(reader_cfg: Mapping[str, Any]) -> int:
@@ -268,3 +272,98 @@ def resolve_render_cfg(
         raise KeyError(f"unknown render config keys: {unknown}")
     cfg.update(overrides)
     return cfg
+
+
+def coherence(centres_px: Sequence[float], period_px: float, k: int = 1) -> float:
+    """Return the phase coherence R_k(T) of ink centres against a grid of period T (D10).
+
+    |mean over the centres c of exp(2 pi i k c / T)|: 1 when every centre sits at the same offset within
+    its period, 0 when the offsets cancel, and about 1 / sqrt(N) for N centres at random offsets. Adding
+    the same shift to every centre changes nothing, so a layout's coherence is computed once, at phase 0,
+    never per phase (section 2.2). k = 2 reads the offsets modulo T / 2, the second harmonic of the sweep
+    model.
+
+    Args:
+        centres_px: ink centres along one axis, start_px + size_px / 2 of each InkBox, in pixels.
+        period_px: the grid period T in pixels: a patch, a token cell or an attention window.
+        k: the harmonic, a positive whole number.
+
+    Returns:
+        R_k(T) in [0, 1].
+
+    Raises:
+        ValueError: if there are no centres, period_px is not positive, or k is not a positive whole number.
+    """
+    if len(centres_px) == 0:
+        raise ValueError("coherence needs at least one centre")
+    if not period_px > 0:
+        raise ValueError(f"period_px must be positive, got {period_px!r}")
+    if not isinstance(k, numbers.Integral) or isinstance(k, bool) or k < 1:
+        raise ValueError(f"k must be a positive whole number, got {k!r}")
+    angles = [2 * math.pi * k * c / period_px for c in centres_px]
+    n = len(angles)
+    return math.hypot(sum(math.cos(a) for a in angles) / n, sum(math.sin(a) for a in angles) / n)
+
+
+def class_coherence(boxes: Sequence[InkBox], period_px: float, k: int = 1, min_count: int = 20) -> float:
+    """Return the per-class coherence of section 2.2, equation (2): R_k(T) per character, weighted by count.
+
+    The boxes are grouped by character, a character with fewer than min_count glyphs is left out, because
+    the coherence of a few centres is noise of about 1 / sqrt(N), and the coherences of the characters that
+    remain, each over its own ink centres start_px + size_px / 2, are averaged with their glyph counts as
+    weights. Grouping removes the spread that comes from the glyphs having different widths: in the
+    patch_aware layout every glyph of one character sits at the same offset in its slot, so its per-class
+    coherence is exactly 1 while the pooled coherence is not.
+
+    Args:
+        boxes: the ink boxes of one layout along one axis, from render.glyph_ink_boxes.
+        period_px: the grid period T in pixels.
+        k: the harmonic.
+        min_count: the fewest glyphs a character needs to count.
+
+    Returns:
+        The weighted mean of the per-character R_k(T), in [0, 1].
+
+    Raises:
+        ValueError: if no character has min_count glyphs, or as coherence.
+    """
+    groups: dict[str, list[float]] = {}
+    for box in boxes:
+        groups.setdefault(box.char, []).append(box.start_px + box.size_px / 2)
+    kept = [centres for centres in groups.values() if len(centres) >= min_count]
+    if not kept:
+        raise ValueError(f"no character has {min_count} glyphs or more among {len(boxes)} boxes")
+    total = sum(len(centres) for centres in kept)
+    return sum(len(centres) * coherence(centres, period_px, k) for centres in kept) / total
+
+
+def straddle_share(boxes: Sequence[InkBox], patch_px: int, shift_px: int = 0) -> float:
+    """Return the share of glyphs whose ink a patch edge cuts, after a whole-pixel shift of the page.
+
+    A glyph whose ink starts at s and spans w pixels is cut when (s + shift) // P differs from
+    (s + shift + w - 1) // P: its first and last ink pixels fall in different patches. In the conventional
+    layout the share hardly moves with the shift; in the patch_aware layout it goes from 0, every glyph
+    inside its slot, to 1 at the shift that puts a patch edge through every glyph (section 2.2).
+
+    Args:
+        boxes: the ink boxes of one layout along one axis, from render.glyph_ink_boxes.
+        patch_px: the patch side P in whole pixels.
+        shift_px: a whole-pixel shift of the page to the right or down.
+
+    Returns:
+        The share in [0, 1].
+
+    Raises:
+        ValueError: if there are no boxes, patch_px is not a positive whole number, or shift_px is not whole.
+    """
+    if len(boxes) == 0:
+        raise ValueError("straddle_share needs at least one box")
+    if not isinstance(patch_px, numbers.Integral) or isinstance(patch_px, bool) or patch_px < 1:
+        raise ValueError(f"patch_px must be a positive whole number of pixels, got {patch_px!r}")
+    if not isinstance(shift_px, numbers.Integral) or isinstance(shift_px, bool):
+        raise ValueError(f"shift_px must be a whole number of pixels, got {shift_px!r}")
+    cut = 0
+    for b in boxes:
+        first, last = b.start_px + shift_px, b.start_px + shift_px + b.size_px - 1
+        cut += first // patch_px != last // patch_px
+    return cut / len(boxes)
