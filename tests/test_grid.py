@@ -221,3 +221,95 @@ def test_straddle_share_refuses_no_boxes_or_a_bad_patch():
         grid.straddle_share([], 14)
     with pytest.raises(ValueError):
         grid.straddle_share([InkBox("x", 0, 1)], 0)
+
+
+# Phase levels of a block (section 2.3, D10): the range, the step and the aliasing rule T_app = lcm(sigma, T).
+
+V = {
+    "render_mode": "conventional",
+    "line_pitch_mode": "aligned",
+    "axis": "y",
+    "range": "cell",
+    "step_px": {"qwen": 2, "smolvlm": 2, "smolvlm500m": 4},
+}
+C = {
+    "render_mode": "conventional",
+    "line_pitch_mode": "unaligned",
+    "axis": "x",
+    "range": "sweep",
+    "step_px": {"qwen": 7, "smolvlm": 2, "smolvlm500m": 4},
+}
+
+
+def test_phase_levels_qwen_v_steps_two_pixels_over_the_cell():
+    assert grid.phase_levels(V, READERS["qwen"], block="V") == [float(k) for k in range(0, 28, 2)]
+
+
+def test_phase_levels_qwen_c_steps_seven_pixels_over_the_sweep_period():
+    levels = grid.phase_levels(C, READERS["qwen"], block="C")
+    assert levels == [float(k) for k in range(0, 112, 7)]
+    assert len(levels) == 16
+
+
+def test_phase_levels_smolvlm500m_c_steps_four_pixels():
+    levels = grid.phase_levels(C, READERS["smolvlm500m"], block="C")
+    assert levels == [float(k) for k in range(0, 64, 4)]
+    assert len(levels) == 16
+
+
+@pytest.mark.parametrize(("reader", "sigma", "expected"), [("qwen", 2, 14), ("smolvlm", 2, 21), ("smolvlm500m", 4, 16)])
+def test_phase_levels_counts_of_block_v(reader, sigma, expected):
+    assert len(grid.phase_levels({"range": "cell", "step_px": sigma}, READERS[reader])) == expected
+
+
+@pytest.mark.parametrize(("reader", "expected"), [("qwen", 14), ("smolvlm", 14), ("smolvlm500m", 16)])
+def test_phase_levels_block_h_has_one_level_per_pixel_of_the_patch(reader, expected):
+    assert len(grid.phase_levels({"range": "patch", "step_px": 1}, READERS[reader])) == expected
+
+
+@pytest.mark.parametrize(("reader", "sigma", "apparent"), [("qwen", 4, 28), ("smolvlm", 3, 42)])
+def test_phase_levels_refuses_a_step_that_aliases_the_patch_period(reader, sigma, apparent):
+    # A 14 px curve sampled every 4 px repeats every 28 px, and every 3 px every 42 px: T_app = lcm(sigma, T).
+    with pytest.raises(ValueError, match=f"block C, reader {reader}.*{apparent} px"):
+        grid.phase_levels({**C, "step_px": sigma}, READERS[reader], block="C")
+
+
+def test_phase_levels_returns_an_explicit_list_as_floats():
+    assert grid.phase_levels({"phases_px": [0, 0.25, 0.5, 0.75]}, READERS["qwen"]) == [0.0, 0.25, 0.5, 0.75]
+
+
+def test_phase_levels_refuses_an_explicit_phase_outside_the_patch():
+    with pytest.raises(ValueError, match=r"\[0, 14\)"):
+        grid.phase_levels({"phases_px": [0.0, 14]}, READERS["qwen"])
+
+
+@pytest.mark.parametrize(
+    ("spec", "key"),
+    [
+        ({"phases_px": ["TODO"]}, "phases_px"),
+        ({"range": "cell", "step_px": "from the ladder"}, "step_px"),
+        ({"range": "cell", "step_px": {"qwen": "2"}}, "step_px"),
+    ],
+)
+def test_phase_levels_names_the_key_when_a_string_stands_for_a_number(spec, key):
+    with pytest.raises(ValueError, match=key):
+        grid.phase_levels(spec, READERS["qwen"])
+
+
+@pytest.mark.parametrize(
+    "spec",
+    [
+        {"range": "window", "step_px": 1},
+        {"range": "cell"},
+        {"step_px": 2},
+        {"phases_px": [0.0], "range": "cell", "step_px": 2},
+        {"range": "cell", "step_px": {"smolvlm": 2}},
+        {"range": "cell", "step_px": 0},
+        {"range": "cell", "step_px": True},
+        {"phases_px": []},
+        {},
+    ],
+)
+def test_phase_levels_refuses_a_malformed_block(spec):
+    with pytest.raises(ValueError):
+        grid.phase_levels(spec, READERS["qwen"])

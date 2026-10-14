@@ -273,6 +273,84 @@ def resolve_render_cfg(
     cfg.update(overrides)
     return cfg
 
+PHASE_RANGES = ("patch", "cell", "sweep")
+
+
+def _block_number(value: Any, key: str, label: str) -> float:
+    """Return ``value`` if it is a number; raise ValueError naming the key otherwise (a placeholder is a string)."""
+    if isinstance(value, bool) or not isinstance(value, numbers.Real):
+        raise ValueError(f"{label}: {key} must be a number, not {value!r}")
+    return value
+
+
+def _is_whole(x: float) -> bool:
+    return abs(x - round(x)) < 1e-9
+
+
+def phase_levels(spec: Mapping[str, Any], reader_cfg: Mapping[str, Any], block: str | None = None) -> list[float]:
+    """Return the phase levels of one block for one reader, in pixels (build guide section 2.3, D10).
+
+    ``spec`` is the block's mapping from the sweep config. It holds either an explicit ``phases_px`` list, returned
+    as floats after a check that every value lies in [0, P), or a ``range`` and a ``step_px``: the range is ``patch``
+    (P), ``cell`` (the token cell) or ``sweep`` (the sweep period), and the step a number or a map from reader name
+    to number. The levels are then k * step for k in range(range // step), as floats.
+
+    The aliasing rule: a curve of period T sampled every sigma px repeats every lcm(sigma, T) px, so the step must
+    divide both the range and P, the shortest period any block tests. Qwen's 112 px sweep at a 4 px step would read
+    a 14 px curve as a 28 px one, and SmolVLM-2.2B's 42 px sweep at a 3 px step as a 42 px one.
+
+    Raises ValueError naming the block and the reader when the step breaks that rule, and naming the key when a
+    string stands where a number belongs, which is how a placeholder left in a config stops a run.
+    """
+    reader = str(reader_cfg.get("name", "?"))
+    label = f"block {block}" if block else "block"
+    patch = int(reader_cfg["patch_size"])
+    has_list = "phases_px" in spec
+    has_step = "range" in spec or "step_px" in spec
+    if has_list and has_step:
+        raise ValueError(f"{label}, reader {reader}: give phases_px, or range and step_px, not both")
+    if has_list:
+        phases = spec["phases_px"]
+        if isinstance(phases, (str, bytes)) or not isinstance(phases, Sequence) or len(phases) == 0:
+            raise ValueError(f"{label}: phases_px must be a non-empty list of numbers, not {phases!r}")
+        levels = []
+        for value in phases:
+            number = _block_number(value, "phases_px", label)
+            if not 0 <= number < patch:
+                raise ValueError(f"{label}, reader {reader}: phases_px value {value!r} lies outside [0, {patch})")
+            levels.append(float(number))
+        return levels
+    if "range" not in spec or "step_px" not in spec:
+        raise ValueError(f"{label}: needs phases_px, or both range and step_px")
+    range_name = spec["range"]
+    if range_name == "patch":
+        length = patch
+    elif range_name == "cell":
+        length = token_cell_px(reader_cfg)
+    elif range_name == "sweep":
+        length = sweep_period_px(reader_cfg)
+    else:
+        raise ValueError(f"{label}: range must be one of {', '.join(PHASE_RANGES)}, not {range_name!r}")
+    step = spec["step_px"]
+    if isinstance(step, Mapping):
+        if reader not in step:
+            raise ValueError(f"{label}: step_px has no entry for reader {reader}")
+        step = step[reader]
+    sigma = _block_number(step, "step_px", label)
+    if sigma <= 0:
+        raise ValueError(f"{label}, reader {reader}: step_px must be positive, not {sigma!r}")
+    if not (_is_whole(length / sigma) and _is_whole(patch / sigma)):
+        apparent = ""
+        if _is_whole(sigma):
+            apparent = f"; a {patch} px curve sampled every {sigma} px repeats every {math.lcm(int(sigma), patch)} px"
+        raise ValueError(
+            f"{label}, reader {reader}: step_px {sigma} must divide the {range_name} range of {length} px and the "
+            f"patch of {patch} px (the aliasing rule of section 2.3){apparent}"
+        )
+    return [float(k * sigma) for k in range(int(round(length / sigma)))]
+
+
+
 
 def coherence(centres_px: Sequence[float], period_px: float, k: int = 1) -> float:
     """Return the phase coherence R_k(T) of ink centres against a grid of period T (D10).

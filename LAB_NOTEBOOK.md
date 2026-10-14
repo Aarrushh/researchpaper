@@ -566,3 +566,19 @@ Broke:
 Next:
 - The size ladder (`configs/sweeps/ladder.yaml`, GPU), the second half of W1.10, follows the runner (Task P2.9).
 - Tasks P2.3 to P2.8.
+
+## 2026-10-14, Claude (D22): W2.2, blocks, phase levels and condition expansion (D10); the ladder and pilot configs (W1.10)
+Did:
+- `configs/sweeps/ladder.yaml` (new) and `configs/sweeps/pilot.yaml`, copied verbatim from build guide section 2.7: a sweep is a list of blocks, each one layout swept along one axis, not the Cartesian product the scaffold described. The pilot's font sizes are "from the ladder" placeholders. `configs/sweeps/full.yaml` converted to the same format with W3.2 placeholders for the seed, the page counts and the sizes. `Makefile`: a `ladder` target, `READERS` and `DEADLINE` variables, quoted config paths. `docs/01_research_plan.md`: the three TODO[W2.2] rows filled; the font-file row records the one-typeface proposal for Gate 1. Commit 4db65eb, pulled ahead of Task P2.3 because its tests read every file in `configs/sweeps/`.
+- `grid.phase_levels(spec, reader_cfg, block=None)`: the range is `patch` (P), `cell` or `sweep`; the step a number or a map by reader; an explicit `phases_px` list is checked to lie in [0, P). A step that does not divide both the range and P is refused with the block, the reader and the apparent period lcm(σ, T) in the message.
+- `src/mrr/sweep.py` (new): `Condition`, the ten keys of the section 2.5 hash plus `paginate`, with `hash_keys()` casting every number to float; `expand_conditions(sweep, reader_cfg)`: blocks in file order, the top-level `font_file`, `font_size_px` (per reader) and `aa_mode` inherited and overridden by the block, phase levels on the block's axis with the other axis 0, list-valued keys crossed in the order `render_mode`, `line_pitch_mode`, `font_size_px`, `aa_mode` with the phases innermost; `line_pitch_px` is floor(1.25·size + 0.5) unaligned or the reader's `aligned_pitch_px`; `patch_aware_slot_px` is P for `patch_aware` and None otherwise. An unknown block key, a value outside its enumeration, or a string where a number belongs raises `ValueError` naming the key.
+- Tests first: `tests/test_grid.py` (the four calls of the guide's table, the two aliasing refusals, placeholders, malformed blocks) and the new `tests/test_configs.py` on every file in `configs/sweeps/`: every block passes `phase_levels` for every reader; the pilot gives 50, 62 and 54 conditions per page per text type; the run count in each header equals the computed count (3320 for the pilot, 216 for the ladder; `full.yaml` is skipped while its count is a TODO); (H, 0) and (S, 0) differ only in their block label; a block C condition at phase 7 gives exactly the test-vector dictionary of section 2.5; block Z gives 12 per-condition conditions per reader. `mrr.sweep` added to the smoke MODULES.
+Found:
+- Conditions per page per text type: Qwen V 14 + H 14 + C 16 + S 4 + A 2 = 50; SmolVLM-2.2B 21 + 14 + 21 + 4 + 2 = 62; SmolVLM-500M 16 + 16 + 16 + 4 + 2 = 54, as the table of section 2.3 says.
+- The aliasing refusals read as the guide predicts: Qwen's block C at σ 4 "repeats every 28 px", SmolVLM-2.2B's at σ 3 "repeats every 42 px".
+- `expand_conditions` on the pilot as it stands raises `ValueError` naming `font_size_px`, so the pilot cannot start until the ladder has filled the sizes (Task P2.9).
+Broke:
+- Nothing. Full CPU suite by hand in this worktree: 349 passed, 1 skipped, 110 deselected.
+Next:
+- Task P2.4: `Page` and `plan_pages` with the phase allowances; the header-count test then takes the page count from the plan rather than from the config's `per_text_type`.
+- `docs/03_pipeline.md` W2.2 stays unticked until the ladder's sizes are in `configs/sweeps/pilot.yaml`.

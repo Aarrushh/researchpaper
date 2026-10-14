@@ -28,6 +28,7 @@ MODULES = [
     "mrr.stats",
     "mrr.plotting",
     "mrr.manifest",
+    "mrr.sweep",
 ]
 
 
