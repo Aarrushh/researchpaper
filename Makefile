@@ -7,7 +7,8 @@ PYTHON ?= python
 SWEEP  ?= configs/sweeps/pilot.yaml
 
 .DEFAULT_GOAL := help
-.PHONY: help env check-env test test-models test-all readers render-check pilot sweep analyze figures clean-interim
+.PHONY: help env check-env test test-models test-all readers render-check equivariance
+.PHONY: pilot sweep analyze figures clean-interim
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -33,6 +34,9 @@ readers: ## Check reader resize and token counts (W1.6)
 
 render-check: ## Render one page per reader at four cell phases and 0.5 px, with grid overlays (W1.5)
 	for r in qwen smolvlm smolvlm500m; do $(PYTHON) scripts/02_render_check.py --reader $$r || exit 1; done
+
+equivariance: ## Shift-equivariance error per layer of each vision tower, and Figure 0 (W1.9)
+	$(PYTHON) scripts/03_equivariance.py --config configs/readers.yaml
 
 pilot: ## Run the pilot sweep (W2.3)
 	$(PYTHON) scripts/10_run_sweep.py --config configs/sweeps/pilot.yaml

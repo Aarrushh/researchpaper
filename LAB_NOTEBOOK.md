@@ -490,3 +490,58 @@ Broke:
 Next:
 - Task P1.14 (D18, Qwen's placement) still waits for the sysmem fallback to be off; `make check-env` exits 1.
 - Push and CI (owner item: the token's `workflow` scope), then PR #2 ready for review.
+## 2026-10-14, Claude (D22): W1.9, shift-equivariance error per layer and paper Figure 0
+Did:
+- Section 2.1 of the build guide. `src/mrr/equivariance.py` (NumPy only: `shift_right`, `e_value`, `e_curve`, `e_summary`); in `src/mrr/readers.py` `load_vision_tower`, `vision_hidden_states`, `qwen_to_raster`, `count_text_tokens`, `unload_reader` and `_ieee_float32`; `scripts/03_equivariance.py`; `plot_equivariance` in `src/mrr/plotting.py`; `tests/test_equivariance.py`; the `equivariance` recipe in the Makefile.
+- Each vision tower runs alone on the GPU in float32: the whole model is loaded on the CPU in bfloat16, the tower is cast and moved, the rest deleted. Forward hooks on the patch embedding and on the chosen blocks copy each output to the CPU as float64; the forward runs under `inference_mode` with TensorFloat-32 off (`_ieee_float32`: in torch 2.14.1 cuDNN's switch is on by default and matmul's off; both are set False and restored afterwards). Qwen's block outputs come back to raster order through `argsort(window_index)` and the processor's merge-unit grouping; SmolVLM's vision model is called directly with a full-frame `patch_attention_mask`.
+- E pages: the first page of Persuasion after the front matter (natural: 510, 616 and 1,151 characters on qwen, smolvlm and smolvlm500m) and the first page of `random_text(200_000, 0)` (random62: 479, 575 and 1,031), conventional layout, Source Sans 3 at 16 px, line pitch 20 px (not a multiple of P), margin P, `coverage_srgb`, `max_phase_y_px` 0 and `max_phase_x_px` = s_max = twice the sweep period: 224, 84 and 128 px, so the text block is 196 × 420, 266 × 350 (the 6 px blind strip taken off) and 352 × 480 px. Shifts from 0 to s_max in 0.25 px steps: 897, 337 and 513 renders per page.
+- Layers: qwen 0, 1, 8, 16, 32 (8, 16 and 32 are the outputs of the full-attention blocks 7, 15 and 31); smolvlm 0, 1, 9, 18, 27; smolvlm500m 0, 1, 4, 8, 12. Layer 0 is the patch embedding.
+- `pytest -m model tests/test_equivariance.py`: 22 passed, 3 skipped in 7 min 06 s. The skips are the SmolVLM position-id test on qwen and the Qwen-only block-0 test on the two SmolVLMs. The file's 25 CI tests include two for Figure 0 on made-up rows; pandas and matplotlib join the `test` extra of `pyproject.toml` so CI can draw it.
+- `python scripts/03_equivariance.py --config configs/readers.yaml`, 09:03 to 09:33: towers loaded in 35, 14 and 3 s; pages measured in 600 and 586 s (qwen, 0.67 s per shift), 134 and 126 s (smolvlm), 147 and 144 s (smolvlm500m). Outputs: six `results/equivariance/<reader>_<text_type>.csv`, `results/equivariance/manifest.json` and `reports/figures/fig0_equivariance.pdf`, drawn from the CSV files alone, each panel's legend below it. The manifest says `git_dirty: true` because the run preceded this commit; the code it ran is this commit's.
+Found:
+- Layer 0, natural / random62, against appendix C.3 (`coverage_srgb`):
+
+| Reader | E at multiples of P | E(0.25) | Plateau | Largest E | Appendix C.3 test range: E(0.25), plateau |
+|---|---|---|---|---|---|
+| qwen | 0 / 0 | 0.363 / 0.359 | 1.270 / 1.307 | 1.416 / 1.371 | 0.32 to 0.40, 1.22 to 1.36 |
+| smolvlm | 0 / 0 | 0.218 / 0.213 | 0.872 / 0.901 | 0.983 / 0.964 | 0.18 to 0.25, 0.82 to 0.96 |
+| smolvlm500m | 0 / 0 | 0.327 / 0.322 | 1.242 / 1.284 | 1.351 / 1.343 | 0.29 to 0.36, 1.19 to 1.34 |
+
+- Layer 0 behaves as notes A7 predict on all six pages: E is 0 to the last bit at every multiple of the patch, and E(0.25), the plateau and the largest E fall inside the ranges appendix C.3 measured on 11 October (largest E 1.371 to 1.416, 0.964 to 0.996 and 1.343 to 1.354, which the tests do not pin).
+- Beyond layer 0, natural / random62. The plateau is the mean E over whole-pixel shifts that are not multiples of P. The dip is the mean over k of E(kP) divided by the mean of E(kP − 1) and E(kP + 1): 0 is exact, 1 is no dip at all.
+
+| qwen, layer | E(0.25) | Plateau | Mean E at multiples of 14 px | E at 112 px, 224 px | Dip |
+|---|---|---|---|---|---|
+| 1 | 0.293 / 0.293 | 1.094 / 1.140 | 0.036 / 0.039 | 1.5e-7, 1.4e-7 / 1.4e-7, 1.4e-7 | 0.044 / 0.046 |
+| 8 | 0.164 / 0.160 | 0.728 / 0.738 | 0.26 / 0.25 | 0.046, 0.050 / 0.046, 0.049 | 0.51 / 0.49 |
+| 16 | 0.135 / 0.149 | 0.716 / 0.744 | 0.58 / 0.63 | 0.113, 0.116 / 0.125, 0.183 | 0.89 / 0.93 |
+| 32 | 0.269 / 0.193 | 0.630 / 0.630 | 0.61 / 0.61 | 0.308, 0.286 / 0.255, 0.235 | 0.99 / 0.98 |
+
+| smolvlm, layer | E(0.25) | Plateau | Mean E at multiples of 14 px | Dip |
+|---|---|---|---|---|
+| 1 | 0.151 / 0.154 | 0.993 / 0.995 | 0.85 / 0.82 | 0.90 / 0.88 |
+| 9 | 0.104 / 0.104 | 0.771 / 0.762 | 0.68 / 0.66 | 0.93 / 0.93 |
+| 18 | 0.091 / 0.097 | 0.535 / 0.577 | 0.47 / 0.48 | 0.95 / 0.94 |
+| 27 | 0.123 / 0.097 | 0.616 / 0.620 | 0.62 / 0.55 | 1.00 / 0.94 |
+
+| smolvlm500m, layer | E(0.25) | Plateau | Mean E at multiples of 16 px | Dip |
+|---|---|---|---|---|
+| 1 | 0.209 / 0.205 | 0.914 / 0.937 | 0.30 / 0.29 | 0.45 / 0.44 |
+| 4 | 0.117 / 0.116 | 0.668 / 0.669 | 0.44 / 0.44 | 0.82 / 0.81 |
+| 8 | 0.034 / 0.039 | 0.416 / 0.424 | 0.42 / 0.42 | 1.02 / 1.02 |
+| 12 | 0.076 / 0.062 | 0.402 / 0.375 | 0.35 / 0.36 | 0.95 / 0.99 |
+
+- Qwen after block 0, which attends inside 112 px windows: only moves of 112 and 224 px are exact (1.5e-7, float32 noise); the other multiples of 14 px cost 0.04, since a 14 px move slides patches across window edges. From block 7, the first full-attention block, 112 px moves cost something too: 0.05 at layer 8, 0.3 at the output. [Inference] This is the "page edges aside" clause of section 2.1: every text token attends to the blank tokens as well, and the move changes where the blank area lies around the text. With depth the plateau falls from 1.27 to 0.63, but the 14 px dip is gone by layer 32 (0.99) while the 112 px dip survives to the output (0.3 against 0.63). Beyond the embedding the window is the period that matters: D9's 112 px sweep period stands.
+- SmolVLM-2.2B: minima, not zeros, at multiples of 14 px beyond layer 0, as section 2.1 predicts for learned absolute positions, and shallow ones from layer 1 on (0.85 against 0.99). [Inference] The learned position vector is a large part of what a token carries, so a 14 px move costs nearly as much as any other. The plateau falls to 0.54 to 0.77 in the deeper layers, with dips of 0.93 to 1.00.
+- SmolVLM-500M: a deep dip at multiples of 16 px at layer 1 (0.30 against 0.91), weaker at layer 4 (0.82), gone from layer 8 (1.02); the plateau falls to 0.38 to 0.40 by layer 12.
+- In all three towers E(0.25) shrinks with depth: qwen 0.36 at layer 0, 0.29 at layer 1, 0.13 to 0.27 deeper; smolvlm 0.22, 0.15, then 0.09 to 0.12; smolvlm500m 0.33, 0.21, then 0.03 to 0.12. The towers smooth the rasteriser's sub-pixel changes far more than whole-pixel misalignment.
+- Natural and random62 pages agree within 0.05 at layer 0 and within 0.08 at every layer; the largest gaps are qwen's E(0.25) at layer 32 (0.269 against 0.193) and its E at 224 px at layer 16 (0.116 against 0.183).
+- E(0) = 0 at every layer of every page: with TensorFloat-32 off, two forward passes of one page agree bit for bit.
+- D15: `load_vision_tower` counts the distinct ids that reach the position table on a blank native page and installs the fix only if the count is short. In float32 both SmolVLM towers saw every id (729 and 1,024), so the run log says `position-id fix added: False` for both and `test_float32_smolvlm_tower_sees_every_position_id` passed. The bfloat16 readers keep the pre-hook of W1.8.
+Broke:
+- Nothing. `make test` by hand in this worktree (af34524 plus this work): 247 passed, 110 deselected.
+- Cost: Qwen's E page takes 10 min at 0.25 px steps. A rerun that only checks the figure could step by 1 px.
+Next:
+- Gate 1 batch: D9 and D15, recorded as decided on this evidence, for your confirmation.
+- Rerun `scripts/03_equivariance.py` on the committed code, after the Phase 1 GPU jobs, so the manifest is clean (about 25 min), and commit the rerun.
+- Task P2.2 of the build plan.

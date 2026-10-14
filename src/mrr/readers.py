@@ -1,18 +1,19 @@
 # PURPOSE: Wrappers around the VLM readers.
-# WHAT GOES HERE: Model loading at the pinned revision, the SmolVLM position-id fix, vision token counting, greedy transcription with input checks (D15; build guide 1B.4-1B.5).
-# FILLED IN AT STEP: W1.6.
+# WHAT GOES HERE: Model loading at the pinned revision, the SmolVLM position-id fix, vision token counting, greedy transcription with input checks (D15; build guide 1B.4-1B.5); each reader's vision tower alone in float32 and its hidden states in raster order, for the shift-equivariance error (build guide 2.1).
+# FILLED IN AT STEP: W1.6; W1.9 (vision towers).
 # DO NOT: Import torch or transformers at module top level; CI has no GPU. Import inside functions.
 """VLM readers.
 
-Learn A2 (Qwen resize and tiling) and B1 (readers) before implementing.
+Learn A2 (Qwen resize and tiling) and B1 (readers) before implementing; A7 (shift variance) for the towers.
 """
 
 from __future__ import annotations
 
 import re
 import time
-from dataclasses import dataclass
-from typing import Any, Mapping
+from contextlib import contextmanager
+from dataclasses import dataclass, replace
+from typing import Any, Mapping, Sequence
 
 import numpy as np
 from PIL import Image
@@ -26,6 +27,12 @@ MODEL_CLASSES = {
 }
 # Passed on every call: the Hub generation settings differ by reader, and Qwen's sample.
 GREEDY = {"do_sample": False, "num_beams": 1, "repetition_penalty": 1.0}
+# The vision towers' depth and patch-embedding weight shape [Verified in the notes, weights record]; build guide 2.1.
+TOWER_FACTS = {
+    "qwen": (32, (1280, 3, 2, 14, 14)),
+    "smolvlm": (27, (1152, 3, 14, 14)),
+    "smolvlm500m": (12, (768, 3, 16, 16)),
+}
 
 
 @dataclass(frozen=True)
@@ -47,6 +54,18 @@ class Reader:
     processor: Any
     cfg: Mapping[str, Any]
     image_token_id: int
+
+
+@dataclass(frozen=True)
+class VisionTower:
+    """A reader's vision encoder alone, in float32, with the reader's processor and config (build guide 2.1)."""
+
+    name: str
+    module: Any  # model.model.visual (Qwen) or model.model.vision_model (SmolVLM)
+    processor: Any
+    cfg: Mapping[str, Any]
+    patch_px: int
+    position_ids_fixed: bool = False  # True if load_vision_tower had to add the fix of section 1B.5 (D15)
 
 
 def load_reader(cfg: Mapping[str, Any]) -> Reader:
@@ -118,10 +137,14 @@ def install_position_id_fix(model: Any) -> None:
     Args:
         model: an Idefics3ForConditionalGeneration.
     """
+    _fix_position_ids(model.model.vision_model.embeddings.position_embedding)
+
+
+def _fix_position_ids(table: Any) -> None:
+    """Register install_position_id_fix's pre-hook on one SmolVLM position table (an nn.Embedding)."""
     import torch
 
-    emb = model.model.vision_model.embeddings.position_embedding  # nn.Embedding
-    n = emb.num_embeddings  # 729 for SmolVLM-Instruct, 1024 for the 500M
+    n = table.num_embeddings  # 729 for SmolVLM-Instruct, 1024 for the 500M
 
     def fix_ids(module, args):
         (ids,) = args
@@ -129,7 +152,7 @@ def install_position_id_fix(model: Any) -> None:
             return (torch.arange(n, device=ids.device).expand_as(ids),)
         return None  # anything else is left alone
 
-    emb.register_forward_pre_hook(fix_ids)
+    table.register_forward_pre_hook(fix_ids)
 
 
 def count_vision_tokens(reader: Reader, image: np.ndarray) -> int:
@@ -264,3 +287,251 @@ def _check_vision_input(reader: Reader, inputs: Mapping[str, Any], height: int, 
     expected = grid.token_count(reader.cfg, height, width)
     if tokens != expected:
         raise RuntimeError(f"{reader.name}: {tokens} image tokens for a {height}x{width} page; want {expected}")
+
+
+# The vision towers alone, for the shift-equivariance error (build guide 2.1).
+
+
+def load_vision_tower(cfg: Mapping[str, Any], device: str = "cuda") -> VisionTower:
+    """Load a reader's vision tower alone, in float32, for the shift-equivariance error (build guide 2.1).
+
+    The whole model is loaded on the CPU in bfloat16 at the pinned revision. Its vision tower is kept, cast
+    to float32 and moved to the device, and the rest is freed, so the language model never reaches the GPU.
+    The checkpoints store these weights in bfloat16, so the cast is exact. The depth and the patch-embedding
+    weight are checked against TOWER_FACTS.
+
+    For SmolVLM, D15 names a float32 tower as the alternative to the position-id fix. The ids that reach the
+    position table are recorded on a blank page of the native size (they depend on the frame's size and
+    dtype, not on its content); if they are not 0 to n - 1, the fix of install_position_id_fix goes on the
+    tower too, and the ids are checked again.
+
+    Args:
+        cfg: one reader block from configs/readers.yaml.
+        device: where the tower runs.
+
+    Returns:
+        The tower with the reader's name, processor, config and patch size.
+
+    Raises:
+        ValueError: if the revision or the processor is not one load_reader accepts.
+        RuntimeError: if the tower's structure differs from TOWER_FACTS, or the ids stay wrong.
+    """
+    import gc
+
+    import torch
+    import transformers
+
+    if not re.fullmatch(r"[0-9a-f]{40}", str(cfg["revision"])):
+        raise ValueError(f"{cfg['name']}: revision must be a 40-character commit hash, got {cfg['revision']!r}")
+    processor = transformers.AutoProcessor.from_pretrained(cfg["hf_id"], revision=cfg["revision"])
+    model_class = MODEL_CLASSES.get(type(processor).__name__)
+    if model_class is None:
+        raise ValueError(f"{cfg['name']}: no model class for {type(processor).__name__}")
+    model = getattr(transformers, model_class).from_pretrained(
+        cfg["hf_id"], revision=cfg["revision"], dtype=torch.bfloat16, device_map="cpu", attn_implementation="sdpa"
+    ).eval()
+    is_qwen = hasattr(model.model, "visual")
+    module = (model.model.visual if is_qwen else model.model.vision_model).float().to(device)
+    del model
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+    names = dict(module.named_modules())
+    if any(hasattr(m, "_hf_hook") for m in names.values()):
+        raise RuntimeError(f"{cfg['name']}: the tower carries accelerate hooks; it would not run where it was moved")
+    depth, weight_shape = TOWER_FACTS[cfg["name"]]
+    block = re.compile(r"blocks\.\d+" if is_qwen else r"encoder\.layers\.\d+")
+    got_depth = sum(1 for name in names if block.fullmatch(name))
+    weight = (module.patch_embed.proj if is_qwen else module.embeddings.patch_embedding).weight
+    if got_depth != depth or tuple(weight.shape) != weight_shape:
+        raise RuntimeError(
+            f"{cfg['name']}: tower has {got_depth} blocks and patch weight {tuple(weight.shape)}; "
+            f"want {depth} and {weight_shape}"
+        )
+    tower = VisionTower(name=cfg["name"], module=module, processor=processor, cfg=cfg, patch_px=int(cfg["patch_size"]))
+    if not is_qwen:
+        height, width = grid.page_size_px(cfg)
+        blank = np.full((height, width, 3), 255, dtype=np.uint8)
+        n = module.embeddings.position_embedding.num_embeddings
+        if _position_id_count(tower, blank) != n:
+            _fix_position_ids(module.embeddings.position_embedding)
+            got = _position_id_count(tower, blank)
+            if got != n:
+                raise RuntimeError(f"{cfg['name']}: {got} distinct position ids with the fix; want {n}")
+            tower = replace(tower, position_ids_fixed=True)
+    return tower
+
+
+def _position_id_count(tower: VisionTower, image: np.ndarray) -> int:
+    """The number of distinct position ids that reach a SmolVLM tower's position table for one page."""
+    seen = []
+    table = tower.module.embeddings.position_embedding
+    handle = table.register_forward_pre_hook(lambda module, args: seen.append(args[0].detach().cpu()))
+    try:
+        vision_hidden_states(tower, image, [0])
+    finally:
+        handle.remove()
+    (ids,) = seen
+    return int(ids.unique().numel())
+
+
+def vision_hidden_states(tower: VisionTower, image: np.ndarray, layers: Sequence[int]) -> dict[int, np.ndarray]:
+    """Return the tower's hidden states for one page at the given layers: (rows, cols, D) float64, raster order.
+
+    Layer 0 is the patch embedding, before any position encoding; layer l >= 1 is the output of block l - 1
+    (Qwen) or encoder layer l - 1 (SmolVLM). The inputs are built as transcribe_full builds them, with
+    do_resize=False and the same checks. Qwen's visual module runs as get_image_features runs it. SmolVLM's
+    vision model is called directly, with the full-frame patch_attention_mask that get_image_features would
+    compute, because get_image_features drops an image whose normalised values are all exactly zero. Forward
+    hooks copy each output to the CPU as float64 and are removed afterwards. The forward runs under
+    _ieee_float32, because torch otherwise lets cuDNN run float32 convolutions, the patch embedding among
+    them, in TF32.
+
+    Args:
+        tower: object returned by load_vision_tower.
+        image: uint8 array (H, W, 3), the reader's native page.
+        layers: layer numbers, each from 0 to the tower's depth, without repeats.
+
+    Returns:
+        layer -> hidden states, in the order of layers.
+    """
+    import torch
+
+    module = tower.module
+    is_qwen = hasattr(module, "blocks")
+    blocks = module.blocks if is_qwen else module.encoder.layers
+    layers = [int(layer) for layer in layers]
+    if not layers or len(set(layers)) != len(layers) or not all(0 <= layer <= len(blocks) for layer in layers):
+        raise ValueError(f"{tower.name}: layers must be distinct numbers from 0 to {len(blocks)}, got {layers}")
+    reader = Reader(
+        name=tower.name, model=None, processor=tower.processor, cfg=tower.cfg,
+        image_token_id=tower.processor.image_token_id,
+    )
+    inputs = processor_inputs(reader, image, tower.cfg["prompt"])
+    parameter = next(module.parameters())
+    captured: dict[int, Any] = {}
+
+    def keep(layer: int):
+        def hook(_module, _args, output):
+            out = output[0] if isinstance(output, tuple) else output
+            captured[layer] = out.detach().to("cpu", torch.float64)
+
+        return hook
+
+    embedding = module.patch_embed if is_qwen else module.embeddings.patch_embedding
+    handles = [(embedding if layer == 0 else blocks[layer - 1]).register_forward_hook(keep(layer)) for layer in layers]
+    rows, cols = image.shape[0] // tower.patch_px, image.shape[1] // tower.patch_px
+    try:
+        with torch.inference_mode(), _ieee_float32():
+            if is_qwen:
+                pixel_values = inputs["pixel_values"].to(parameter.device).type(parameter.dtype)
+                module(pixel_values, grid_thw=inputs["image_grid_thw"].to(parameter.device))
+            else:
+                p = tower.patch_px
+                pixel_values = inputs["pixel_values"].flatten(0, 1).to(parameter.device, parameter.dtype)
+                mask = inputs["pixel_attention_mask"].flatten(0, 1).to(parameter.device)
+                patches = mask.unfold(1, p, p).unfold(2, p, p)  # as get_image_features computes it
+                patch_attention_mask = (patches.sum(dim=(-1, -2)) > 0).bool()
+                if tuple(patch_attention_mask.shape) != (1, rows, cols) or not bool(patch_attention_mask.all()):
+                    raise RuntimeError(
+                        f"{tower.name}: patch_attention_mask {tuple(patch_attention_mask.shape)} "
+                        f"is not one full frame of {rows} x {cols} patches"
+                    )
+                module(pixel_values=pixel_values, patch_attention_mask=patch_attention_mask)
+    finally:
+        for handle in handles:
+            handle.remove()
+
+    states = {}
+    for layer in layers:
+        h = captured[layer]
+        if is_qwen:
+            states[layer] = qwen_to_raster(h, inputs["image_grid_thw"], module, window_order=layer > 0).numpy()
+        elif layer == 0:
+            states[layer] = h.permute(0, 2, 3, 1)[0].numpy()  # (1, D, rows, cols) -> (rows, cols, D)
+        else:
+            states[layer] = h.reshape(rows, cols, -1).numpy()  # (1, rows x cols, D) -> (rows, cols, D)
+    return states
+
+
+def qwen_to_raster(h: Any, grid_thw: Any, visual: Any, window_order: bool = True) -> Any:
+    """(n_patches, d) from patch_embed (window_order=False) or from a block (True) -> (gh, gw, d) in raster order.
+
+    Copied from build guide section 2.1. Qwen's vision forward reorders the merge units with
+    new = old[window_index] before the blocks, so old = new[argsort(window_index)]; then the processor's
+    grouping of patches into merge units of 2 x 2 is undone.
+
+    Args:
+        h: torch tensor (n_patches, d).
+        grid_thw: the processor's image_grid_thw, [[1, gh, gw]].
+        visual: the Qwen vision module, for its merge size, window size and patch size.
+        window_order: whether h is in window order (every block output is).
+
+    Returns:
+        torch float64 tensor (gh, gw, d) on the CPU.
+    """
+    import torch
+    from transformers.vision_utils import get_vision_window_index
+
+    h = h.detach().to("cpu", torch.float64)
+    _, gh, gw = (int(v) for v in grid_thw[0])
+    d, m = h.shape[-1], visual.spatial_merge_size
+    if window_order:
+        wi, _ = get_vision_window_index(
+            grid_thw, spatial_merge_size=m, window_size=visual.window_size, patch_size=visual.patch_size
+        )
+        h = h.reshape(-1, visual.spatial_merge_unit, d)[torch.argsort(wi.cpu())].reshape(-1, d)
+    return h.reshape(gh // m, gw // m, m, m, d).permute(0, 2, 1, 3, 4).reshape(gh, gw, d)
+
+
+def count_text_tokens(reader: Reader, text: str) -> int:
+    """Return the length of text in the reader's own tokens, without special tokens (build guide 1B.9 and 2.8).
+
+    Args:
+        reader: object returned by load_reader; only its processor is used.
+        text: a page's reference text.
+
+    Returns:
+        len(processor.tokenizer(text, add_special_tokens=False)["input_ids"]).
+    """
+    return len(reader.processor.tokenizer(text, add_special_tokens=False)["input_ids"])
+
+
+def unload_reader(reader: Reader) -> None:
+    """Free a reader's model, so that the next reader has the card to itself (build guide 2.8).
+
+    Drops the reader's reference to the model, then runs gc.collect() and torch.cuda.empty_cache(). The
+    memory comes back only if the caller holds no other reference to the model.
+
+    Args:
+        reader: object returned by load_reader; its model becomes None.
+    """
+    import gc
+
+    import torch
+
+    reader.model = None
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+
+@contextmanager
+def _ieee_float32():
+    """Run float32 convolutions and matrix products in full float32 inside the block, then restore the flags.
+
+    torch lets cuDNN run float32 convolutions in TF32 by default (torch.backends.cudnn.conv.fp32_precision
+    reads "tf32" at torch 2.14), which keeps 10 of float32's 23 mantissa bits; matrix products default to
+    float32 but a library may change that. The legacy switches are used because setting only the new
+    per-operator one leaves cuDNN's flags mixed, and torch then refuses to read torch.backends.cudnn.allow_tf32.
+    """
+    import torch
+
+    previous = torch.backends.cudnn.allow_tf32, torch.backends.cuda.matmul.allow_tf32
+    torch.backends.cudnn.allow_tf32 = False
+    torch.backends.cuda.matmul.allow_tf32 = False
+    try:
+        yield
+    finally:
+        torch.backends.cudnn.allow_tf32, torch.backends.cuda.matmul.allow_tf32 = previous

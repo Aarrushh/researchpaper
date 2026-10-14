@@ -38,7 +38,7 @@ Dates follow the re-plan of 12 October 2026 (D21). If G1 has not passed by Wed 1
 - [x] **W1.8** The no-resize test and determinism (B2).
   - Files: `tests/test_no_resize.py`, `tests/test_reader_facts.py` (both marked `model`), `LAB_NOTEBOOK.md`
   - Done when: `tests/test_no_resize.py` passes on both laptops (on the one laptop, under D20) and the summary is in `LAB_NOTEBOOK.md`.
-- [ ] **W1.9** Shift-equivariance error at the embedding level: paper Figure 0 (B4).
+- [x] **W1.9** Shift-equivariance error at the embedding level: paper Figure 0 (B4).
   - Files: `src/mrr/equivariance.py`, `src/mrr/readers.py` (additions), `scripts/03_equivariance.py`, `tests/test_equivariance.py`, `src/mrr/plotting.py`, `results/equivariance/`, `reports/figures/fig0_equivariance.pdf`
   - Done when: `scripts/03_equivariance.py` writes `fig0_equivariance.pdf` and the layer-0 values match the reference values in Appendix C of the build guide (asserted in `tests/test_equivariance.py`).
 - [ ] **W1.10** Coherence of the layouts and the font-size ladder.

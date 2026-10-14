@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest", "scipy", "jiwer"]
+test = ["pytest", "scipy", "jiwer", "pandas", "matplotlib"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

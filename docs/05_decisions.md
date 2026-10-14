@@ -96,11 +96,11 @@ DO NOT: Delete or rewrite old entries. Supersede them with a new entry that refe
 
 ### D9. Phases are recorded over each reader's longest period
 - ID: D9
-- Status: open
-- Date: 2026-10-12 (opened; to be decided at W1.9)
+- Status: decided
+- Date: 2026-10-14 (decided at W1.9)
 - Decision: The sweep period is lcm(patch, cell, window): 112 px for Qwen, 42 px for SmolVLM-2.2B and 64 px for SmolVLM-500M. Every phase is recorded in [0, period), and each page leaves room for a shift of period − 1 px. Each block of the sweep samples the part of this range in which its layout's glyphs share a phase (D10).
 - Options considered: phases over one token cell, as the scaffold has it; phases over the sweep period.
-- Evidence: Qwen uses window attention in 28 of its 32 vision blocks, with full attention in blocks 7, 15, 23 and 31 and a window of 112 px (Hub config at the pinned revision). At layer 0 each reader's tokens are exactly equivariant for shifts that are whole multiples of the patch (learning notes A7). After Qwen's first block, exact equivariance is expected only at multiples of 112 px (inference in the notes, A7); paper Figure 0 tests this at W1.9.
+- Evidence: Qwen uses window attention in 28 of its 32 vision blocks, with full attention in blocks 7, 15, 23 and 31 and a window of 112 px (Hub config at the pinned revision). At layer 0 each reader's tokens are exactly equivariant for shifts that are whole multiples of the patch (learning notes A7). After Qwen's first block, exact equivariance is expected only at multiples of 112 px (inference in the notes, A7); paper Figure 0 tests this at W1.9. Figure 0 did so on 14 October (W1.9; `results/equivariance/`, `LAB_NOTEBOOK.md`): at layer 0 every reader is exact at multiples of its patch and nowhere else, with E(0.25) and the plateau inside appendix C.3's ranges. After Qwen's block 0 only moves of 112 and 224 px are exact (1.5e-7); the other multiples of 14 px cost 0.04; and the 112 px dip survives to the output (0.3 against a plateau of 0.63) while the 14 px dip is gone by layer 32 (ratio 0.99 to its neighbours). Beyond the embedding the window is the period that matters, so the 112 px sweep period stands. Both SmolVLM towers show minima, not zeros, at multiples of P beyond layer 0 (ratios 0.90 and 0.45 at layer 1, fading with depth), as predicted for learned absolute positions. Their 42 and 64 px cell periods come from the pixel shuffle after the tower, which Figure 0 cannot see, so they rest on the structural argument above.
 - Consequences: In `docs/04_data_dictionary.md`, `phase_x_px` and `phase_y_px` become "0 to the reader's sweep period (exclusive)".
 
 ### D10. H1 is tested on layouts whose glyphs share a phase
@@ -150,12 +150,12 @@ DO NOT: Delete or rewrite old entries. Supersede them with a new entry that refe
 
 ### D15. SmolVLM position ids
 - ID: D15
-- Status: open
-- Date: 2026-10-12 (opened; to be decided at W1.8)
-- Decision: Replace SmolVLM's position ids with 0 to n − 1 through a forward pre-hook on the position table, or run the vision tower in float32. The position-id test in `tests/test_reader_facts.py` decides.
+- Status: decided
+- Date: 2026-10-14 (decided at W1.8 and W1.9)
+- Decision: Both, by where the tower runs. The bfloat16 readers get the forward pre-hook of section 1B.5 on the position table in `load_reader`, which replaces the ids with 0 to n − 1 (W1.8). The equivariance measurement runs each vision tower alone in float32, where the table receives every id without a fix, so `load_vision_tower` installs nothing unless its own count falls short (W1.9).
 - Options considered: a forward pre-hook on the position table; a float32 vision tower; no change.
-- Evidence: In bfloat16, one 384 px frame gets 441 distinct position ids instead of 729 (learning notes A2).
-- Consequences: `src/mrr/readers.py` installs the fix in `load_reader`. The equivariance runs (W1.9) use the float32 tower anyway.
+- Evidence: In bfloat16, one 384 px frame gets 441 distinct position ids instead of 729 (learning notes A2). W1.8 (13 October): `tests/test_reader_facts.py` checks the 729 and 1,024 ids through the hook. W1.9 (14 October): `test_float32_smolvlm_tower_sees_every_position_id` sees 729 and 1,024 distinct ids in the float32 towers with no hook, and the run log records `position-id fix added: False` for both.
+- Consequences: `src/mrr/readers.py` installs the fix in `load_reader` for the bfloat16 readers. `load_vision_tower` counts the distinct ids on a blank native page and installs the fix only if the count is short; `VisionTower.position_ids_fixed` records whether it did.
 
 ### D16. H2 runs only if the data are frozen by 21 October
 - ID: D16
