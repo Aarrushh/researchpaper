@@ -538,6 +538,7 @@ Found:
 - Natural and random62 pages agree within 0.05 at layer 0 and within 0.08 at every layer; the largest gaps are qwen's E(0.25) at layer 32 (0.269 against 0.193) and its E at 224 px at layer 16 (0.116 against 0.183).
 - E(0) = 0 at every layer of every page: with TensorFloat-32 off, two forward passes of one page agree bit for bit.
 - D15: `load_vision_tower` counts the distinct ids that reach the position table on a blank native page and installs the fix only if the count is short. In float32 both SmolVLM towers saw every id (729 and 1,024), so the run log says `position-id fix added: False` for both and `test_float32_smolvlm_tower_sees_every_position_id` passed. The bfloat16 readers keep the pre-hook of W1.8.
+- Addendum, 14 October 10:49 UTC: `scripts/03_equivariance.py` rerun on a clean checkout of ef4aa8a (the W1.9 commit after the rebase onto build/p1), outputs written outside the repository. All six CSVs byte-identical to the committed ones and the figure identical apart from the PDF dates; only `results/equivariance/manifest.json` was replaced, so it now records `git_dirty` false, the commit that holds the code, and the freetype-py version.
 Broke:
 - Nothing. `make test` by hand in this worktree (af34524 plus this work): 247 passed, 110 deselected.
 - Cost: Qwen's E page takes 10 min at 0.25 px steps. A rerun that only checks the figure could step by 1 px.

@@ -176,10 +176,11 @@
     ],
     "shift_step_px": 0.25
   },
-  "git_commit": "af345240b135b2698c9ee577806133d8c01178bf",
-  "git_dirty": true,
+  "git_commit": "ef4aa8a4efbdf6141d9f4df5aaa522b2304b33db",
+  "git_dirty": false,
   "gpu_name": "NVIDIA GeForce RTX 5060 Laptop GPU",
   "packages": {
+    "freetype-py": "2.5.1",
     "jiwer": "4.0.0",
     "numpy": "2.4.6",
     "pillow": "12.3.0",
@@ -190,5 +191,5 @@
   "platform": "Windows-10-10.0.26300-SP0",
   "python_version": "3.11.15",
   "run_id": "equivariance",
-  "timestamp_utc": "2026-10-14T07:33:02Z"
+  "timestamp_utc": "2026-10-14T08:49:42Z"
 }
