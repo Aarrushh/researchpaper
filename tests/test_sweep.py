@@ -1,31 +1,47 @@
-# PURPOSE: Tests for the pagination plan of a sweep (build guide section 2.4; the block Z pages of section 3.5).
-# WHAT GOES HERE: CPU checks on the committed books and font: phase allowances, shared pages across layouts, text order and ids, block Z passages, placeholders, no reuse.
-# FILLED IN AT STEP: W2.2.
+# PURPOSE: Tests for the pagination plan of a sweep (build guide section 2.4; the block Z pages of section 3.5), the condition hash (2.5) and the runner (2.8).
+# WHAT GOES HERE: CPU checks on the committed books and font: phase allowances, shared pages across layouts, text order and ids, block Z passages, placeholders, no reuse; the hash test vector; the runner on a fake backend: rows, resume, cut-off line, shuffle, deadline, refusals.
+# FILLED IN AT STEP: W2.2 (pages), W2.3 (hash, runner).
 # DO NOT: Load a model. Paginate by character count. Weaken the capacity numbers of section 2.4 to make a test pass.
-"""Tests for mrr.sweep.plan_pages and its helpers."""
+"""Tests for mrr.sweep: plan_pages and its helpers, condition_hash and run_sweep."""
 
 from __future__ import annotations
 
 import copy
+import csv
 import hashlib
+import itertools
 import json
+import logging
+import math
+import re
 import string
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
+from PIL import Image
 
 from conftest import REPO_ROOT
+from mrr import grid
+from mrr import sweep as sweep_module
 from mrr.grid import resolve_render_cfg
+from mrr.manifest import RESULTS_COLUMNS
+from mrr.readers import Transcription
 from mrr.render import fits_page
+from mrr.score import cer, char_counts, wer
 from mrr.sweep import (
     RANDOM_STREAM_CHARS,
     Condition,
     Page,
     condition_hash,
     expand_conditions,
+    load_results,
     pagination_key,
     phase_allowances,
     plan_pages,
+    run_sweep,
 )
 from mrr.text_source import BOOKS, TEXTS_DIR, book_text, random_text
 
@@ -341,3 +357,486 @@ def test_every_pilot_condition_has_its_own_hash_and_h0_differs_from_s0():
         h0 = next(c for c in conds if c.block == "H" and c.phase_x_px == 0 and c.phase_y_px == 0)
         s0 = next(c for c in conds if c.block == "S" and c.phase_x_px == 0 and c.phase_y_px == 0)
         assert condition_hash(h0) != condition_hash(s0)
+
+
+# The runner (section 2.8). A fake backend stands in for readers.py, so the whole loop runs on the CPU. The sweep is
+# two blocks on one natural and one random page: H at the whole-pixel phases 0, 1 and 2 and S at 0 and 0.5, both
+# patch_aware and unaligned, so that (H, 0) and (S, 0) are the determinism pair of section 2.8.
+
+RUNNER_SWEEP = {
+    "readers": ["qwen"],
+    "seed": 20261014,
+    "pages": {"natural": {"books": ["pg105"], "per_text_type": 1}, "random62": {"per_text_type": 1}},
+    "repeats": 1,
+    "font_file": "data/external/fonts/source-sans-3/SourceSans3-Regular.ttf",
+    "font_size_px": 16,
+    "aa_mode": "coverage_srgb",
+    "blocks": {
+        "H": {"render_mode": "patch_aware", "line_pitch_mode": "unaligned", "axis": "x", "phases_px": [0.0, 1.0, 2.0]},
+        "S": {"render_mode": "patch_aware", "line_pitch_mode": "unaligned", "axis": "x", "phases_px": [0.0, 0.5]},
+    },
+}
+RUNNER_ROWS = 10  # (3 + 2) conditions x 2 pages x 1 repeat
+QWEN_PERIODS = (14, 28, 112)  # patch, token cell, attention window
+HARMONICS = (1, 2, 3)
+FIXED_TEXT = "the same fixed text on every call"
+RUNNER_PAGES = ("pg105_p0000", "rnd20261014_p0000")
+
+
+class FakeBackend:
+    """The five functions of readers.py without a model: a fixed text, fixed counts and the grid's token count."""
+
+    def __init__(self, fail_on_call=None, texts=(FIXED_TEXT,), extra_tokens=0):
+        self.fail_on_call, self.texts, self.extra_tokens = fail_on_call, tuple(texts), extra_tokens
+        self.calls, self.limits, self.loaded, self.unloaded = 0, [], [], []
+
+    def load_reader(self, cfg):
+        reader = SimpleNamespace(name=cfg["name"], cfg=cfg, model="a model")
+        self.loaded.append(reader)
+        return reader
+
+    def unload_reader(self, reader):
+        reader.model = None
+        self.unloaded.append(reader)
+
+    def count_vision_tokens(self, reader, image):
+        return grid.token_count(reader.cfg, image.shape[0], image.shape[1]) + self.extra_tokens
+
+    def count_text_tokens(self, reader, text):
+        return len(text.split())  # one token per word stands in for the tokenizer
+
+    def transcribe_full(self, reader, image, prompt, max_new_tokens=None):
+        self.calls += 1
+        if self.calls == self.fail_on_call:
+            raise RuntimeError("fake driver reset")
+        assert reader.model is not None and image.shape in {(448, 448, 3), (384, 384, 3)}
+        self.limits.append(max_new_tokens)
+        text = self.texts[(self.calls - 1) % len(self.texts)]
+        return Transcription(text=text, new_tokens=7, hit_limit=False, latency_s=0.01)
+
+
+def _write_sweep(folder, **changes):
+    cfg = copy.deepcopy(RUNNER_SWEEP)
+    cfg.update(changes)
+    path = folder / "two_blocks.yaml"
+    path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+    return path
+
+
+def _run(path, backend, output_root, **kwargs):
+    kwargs.setdefault("require_clean", False)
+    return run_sweep(path, READERS, DEFAULTS, backend, output_root=output_root, root=REPO_ROOT, **kwargs)
+
+
+def _csv_rows(path):
+    with open(path, encoding="utf-8", newline="") as fh:
+        reader = csv.DictReader(fh)
+        return reader.fieldnames, list(reader)
+
+
+def _keys(rows):
+    return [(r["reader"], r["page_id"], r["condition_hash"], r["repeat"]) for r in rows]
+
+
+def _progress_lines(run_dir):
+    return (run_dir / "progress.log").read_text(encoding="utf-8").splitlines()
+
+
+def _clock(start, later):
+    """A fake _now: ``start`` on its first call, ``later`` on every call after it."""
+    calls = []
+
+    def now():
+        calls.append(None)
+        return start if len(calls) == 1 else later
+
+    return now
+
+
+@pytest.fixture(scope="module")
+def full_run(tmp_path_factory):
+    """One complete run of RUNNER_SWEEP: (run folder, backend)."""
+    if not HAVE_DATA:
+        pytest.skip("font or books not present (W1.4)")
+    folder = tmp_path_factory.mktemp("runner")
+    backend = FakeBackend()
+    dirs = _run(_write_sweep(folder), backend, folder / "runs with space")
+    assert len(dirs) == 1
+    return dirs[0], backend
+
+
+@needs_data
+def test_a_full_run_writes_every_planned_row_once_under_the_schema_header(full_run):
+    run_dir, backend = full_run
+    header, rows = _csv_rows(run_dir / "results.csv")
+    assert header == list(RESULTS_COLUMNS)
+    assert len(rows) == RUNNER_ROWS == len(set(_keys(rows)))
+    assert {r["block"] for r in rows} == {"H", "S"} and {r["reader"] for r in rows} == {"qwen"}
+    assert {r["page_id"] for r in rows} == set(RUNNER_PAGES)
+    assert {r["text_type"] for r in rows} == {"natural", "random62"}
+    assert {r["book_id"] for r in rows} == {"pg105", "rnd20261014"}
+    for row in rows:
+        assert (row["image_width_px"], row["image_height_px"], row["vision_tokens"]) == ("448", "448", "256")
+        assert row["reader_revision"] == READERS["qwen"]["revision"] and row["run_id"] == run_dir.name
+        assert (row["font_file"], row["font_size_px"], row["line_pitch_px"]) == ("SourceSans3-Regular.ttf", "16", "20")
+        assert (row["line_pitch_mode"], row["aa_mode"], row["render_mode"]) == ("unaligned", "coverage_srgb", "patch_aware")
+        assert (row["output_tokens"], row["hit_limit"], row["latency_s"], row["repeat"]) == ("7", "False", "0.01", "0")
+        assert row["timestamp_utc"].endswith("+00:00")  # Review Focus 4
+        assert row["git_commit"]
+        reference = (run_dir / "references" / f"{row['page_id']}.txt").read_text(encoding="utf-8")
+        assert int(row["reference_chars"]) == len(reference)
+        assert row["transcription_file"] == f"transcriptions/{row['page_id']}__{row['condition_hash']}.txt"
+        assert (run_dir / row["transcription_file"]).read_text(encoding="utf-8") == FIXED_TEXT
+        counts = char_counts(reference, FIXED_TEXT)
+        assert (int(row["hits"]), int(row["substitutions"]), int(row["deletions"]), int(row["insertions"])) == (
+            counts.hits, counts.substitutions, counts.deletions, counts.insertions,
+        )
+        assert float(row["cer"]) == pytest.approx(cer(reference, FIXED_TEXT))
+        assert float(row["wer"]) == pytest.approx(wer(reference, FIXED_TEXT))
+    assert run_dir.parent.name == "runs with space"
+    assert re.fullmatch(r"\d{8}-\d{4}_two_blocks_qwen_([0-9a-f]{7}|nogit)", run_dir.name)
+    assert backend.calls == RUNNER_ROWS and len(backend.loaded) == 1 == len(backend.unloaded)
+
+
+@needs_data
+def test_each_page_gets_max_new_tokens_of_one_and_a_half_times_its_reference_tokens(full_run):
+    run_dir, backend = full_run
+    _, rows = _csv_rows(run_dir / "results.csv")
+    expected = []
+    for row in rows:  # rows are appended in call order
+        reference = (run_dir / "references" / f"{row['page_id']}.txt").read_text(encoding="utf-8")
+        expected.append(math.ceil(1.5 * len(reference.split())))
+    assert backend.limits == expected
+    assert len(set(expected)) == 2  # a natural and a random page differ in length
+
+
+@needs_data
+def test_the_first_pages_images_are_saved_by_default_and_every_reference_is_written(full_run):
+    run_dir, _ = full_run
+    _, rows = _csv_rows(run_dir / "results.csv")
+    first = rows[0]["page_id"]
+    images = sorted((run_dir / "images").glob("*.png"))
+    assert len(images) == 5 and all(p.name.startswith(first + "__") for p in images)
+    with Image.open(images[0]) as im:
+        assert im.size == (448, 448) and im.mode == "RGB"
+    assert sorted(p.name for p in (run_dir / "references").iterdir()) == [f"{p}.txt" for p in RUNNER_PAGES]
+    natural = (run_dir / "references" / "pg105_p0000.txt").read_text(encoding="utf-8")
+    random = (run_dir / "references" / "rnd20261014_p0000.txt").read_text(encoding="utf-8")
+    assert natural.startswith("Sir Walter Elliot") and random_text(RANDOM_STREAM_CHARS, 20261014).startswith(random)
+
+
+@needs_data
+def test_coherence_rows_cover_every_block_period_and_harmonic_at_phase_0(full_run):
+    run_dir, _ = full_run
+    header, rows = _csv_rows(run_dir / "coherence.csv")
+    assert header == ["page_id", "block", "render_mode", "line_pitch_mode", "axis", "period_px", "harmonic", "R"]
+    assert len(rows) == 2 * 2 * len(QWEN_PERIODS) * len(HARMONICS)
+    assert {(r["page_id"], r["block"], int(r["period_px"]), int(r["harmonic"])) for r in rows} == set(
+        itertools.product(RUNNER_PAGES, ("H", "S"), QWEN_PERIODS, HARMONICS)
+    )
+    assert {(r["axis"], r["render_mode"], r["line_pitch_mode"]) for r in rows} == {("x", "patch_aware", "unaligned")}
+    assert all(0.0 <= float(r["R"]) <= 1.0 for r in rows)
+    by_block = {}
+    for r in rows:
+        by_block.setdefault(r["block"], []).append((r["page_id"], r["period_px"], r["harmonic"], r["R"]))
+    assert by_block["H"] == by_block["S"]  # the same layout, so the same coherence
+    # patch_aware: every pen position is a whole pixel and every glyph is centred in its slot (section 2.2).
+    assert all(float(r["R"]) > 0.9 for r in rows if (r["period_px"], r["harmonic"]) == ("14", "1"))
+
+
+@needs_data
+def test_determinism_rows_compare_h0_with_s0_once_both_are_done(full_run):
+    run_dir, _ = full_run
+    header, rows = _csv_rows(run_dir / "determinism.csv")
+    assert header == ["page_id", "condition_hash_a", "condition_hash_b", "identical"]
+    conditions = expand_conditions(RUNNER_SWEEP, READERS["qwen"])
+    h0 = condition_hash(next(c for c in conditions if c.block == "H" and c.phase_x_px == 0))
+    s0 = condition_hash(next(c for c in conditions if c.block == "S" and c.phase_x_px == 0))
+    assert sorted((r["page_id"], r["condition_hash_a"], r["condition_hash_b"], r["identical"]) for r in rows) == [
+        (RUNNER_PAGES[0], h0, s0, "True"),
+        (RUNNER_PAGES[1], h0, s0, "True"),
+    ]
+
+
+@needs_data
+def test_the_manifest_records_the_sweep_file_reader_generation_and_placement(full_run):
+    run_dir, _ = full_run
+    data = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+    cfg = data["config"]
+    sweep_file = Path(cfg["sweep_file"])
+    assert sweep_file.name == "two_blocks.yaml" and cfg["sweep_name"] == "two_blocks"
+    assert cfg["sweep_sha1"] == hashlib.sha1(sweep_file.read_bytes()).hexdigest()
+    assert cfg["sweep"]["seed"] == 20261014 and cfg["reader"] == READERS["qwen"]
+    render = cfg["render"]
+    assert (render["page_width_px"], render["page_height_px"], render["margin_px"]) == (448, 448, 14)
+    assert render["font_size_px"] == 16 and (render["max_phase_x_px"], render["max_phase_y_px"]) == (2, 0)
+    generation = cfg["generation"]
+    assert {k: generation[k] for k in ("do_sample", "num_beams", "repetition_penalty")} == {
+        "do_sample": False, "num_beams": 1, "repetition_penalty": 1.0,
+    }
+    assert "1.5" in generation["max_new_tokens"]
+    assert cfg["placement"]["device_map"] == "cuda" and cfg["placement"]["decision"] == "D18"
+    assert (cfg["rows_planned"], cfg["pages"], cfg["save_images"]) == (RUNNER_ROWS, 2, "first")
+    assert data["run_id"] == run_dir.name
+
+
+@needs_data
+def test_progress_log_has_one_line_per_page_with_rows_done_and_a_projection(full_run):
+    run_dir, _ = full_run
+    lines = _progress_lines(run_dir)
+    assert len(lines) == 2
+    assert "rows 5/10" in lines[0] and "rows 10/10" in lines[1]
+    assert all("projected_finish" in line and "+00:00" in line for line in lines)
+
+
+@needs_data
+def test_an_interrupted_run_resumes_to_the_same_rows_none_repeated(tmp_path, full_run):
+    out = tmp_path / "runs with space"
+    path = _write_sweep(tmp_path)
+    failing = FakeBackend(fail_on_call=4)
+    with pytest.raises(RuntimeError, match="fake driver reset"):
+        _run(path, failing, out)
+    assert len(failing.unloaded) == 1  # the card is freed even when a page fails
+    (run_dir,) = out.iterdir()
+    _, partial = _csv_rows(run_dir / "results.csv")
+    assert len(partial) == 3
+    assert not (run_dir / "progress.log").exists()  # the first page never finished
+    manifest_before = (run_dir / "manifest.json").read_bytes()
+    resumed = FakeBackend()
+    assert _run(path, resumed, out, resume=run_dir) == [run_dir]
+    _, rows = _csv_rows(run_dir / "results.csv")
+    assert len(rows) == RUNNER_ROWS == len(set(_keys(rows)))
+    assert resumed.calls == RUNNER_ROWS - 3
+    _, reference_rows = _csv_rows(full_run[0] / "results.csv")
+    assert sorted(_keys(rows)) == sorted(_keys(reference_rows))
+    assert (run_dir / "manifest.json").read_bytes() == manifest_before
+    # The per-page files are complete and nothing in them is repeated.
+    assert len(_csv_rows(run_dir / "coherence.csv")[1]) == 2 * 2 * len(QWEN_PERIODS) * len(HARMONICS)
+    assert len(_csv_rows(run_dir / "determinism.csv")[1]) == 2
+    assert len(_progress_lines(run_dir)) == 2
+
+
+@needs_data
+def test_a_cut_off_last_line_is_removed_logged_and_redone(tmp_path, caplog):
+    out = tmp_path / "runs with space"
+    path = _write_sweep(tmp_path)
+    (run_dir,) = _run(path, FakeBackend(), out)
+    results = run_dir / "results.csv"
+    whole = results.read_bytes()
+    assert whole.endswith(b"\n")
+    body = whole.rstrip(b"\n")
+    head, last = body[: body.rfind(b"\n") + 1], body[body.rfind(b"\n") + 1 :]
+    results.write_bytes(head + last[:40])  # the last row loses its tail and its line break
+    redo = FakeBackend()
+    with caplog.at_level(logging.WARNING, logger="mrr.sweep"):
+        _run(path, redo, out, resume=run_dir)
+    assert "incomplete last line" in caplog.text
+    _, rows = _csv_rows(results)
+    assert len(rows) == RUNNER_ROWS == len(set(_keys(rows)))
+    assert redo.calls == 1
+
+
+@needs_data
+def test_the_same_seed_gives_the_same_shuffled_order_page_by_page(tmp_path):
+    path = _write_sweep(tmp_path)
+    orders = []
+    for name in ("first root", "second root"):
+        (run_dir,) = _run(path, FakeBackend(), tmp_path / name)
+        _, rows = _csv_rows(run_dir / "results.csv")
+        orders.append([(r["page_id"], r["block"], r["phase_x_px"]) for r in rows])
+    assert orders[0] == orders[1]
+    assert [page for page, _, _ in orders[0]] == [RUNNER_PAGES[0]] * 5 + [RUNNER_PAGES[1]] * 5
+    file_order = [(c.block, str(c.phase_x_px)) for c in expand_conditions(RUNNER_SWEEP, READERS["qwen"])]
+    per_page = [[(b, p) for _, b, p in orders[0][i : i + 5]] for i in (0, 5)]
+    assert all(sorted(page) == sorted(file_order) for page in per_page)
+    assert any(page != file_order for page in per_page)  # shuffled, not file order
+
+
+@needs_data
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"font_size_px": "from the ladder"},
+        {"pages": {"natural": {"books": ["pg105"], "per_text_type": "TODO[W3.2]"}, "random62": {"per_text_type": 1}}},
+        {"repeats": "two"},
+        {"seed": "<new seed>"},
+    ],
+    ids=["font size", "page count", "repeats", "seed"],
+)
+def test_a_placeholder_refuses_to_start_before_any_folder_exists(tmp_path, change):
+    out = tmp_path / "runs with space"
+    backend = FakeBackend()
+    with pytest.raises(ValueError):
+        _run(_write_sweep(tmp_path, **change), backend, out)
+    assert not out.exists() and backend.loaded == []
+
+
+@needs_data
+def test_unknown_readers_and_an_unknown_save_images_choice_are_refused(tmp_path):
+    out = tmp_path / "runs with space"
+    path = _write_sweep(tmp_path)
+    with pytest.raises(ValueError, match="smolvlm"):
+        _run(path, FakeBackend(), out, only_readers=["smolvlm"])
+    with pytest.raises(ValueError, match="save_images"):
+        _run(path, FakeBackend(), out, save_images="sometimes")
+    assert not out.exists()
+
+
+@needs_data
+def test_only_readers_picks_a_subset_and_readers_cfg_may_be_the_whole_file(tmp_path):
+    path = _write_sweep(tmp_path, readers=["qwen", "smolvlm"])
+    backend = FakeBackend()
+    whole_file = {"readers": list(READERS.values())}  # as scripts load configs/readers.yaml
+    dirs = run_sweep(
+        path, whole_file, DEFAULTS, backend, only_readers=["smolvlm"], output_root=tmp_path / "runs with space",
+        require_clean=False, root=REPO_ROOT,
+    )
+    assert len(dirs) == 1 and "_two_blocks_smolvlm_" in dirs[0].name
+    _, rows = _csv_rows(dirs[0] / "results.csv")
+    assert len(rows) == RUNNER_ROWS and {r["reader"] for r in rows} == {"smolvlm"}
+    assert {(r["image_width_px"], r["vision_tokens"]) for r in rows} == {("384", "81")}
+    assert [r.name for r in backend.loaded] == ["smolvlm"] and len(backend.unloaded) == 1
+
+
+@needs_data
+def test_a_deadline_already_past_leaves_a_folder_and_manifest_but_no_row(tmp_path):
+    out = tmp_path / "runs with space"
+    backend = FakeBackend()
+    dirs = _run(_write_sweep(tmp_path), backend, out, deadline=datetime.now(timezone.utc) - timedelta(hours=1))
+    assert len(dirs) == 1 and dirs[0].is_dir() and (dirs[0] / "manifest.json").exists()
+    assert not (dirs[0] / "results.csv").exists() and not (dirs[0] / "progress.log").exists()
+    assert backend.loaded == [] and backend.calls == 0
+
+
+@needs_data
+def test_a_deadline_passing_during_the_first_page_stops_at_the_page_boundary(tmp_path, monkeypatch):
+    start = datetime(2026, 10, 20, 10, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(sweep_module, "_now", _clock(start, start + timedelta(hours=1)))
+    backend = FakeBackend()
+    (run_dir,) = _run(_write_sweep(tmp_path), backend, tmp_path / "runs with space", deadline=start + timedelta(minutes=30))
+    _, rows = _csv_rows(run_dir / "results.csv")
+    assert len(rows) == 5 and {r["page_id"] for r in rows} == {RUNNER_PAGES[0]}
+    assert sorted((r["block"], r["phase_x_px"]) for r in rows) == [
+        ("H", "0.0"), ("H", "1.0"), ("H", "2.0"), ("S", "0.0"), ("S", "0.5"),
+    ]
+    assert len(_progress_lines(run_dir)) == 1
+    assert len(backend.unloaded) == 1
+
+
+@needs_data
+def test_deadline_naive_and_aware_agree(tmp_path, monkeypatch):
+    # Review Focus 4: a naive deadline is local time; both forms are compared as aware UTC.
+    start = datetime(2026, 10, 20, 10, 0, tzinfo=timezone.utc)
+    aware = datetime.fromisoformat("2026-10-20T10:30:00Z")
+    naive = aware.astimezone().replace(tzinfo=None)  # the same instant as a local wall-clock time
+    path = _write_sweep(tmp_path)
+    counts = {}
+    for name, deadline in (("aware", aware), ("naive", naive)):
+        monkeypatch.setattr(sweep_module, "_now", _clock(start, start + timedelta(hours=1)))
+        (run_dir,) = _run(path, FakeBackend(), tmp_path / f"{name} root", deadline=deadline)
+        _, rows = _csv_rows(run_dir / "results.csv")
+        counts[name] = len(rows)
+        assert all(r["timestamp_utc"].endswith("+00:00") for r in rows)
+    assert counts == {"aware": 5, "naive": 5}
+
+
+@needs_data
+def test_dirty_code_refuses_a_start_and_changed_code_refuses_a_resume(tmp_path, monkeypatch):
+    out = tmp_path / "runs with space"
+    path = _write_sweep(tmp_path)
+    monkeypatch.setattr(sweep_module, "code_dirty", lambda *args, **kwargs: True)
+    with pytest.raises(RuntimeError, match="uncommitted"):
+        _run(path, FakeBackend(), out, require_clean=True)
+    monkeypatch.setattr(sweep_module, "code_dirty", lambda *args, **kwargs: None)
+    with pytest.raises(RuntimeError, match="git"):
+        _run(path, FakeBackend(), out, require_clean=True)
+    assert not out.exists()
+    with pytest.raises(RuntimeError, match="fake driver reset"):
+        _run(path, FakeBackend(fail_on_call=2), out)
+    (run_dir,) = out.iterdir()
+    monkeypatch.setattr(sweep_module, "code_dirty", lambda *args, **kwargs: False)
+    monkeypatch.setattr(sweep_module, "code_changed_since", lambda *args, **kwargs: True)
+    with pytest.raises(RuntimeError, match="changed"):
+        _run(path, FakeBackend(), out, resume=run_dir, require_clean=True)
+    monkeypatch.setattr(sweep_module, "code_changed_since", lambda *args, **kwargs: False)
+    _run(path, FakeBackend(), out, resume=run_dir, require_clean=True)
+    assert len(_csv_rows(run_dir / "results.csv")[1]) == RUNNER_ROWS
+
+
+@needs_data
+def test_a_token_count_the_grid_does_not_predict_stops_before_the_first_row(tmp_path):
+    out = tmp_path / "runs with space"
+    backend = FakeBackend(extra_tokens=1)
+    with pytest.raises(RuntimeError, match="257"):
+        _run(_write_sweep(tmp_path), backend, out)
+    (run_dir,) = out.iterdir()
+    assert not (run_dir / "results.csv").exists() and backend.calls == 0 and len(backend.unloaded) == 1
+
+
+@needs_data
+def test_a_resume_refuses_another_reader_or_a_changed_sweep_file(tmp_path):
+    out = tmp_path / "runs with space"
+    path = _write_sweep(tmp_path)
+    with pytest.raises(RuntimeError, match="fake driver reset"):
+        _run(path, FakeBackend(fail_on_call=2), out)
+    (run_dir,) = out.iterdir()
+    manifest = run_dir / "manifest.json"
+    original = manifest.read_text(encoding="utf-8")
+    data = json.loads(original)
+    data["config"]["reader"]["name"] = "smolvlm"
+    manifest.write_text(json.dumps(data), encoding="utf-8")
+    with pytest.raises(RuntimeError, match="smolvlm"):
+        _run(path, FakeBackend(), out, resume=run_dir)
+    manifest.write_text(original, encoding="utf-8")
+    with open(path, "a", encoding="utf-8") as fh:
+        fh.write("# edited after the run started\n")
+    with pytest.raises(RuntimeError, match="sweep file"):
+        _run(path, FakeBackend(), out, resume=run_dir)
+    with pytest.raises(RuntimeError, match="manifest"):
+        _run(path, FakeBackend(), out, resume=tmp_path / "not a run")
+
+
+@needs_data
+@pytest.mark.parametrize(("choice", "count"), [("all", RUNNER_ROWS), ("none", 0)])
+def test_save_images_all_or_none(tmp_path, choice, count):
+    (run_dir,) = _run(_write_sweep(tmp_path), FakeBackend(), tmp_path / "runs with space", save_images=choice)
+    images = list((run_dir / "images").glob("*.png")) if (run_dir / "images").exists() else []
+    assert len(images) == count
+
+
+@needs_data
+def test_a_vertical_block_writes_its_coherence_along_y(tmp_path):
+    blocks = {"V": {"render_mode": "conventional", "line_pitch_mode": "aligned", "axis": "y", "phases_px": [0.0, 2.0]}}
+    (run_dir,) = _run(_write_sweep(tmp_path, blocks=blocks), FakeBackend(), tmp_path / "runs with space")
+    _, rows = _csv_rows(run_dir / "coherence.csv")
+    assert len(rows) == 2 * len(QWEN_PERIODS) * len(HARMONICS)
+    assert {(r["block"], r["axis"], r["render_mode"], r["line_pitch_mode"]) for r in rows} == {
+        ("V", "y", "conventional", "aligned"),
+    }
+    r1 = {(r["page_id"], r["period_px"]): float(r["R"]) for r in rows if r["harmonic"] == "1"}
+    for page in RUNNER_PAGES:  # at the aligned pitch of 28 px the baselines repeat every token cell
+        assert r1[(page, "28")] > r1[(page, "14")]
+    _, results = _csv_rows(run_dir / "results.csv")
+    assert len(results) == 4 and {(r["phase_x_px"], r["phase_y_px"]) for r in results} == {("0.0", "0.0"), ("0.0", "2.0")}
+    assert {r["line_pitch_px"] for r in results} == {"28"}
+    assert not (run_dir / "determinism.csv").exists()  # no two conditions differ only in their block label
+
+
+@needs_data
+def test_a_mismatching_determinism_pair_is_recorded_and_does_not_stop_the_run(tmp_path):
+    backend = FakeBackend(texts=("alpha", "beta", "gamma"))
+    (run_dir,) = _run(_write_sweep(tmp_path), backend, tmp_path / "runs with space")
+    assert len(_csv_rows(run_dir / "results.csv")[1]) == RUNNER_ROWS
+    _, pairs = _csv_rows(run_dir / "determinism.csv")
+    assert len(pairs) == 2
+    for pair in pairs:
+        texts = [
+            (run_dir / "transcriptions" / f"{pair['page_id']}__{pair[key]}.txt").read_text(encoding="utf-8")
+            for key in ("condition_hash_a", "condition_hash_b")
+        ]
+        assert pair["identical"] == str(texts[0] == texts[1])
+
+
+def test_load_results_is_not_implemented_before_the_analysis():
+    with pytest.raises(NotImplementedError, match="W3.2"):
+        load_results(Path("configs/sweeps/pilot.yaml"), Path("results/runs"))

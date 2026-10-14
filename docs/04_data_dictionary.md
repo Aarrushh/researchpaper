@@ -46,7 +46,7 @@ Examples are illustrative formats only, not results.
 | `deletions` | int | characters | 0 or more (jiwer) | `2` |
 | `insertions` | int | characters | 0 or more (jiwer) | `1` |
 | `latency_s` | float | seconds | positive | `4.2` |
-| `timestamp_utc` | string | ISO 8601 | UTC, ends in `Z` | `2026-10-05T14:32:10Z` |
+| `timestamp_utc` | string | ISO 8601 | aware UTC from `datetime.isoformat(timespec="seconds")`, ends in `+00:00` (manifest.json keeps its older `Z` form) | `2026-10-14T14:32:10+00:00` |
 | `git_commit` | string | none | short or full SHA | `ab12cd3` |
 
 ## Run folder layout
@@ -55,12 +55,12 @@ Examples are illustrative formats only, not results.
 results/runs/<run_id>/
 ├── manifest.json                                  written by mrr.manifest.write_manifest
 ├── results.csv                                    columns above, one row per page, condition and repeat
-├── coherence.csv                                  one set of rows per page at phase 0: page_id, block, render_mode, line_pitch_mode, axis, period_px, harmonic, R (section 2.2)
-├── determinism.csv                                one row per page once (H, 0) and (S, 0) are done: page_id, both condition hashes, identical (section 2.8)
-├── progress.log                                   one line per page: time, rows done, rows planned, the page's mean latency, projected finish (section 2.8)
+├── coherence.csv                                  one set of rows per page at phase 0, per block layout: page_id, block, render_mode, line_pitch_mode, axis, period_px (the reader's patch, token cell and attention window), harmonic (1 to 3), R (section 2.2)
+├── determinism.csv                                one row per page for each pair of conditions that differ only in their block label, once both are done: page_id, condition_hash_a (the earlier block in file order), condition_hash_b, identical (True or False) (section 2.8)
+├── progress.log                                   one line per page: `<time> page <i>/<N> <page_id> rows <done>/<planned> page_latency_s <mean> projected_finish <time>`, times aware UTC (section 2.8)
 ├── references/<page_id>.txt                       the reference text of each page, so every CER can be recomputed from this folder alone
-├── transcriptions/<page_id>__<condition_hash>.txt raw model output, one file per row
-└── images/                                        rendered pages (gitignored)
+├── transcriptions/<page_id>__<condition_hash>.txt raw model output, one file per row; a repeat above 0 adds `__r<repeat>` before `.txt`
+└── images/<page_id>__<condition_hash>.png         rendered pages, the first page's by default (`--save-images first`; `all`, `none`); the same repeat suffix; gitignored
 ```
 
 `<condition_hash>` is `mrr.sweep.condition_hash(cond)` (build guide section 2.5): a dictionary of exactly ten keys, `aa_mode`, `block`, `font_file` (the file name only), `font_size_px`, `line_pitch_mode`, `line_pitch_px`, `patch_aware_slot_px` (`null` for `conventional`, the reader's patch in pixels for `patch_aware`), `phase_x_px`, `phase_y_px` and `render_mode`, every number cast to float, serialised with `json.dumps(cond, sort_keys=True, separators=(",", ":"))` and hashed with SHA-1; the hash is the first 12 hexadecimal characters. Test vector: `{"aa_mode":"coverage_srgb","block":"C","font_file":"SourceSans3-Regular.ttf","font_size_px":16.0,"line_pitch_mode":"unaligned","line_pitch_px":20.0,"patch_aware_slot_px":null,"phase_x_px":7.0,"phase_y_px":0.0,"render_mode":"conventional"}` hashes to `9c811d1777d4`; with the integer 7 in place of 7.0 it would hash to `bc2ca5dcb62f`, which is why every number is cast first. The resume key of a row is (`reader`, `page_id`, `condition_hash`, `repeat`). The hash never includes a path or a page size, never uses Python's `hash()`, and its key set does not change after the pilot without an amendment.

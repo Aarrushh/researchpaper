@@ -7,6 +7,7 @@ PYTHON ?= python
 SWEEP  ?= configs/sweeps/pilot.yaml
 READERS ?=                        # e.g. READERS=qwen runs one reader of the ladder, pilot or sweep
 DEADLINE ?=                       # e.g. DEADLINE=2026-10-20T12:00 stops the sweep at a page boundary (section 3.6)
+RESUME ?=                         # e.g. RESUME=results/runs/<run_id> continues an interrupted run of one reader
 
 .DEFAULT_GOAL := help
 .PHONY: help env check-env test test-models test-all readers render-check equivariance coherence
@@ -43,14 +44,14 @@ equivariance: ## Shift-equivariance error per layer of each vision tower, and Fi
 coherence: ## Reproduce the D10 coherence table from the layout code, no model (W1.10)
 	$(PYTHON) scripts/05_coherence.py --config "configs/readers.yaml"
 
-ladder: ## Run the font-size ladder, block Z at phase 0 (W1.10); READERS=... to pick readers
-	$(PYTHON) scripts/10_run_sweep.py --config "configs/sweeps/ladder.yaml" $(if $(READERS),--readers $(READERS),)
+ladder: ## Run the font-size ladder, block Z at phase 0 (W1.10); READERS=... to pick readers, RESUME=... to continue a run
+	$(PYTHON) scripts/10_run_sweep.py --config "configs/sweeps/ladder.yaml" $(if $(READERS),--readers $(READERS),) $(if $(RESUME),--resume $(RESUME),)
 
-pilot: ## Run the pilot sweep (W2.3); READERS=... to pick readers
-	$(PYTHON) scripts/10_run_sweep.py --config "configs/sweeps/pilot.yaml" $(if $(READERS),--readers $(READERS),)
+pilot: ## Run the pilot sweep (W2.3); READERS=... to pick readers, RESUME=... to continue a run
+	$(PYTHON) scripts/10_run_sweep.py --config "configs/sweeps/pilot.yaml" $(if $(READERS),--readers $(READERS),) $(if $(RESUME),--resume $(RESUME),)
 
-sweep: ## Run the full sweep (W3.3); READERS=... and DEADLINE=... to pick readers and a stop time
-	$(PYTHON) scripts/10_run_sweep.py --config "configs/sweeps/full.yaml" $(if $(READERS),--readers $(READERS),) $(if $(DEADLINE),--deadline $(DEADLINE),)
+sweep: ## Run the full sweep (W3.3); READERS=..., DEADLINE=... and RESUME=... to pick readers, a stop time or a run to continue
+	$(PYTHON) scripts/10_run_sweep.py --config "configs/sweeps/full.yaml" $(if $(READERS),--readers $(READERS),) $(if $(RESUME),--resume $(RESUME),) $(if $(DEADLINE),--deadline $(DEADLINE),)
 
 analyze: ## Run statistics and write reports/tables (W2.4, W3.4); SWEEP=... to pick config
 	$(PYTHON) scripts/20_analyze.py --config "$(SWEEP)"
