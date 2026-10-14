@@ -21,4 +21,4 @@ DO NOT: Give the model anything other than spec/RENDERING_SPEC.md. Do not edit m
 |---|---|---|---|---|---|---|
 | TODO[W4.3]: attempt 1 | TODO[W4.3]: prompt_v01.md | TODO[W4.3]: exact model string | TODO[W4.3]: date | TODO[W4.3]: settings | TODO[W4.3]: kernel file | TODO[W4.4]: judge numbers |
 
-Number of attempts allowed: TODO[W2.1]: fix in PREREGISTRATION.md before W4.3
+Number of attempts allowed: 3 (`PREREGISTRATION.md`, section 1, H2: an attempt is a reply with HTTP status 200; the first Python code block is judged verbatim).

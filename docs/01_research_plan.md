@@ -53,7 +53,7 @@ Text rendering was designed for the human visual system. In visual text compress
 - Wilcoxon signed-rank test (`scipy.stats.wilcoxon`).
 - Bootstrap confidence intervals.
 - Effect size: median paired CER difference with its bootstrap interval.
-- Alpha, sidedness and the periodicity criterion: TODO[W2.1]: fix in PREREGISTRATION.md.
+- Alpha, sidedness, the families of tests and the periodicity criterion: `PREREGISTRATION.md`, sections 6 and 7 (W2.1). The harmonic model is section 6; the paired Wilcoxon test above is family (c) there.
 
 ## Gates and what each decision means
 
