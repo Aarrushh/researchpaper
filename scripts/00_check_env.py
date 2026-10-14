@@ -4,10 +4,11 @@
 # DO NOT: Install anything from here. Do not download models.
 """Step W1.3: environment check.
 
-Exits 1 unless torch imports, sees a CUDA GPU whose architecture (sm_120 on
-these laptops) is in the wheel's architecture list, the driver refuses to
-allocate more than the card's memory, nvidia-smi reports the driver, and
-freetype-py bundles FreeType 2.13.2. A missing Triton is only a warning until
+Exits 1 unless freetype-py bundles FreeType 2.13.2 (checked first, on the
+CPU, because every pixel test and recorded hash depends on it), torch imports,
+sees a CUDA GPU whose architecture (sm_120 on these laptops) is in the wheel's
+architecture list, the driver refuses to allocate more than the card's memory,
+and nvidia-smi reports the driver. A missing Triton is only a warning until
 W4.2.
 
 The memory check is the setting of build guide section 1B.2: with "Prefer No
@@ -74,6 +75,15 @@ def main() -> int:
         print(f"\nWARNING: {TRITON} is not installed. It is needed from W4.2 only.")
 
     try:
+        import freetype
+    except ImportError:
+        return fail("freetype-py is not installed (pip install -r requirements.txt).")
+    print(f"FreeType        {freetype.version()}")
+    if tuple(freetype.version()) != FREETYPE_VERSION:
+        return fail(f"freetype-py must bundle FreeType {FREETYPE_VERSION}; "
+                    "install freetype-py 2.5.1.")
+
+    try:
         import torch
     except ImportError:
         return fail("torch is not installed. Install it from the CUDA 13.0 index "
@@ -110,15 +120,6 @@ def main() -> int:
     except (OSError, subprocess.CalledProcessError) as err:
         return fail(f"nvidia-smi failed ({err}), so the driver version is unknown.")
     print(f"nvidia-smi      {smi.stdout.strip()}")
-
-    try:
-        import freetype
-    except ImportError:
-        return fail("freetype-py is not installed (pip install -r requirements.txt).")
-    print(f"FreeType        {freetype.version()}")
-    if tuple(freetype.version()) != FREETYPE_VERSION:
-        return fail(f"freetype-py must bundle FreeType {FREETYPE_VERSION}; "
-                    "install freetype-py 2.5.1.")
 
     print("\nOK: environment ready.")
     return 0

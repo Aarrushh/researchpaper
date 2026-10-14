@@ -190,7 +190,10 @@ def transcribe_full(
 
 
 def transcribe(reader: Reader, image: np.ndarray, prompt: str) -> str:
-    """Transcribe the text in one image.
+    """Transcribe the text in one image, with the limit of configs/readers.yaml.
+
+    The stub of the scaffold, kept with its signature (build guide 1B.4). It drops new_tokens, hit_limit
+    and latency_s, so the sweep runner calls transcribe_full with a per-page limit instead.
 
     Args:
         reader: object returned by load_reader.

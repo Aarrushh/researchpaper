@@ -22,6 +22,7 @@ Dates follow the re-plan of 12 October 2026 (D21). If G1 has not passed by Wed 1
 - [x] **W1.3** Create the Python environment; run `make env` and `make check-env`.
   - Files: `requirements.txt`, `requirements.lock.txt` (new), `LAB_NOTEBOOK.md`
   - Done when: `make check-env` exits 0 on both laptops and `requirements.lock.txt` is committed.
+  - Note (Phase 1 review, 14 Oct): since the review added the sysmem-fallback check, `make check-env` exits 1 on this laptop until the NVIDIA setting of build guide 1B.2 is changed; every other check passes.
 - [ ] **W1.4** Download fonts and texts into `data/external/` and `data/raw/`; record licences and sources.
   - Files: `data/external/fonts/README.md`, `data/raw/texts/README.md`, `src/mrr/text_source.py`
   - Done when: each font has its licence file beside it; each text has book ID and title recorded; `text_source.py` is implemented.

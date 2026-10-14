@@ -53,6 +53,7 @@ TRACKED_PACKAGES: dict[str, str] = {
     "transformers": "transformers",
     "pillow": "pillow",
     "numpy": "numpy",
+    "freetype-py": "freetype-py",  # bundles the FreeType every pixel depends on (section 1A.11)
     "scipy": "scipy",
     "jiwer": "jiwer",
 }

@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import logging
 import math
 import re
@@ -474,6 +475,83 @@ def test_no_ink_reaches_smolvlm_blind_strip(persuasion, mode):
 @pytest.fixture(scope="module")
 def qwen_page(persuasion):
     return _first_page(persuasion, _cfg("qwen"))
+
+
+# The Phase 1 review: the factors of Phase 2 reach the page, one rounding, and pinned pixels.
+
+
+GOLDEN_TEXT = "Hamburgefonstiv 0123"
+# SHA-1 of render_page(GOLDEN_TEXT, _cfg("qwen")) by aa_mode and phase_x_px, with FreeType 2.13.2 (freetype-py 2.5.1).
+GOLDEN_SHA1 = {
+    ("binary", 0): "46462bb2f8331f96c195a88f9a179f6d8318dbe2",
+    ("binary", 0.5): "6eea8b7ffe349e86e30bd388b337d8a03daa6132",
+    ("coverage_srgb", 0): "4bb06fbab86a5f6f3a5dec4a359984644f2f8f9f",
+    ("coverage_srgb", 0.5): "64ece885ca65b0b150c8d082ec475958e85d9fb8",
+    ("coverage_linear", 0): "b2fd3e807ba35c42c58b465a60cf35ec4ea64dfa",
+    ("coverage_linear", 0.5): "ee069ff67e876d89c97154c9836b30d870e0732d",
+}
+
+
+@needs_font
+@pytest.mark.parametrize(("mode", "phase"), sorted(GOLDEN_SHA1))
+def test_the_rendered_page_matches_its_recorded_hash(mode, phase):
+    """Every byte of a short page, per aa_mode, at a whole and a half pixel: the pixels the sweep records."""
+    page = render_page(GOLDEN_TEXT, {**_cfg("qwen"), "aa_mode": mode, "phase_x_px": phase})
+    assert hashlib.sha1(page.tobytes()).hexdigest() == GOLDEN_SHA1[mode, phase]
+
+
+@needs_font
+@pytest.mark.parametrize("mode", MODES)
+def test_the_page_is_the_rounded_composite_of_its_coverage(mode):
+    """render_page = equation (6) applied once to composite_coverage(render_coverage): the same pixels for
+    every aa_mode, so the mode in cfg is the mode that is drawn. Without the + 0.5, 204 pixels of the
+    coverage_srgb page and every pixel of the coverage_linear page would differ."""
+    cfg = {**_cfg("qwen"), "aa_mode": mode}
+    coverage = render_coverage(GOLDEN_TEXT, cfg)
+    page = np.ones((*coverage.shape, 3))
+    composite_coverage(page, coverage, 0, 0, cfg["text_color"], mode)
+    want = np.floor(255 * np.clip(page, 0.0, 1.0) + 0.5).astype(np.uint8)
+    assert np.array_equal(render_page(GOLDEN_TEXT, cfg), want)
+
+
+@needs_font
+def test_the_three_modes_draw_different_pages():
+    pages = [render_page(GOLDEN_TEXT, {**_cfg("qwen"), "aa_mode": mode}) for mode in MODES]
+    assert not np.array_equal(pages[0], pages[1]) and not np.array_equal(pages[1], pages[2])
+
+
+@needs_font
+@pytest.mark.parametrize("mode", MODES)
+def test_an_empty_page_is_the_background_in_every_mode(mode):
+    """White must round-trip through the linear-light mix to 255, not 254."""
+    assert (render_page("", {**_cfg("qwen"), "aa_mode": mode}) == 255).all()
+
+
+@needs_font
+@pytest.mark.parametrize("size", [12, 16])
+def test_the_font_size_in_cfg_reaches_the_glyphs(size):
+    """The ink of one H on the page has the shape of the H rasterised at cfg's size: 8 x 6 at 12 px, 11 x 8 at 16."""
+    coverage = render_coverage("H", _cfg("qwen", font_size_px=size))
+    rows, cols = np.nonzero(coverage.any(axis=1))[0], np.nonzero(coverage.any(axis=0))[0]
+    assert (len(rows), len(cols)) == load_glyph(FONT, size, "H").coverage.shape
+
+
+@needs_font
+@pytest.mark.parametrize("pitch", [20, 28])
+def test_the_line_pitch_in_cfg_reaches_the_baselines(pitch):
+    baselines = sorted({g.baseline_64 for g in layout_block("aaaaa " * 40, _cfg("qwen", line_pitch_px=pitch))})
+    assert len(baselines) > 1
+    assert {b - a for a, b in zip(baselines, baselines[1:])} == {64 * pitch}
+
+
+@needs_font
+@pytest.mark.parametrize(("phase", "dx_64"), [(13.0078125, 833), (56 / 3, 1195)])
+def test_layout_page_rounds_a_phase_like_split_phase_64(phase, dx_64):
+    """floor(64 * phase + 0.5), as grid.split_phase_64: int(64 * phase) would give 832 and 1194, and round()
+    832 and 1195."""
+    cfg = _cfg("qwen")
+    at_zero = layout_page("H", cfg)[0].x_64
+    assert layout_page("H", {**cfg, "phase_x_px": phase})[0].x_64 - at_zero == dx_64
 
 
 @needs_font

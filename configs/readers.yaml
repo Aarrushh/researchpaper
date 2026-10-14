@@ -20,7 +20,7 @@ readers:
     image_token: "<|image_pad|>"   # id 151655
     dtype: bfloat16
     device_map: cuda         # fallback in section 1B.8
-    max_new_tokens: 591      # ceil(1.5 x 394), the longest reference in this reader's tokens (W1.7)
+    max_new_tokens: 591      # ceil(1.5 x 394), the longest reference in this reader's tokens at 16 px, default allowances (W1.7)
     prompt: "Transcribe all text in the image exactly. Output only the text."
 
   - name: smolvlm
@@ -36,7 +36,7 @@ readers:
     dtype: bfloat16
     device_map: cuda
     position_id_fix: pre_hook
-    max_new_tokens: 629      # ceil(1.5 x 419), the longest reference in this reader's tokens (W1.7)
+    max_new_tokens: 629      # ceil(1.5 x 419), the longest reference in this reader's tokens at 16 px, default allowances (W1.7)
     prompt: "Transcribe all text in the image exactly. Output only the text."
 
   - name: smolvlm500m
@@ -51,5 +51,5 @@ readers:
     dtype: bfloat16
     device_map: cuda
     position_id_fix: pre_hook
-    max_new_tokens: 1157     # ceil(1.5 x 771), the longest reference in this reader's tokens (W1.7)
+    max_new_tokens: 1157     # ceil(1.5 x 771), the longest reference in this reader's tokens at 16 px, default allowances (W1.7)
     prompt: "Transcribe all text in the image exactly. Output only the text."

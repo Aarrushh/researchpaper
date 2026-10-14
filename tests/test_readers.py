@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 
 from conftest import READERS
-from mrr import readers
+from mrr import grid, readers
 
 PAGE = np.zeros((4, 4, 3), dtype=np.uint8)
 PROMPT_IDS = [7, 8, 9]  # the fake prompt; the fake generate returns it followed by the new tokens
@@ -20,7 +20,7 @@ PROMPT_IDS = [7, 8, 9]  # the fake prompt; the fake generate returns it followed
 
 def _stub(name):
     """A reader with its config and no processor or model: enough for the checks before the processor."""
-    return SimpleNamespace(name=name, cfg=READERS[name], processor=None, model=None)
+    return SimpleNamespace(name=name, cfg=READERS[name], processor=None, model=None, image_token_id=0)
 
 
 @pytest.mark.parametrize(
@@ -50,6 +50,65 @@ def test_processor_inputs_refuses_a_qwen_page_that_is_not_whole_token_cells(size
 def test_greedy_arguments_are_the_guides():
     """Build guide 1B.4: do_sample=False, num_beams=1 and repetition_penalty=1.0 on every call."""
     assert readers.GREEDY == {"do_sample": False, "num_beams": 1, "repetition_penalty": 1.0}
+
+
+# _check_vision_input on NumPy stand-ins for the processor's output: the guards the model tests rely on.
+
+SIDES = {"qwen": 448, "smolvlm": 384, "smolvlm500m": 512}  # each reader's native page (D8)
+
+
+def _vision_inputs(name, height, width, tokens, grid_thw=None, frames=1, mask_ok=True):
+    """What the processor returns, as NumPy arrays: enough for _check_vision_input."""
+    cfg = READERS[name]
+    inputs = {"input_ids": np.array([PROMPT_IDS + [0] * tokens])}
+    if "min_pixels" in cfg:  # Qwen
+        patch = cfg["patch_size"]
+        inputs["image_grid_thw"] = np.array(grid_thw or [[1, height // patch, width // patch]])
+    else:
+        inputs["pixel_values"] = np.zeros((1, frames, 3, height, width), dtype=np.float32)
+        mask = np.ones((1, frames, height, width), dtype=bool)
+        if not mask_ok:
+            mask[0, 0, -1, -1] = False
+        inputs["pixel_attention_mask"] = mask
+    return inputs
+
+
+@pytest.mark.parametrize("name", sorted(SIDES))
+def test_check_vision_input_accepts_the_page_itself(name):
+    side = SIDES[name]
+    tokens = grid.token_count(READERS[name], side, side)
+    readers._check_vision_input(_stub(name), _vision_inputs(name, side, side, tokens), side, side)
+
+
+def test_check_vision_input_refuses_a_resized_qwen_grid():
+    inputs = _vision_inputs("qwen", 448, 448, 256, grid_thw=[[1, 28, 28]])
+    with pytest.raises(RuntimeError, match="image_grid_thw"):
+        readers._check_vision_input(_stub("qwen"), inputs, 448, 448)
+
+
+def test_check_vision_input_refuses_a_tiled_smolvlm_page():
+    inputs = _vision_inputs("smolvlm", 384, 384, 81, frames=2)
+    with pytest.raises(RuntimeError, match="pixel_values"):
+        readers._check_vision_input(_stub("smolvlm"), inputs, 384, 384)
+
+
+def test_check_vision_input_refuses_a_padded_smolvlm_page():
+    inputs = _vision_inputs("smolvlm", 384, 384, 81, mask_ok=False)
+    with pytest.raises(RuntimeError, match="unpadded"):
+        readers._check_vision_input(_stub("smolvlm"), inputs, 384, 384)
+
+
+@pytest.mark.parametrize(("name", "tokens"), [("qwen", 255), ("smolvlm", 82), ("smolvlm500m", 63)])
+def test_check_vision_input_counts_the_image_tokens(name, tokens):
+    side = SIDES[name]
+    with pytest.raises(RuntimeError, match="image tokens"):
+        readers._check_vision_input(_stub(name), _vision_inputs(name, side, side, tokens), side, side)
+
+
+def test_processor_inputs_refuses_a_qwen_page_whose_width_alone_is_not_whole_cells():
+    """448 x 434: the height is whole cells, the width is not; either side alone must fail the check."""
+    with pytest.raises(RuntimeError, match="not whole 28 px token cells"):
+        readers.processor_inputs(_stub("qwen"), np.full((448, 434, 3), 255, dtype=np.uint8), "prompt")
 
 
 # transcribe_full on a fake model, which needs torch.
@@ -85,7 +144,11 @@ def _fake_reader(monkeypatch, new_ids, eos=2, limit=4):
     monkeypatch.setattr(readers, "processor_inputs", lambda reader, image, prompt: inputs)
     processor = SimpleNamespace(batch_decode=lambda ids, **kwargs: [" ".join(str(i) for i in ids[0].tolist())])
     return readers.Reader(
-        name="fake", model=_FakeModel(new_ids, eos), processor=processor, cfg={"max_new_tokens": limit}, image_token_id=0
+        name="fake",
+        model=_FakeModel(new_ids, eos),
+        processor=processor,
+        cfg={"max_new_tokens": limit},
+        image_token_id=0,
     )
 
 
