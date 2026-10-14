@@ -574,7 +574,7 @@ def _repeats(sweep: Mapping[str, Any]) -> int:
     return int(value)
 
 
-def _reader_periods(reader_cfg: Mapping[str, Any]) -> list[int]:
+def reader_periods(reader_cfg: Mapping[str, Any]) -> list[int]:
     """The periods of the reader's grid: the patch, the token cell and, when it has one, the attention window."""
     periods = {int(reader_cfg["patch_size"]), grid.token_cell_px(reader_cfg)}
     if "window_px" in reader_cfg:
@@ -739,7 +739,7 @@ class _ReaderRun:
         self.rows_planned = sum(len(self.plan[pagination_key(c)]) for c in self.conditions) * self.repeats
         self.hashes = {c: condition_hash(c) for c in self.conditions}
         self.blocks = {str(k): v for k, v in self.sweep["blocks"].items()}
-        self.periods = _reader_periods(self.reader_cfg)
+        self.periods = reader_periods(self.reader_cfg)
         self.seed = int(self.sweep["seed"])
         twins: dict[tuple, list[Condition]] = {}
         for c in self.conditions:
@@ -1044,6 +1044,79 @@ def run_sweep(
     return run_dirs
 
 
+# The dtypes results.csv is read with (section 3.2, step 4): a string for every id, hash and name, so that a hash such
+# as 1e5123456789 is never read as a number and an all-digit one never as an integer. The keys are RESULTS_COLUMNS.
+RESULTS_DTYPES: dict[str, Any] = {
+    "run_id": str, "reader": str, "reader_revision": str, "page_id": str, "book_id": str, "text_type": str,
+    "block": str, "condition_hash": str, "repeat": "int64", "font_file": str, "font_size_px": "float64",
+    "line_pitch_px": "float64", "line_pitch_mode": str, "aa_mode": str, "render_mode": str, "phase_x_px": "float64",
+    "phase_y_px": "float64", "image_width_px": "int64", "image_height_px": "int64", "vision_tokens": "int64",
+    "reference_chars": "int64", "transcription_file": str, "output_tokens": "int64", "hit_limit": bool,
+    "cer": "float64", "wer": "float64", "hits": "int64", "substitutions": "int64", "deletions": "int64",
+    "insertions": "int64", "latency_s": "float64", "timestamp_utc": str, "git_commit": str,
+}
+RESULTS_KEY = ("reader", "page_id", "condition_hash", "repeat")  # the resume key of a row (section 2.8)
+
+
+def sweep_run_dirs(sweep_path: Path, runs_root: Path) -> list[Path]:
+    """Return the run folders of ``sweep_path`` under ``runs_root``, in sorted order (section 3.2, step 3).
+
+    A folder belongs to the sweep when its ``manifest.json`` names the sweep file's SHA-1 and stem, which the runner
+    writes into every manifest. Folders of other sweeps, and folders without a manifest, are ignored. A folder with
+    the sweep's name and another SHA-1 raises ValueError: someone edited a frozen config.
+    """
+    sweep_path, runs_root = Path(sweep_path), Path(runs_root)
+    sweep_sha1 = hashlib.sha1(sweep_path.read_bytes()).hexdigest()
+    if not runs_root.is_dir():
+        return []
+    out: list[Path] = []
+    for run_dir in sorted(p for p in runs_root.iterdir() if p.is_dir()):
+        manifest_path = run_dir / "manifest.json"
+        if not manifest_path.exists():
+            continue
+        cfg = (json.loads(manifest_path.read_text(encoding="utf-8")) or {}).get("config") or {}
+        if cfg.get("sweep_name") != sweep_path.stem:
+            continue
+        if cfg.get("sweep_sha1") != sweep_sha1:
+            raise ValueError(
+                f"{run_dir}: its manifest names sweep {sweep_path.stem} with SHA-1 {cfg.get('sweep_sha1')}, but "
+                f"{sweep_path} has {sweep_sha1}: a frozen config was edited (the DO NOT of configs/sweeps)"
+            )
+        out.append(run_dir)
+    return out
+
+
 def load_results(sweep_path: Path, runs_root: Path) -> "pandas.DataFrame":
-    """Return every row of every run of ``sweep_path`` under ``runs_root`` (section 3.2)."""
-    raise NotImplementedError("TODO[W3.2]: load_results comes with the Phase 3 analysis (build guide section 3.2)")
+    """Return every row of every run of ``sweep_path`` under ``runs_root`` (section 3.2).
+
+    Only the run folders of ``sweep_run_dirs`` are read, each ``results.csv`` with ``RESULTS_DTYPES``, so every id
+    and hash stays a string. A ``run_dir`` column names each row's folder. Raises ValueError on a header that is
+    not ``RESULTS_COLUMNS`` and on a repeated key (reader, page_id, condition_hash, repeat), naming it. The frame
+    is sorted by reader, page_id, block and condition_hash. pandas is imported here, as plotting.py imports
+    matplotlib, so the runner needs neither.
+    """
+    import pandas as pd  # noqa: PLC0415  (the analysis extra, not a runner dependency)
+
+    frames = []
+    for run_dir in sweep_run_dirs(sweep_path, runs_root):
+        results_path = run_dir / RESULTS_FILE
+        if not results_path.exists() or results_path.stat().st_size == 0:
+            continue  # a run that has not written a row yet
+        frame = pd.read_csv(results_path, dtype=RESULTS_DTYPES, keep_default_na=False)
+        if list(frame.columns) != list(RESULTS_COLUMNS):
+            raise ValueError(f"{results_path}: its header is not RESULTS_COLUMNS; the schema changed since this run")
+        frame["run_dir"] = str(run_dir)
+        frames.append(frame)
+    columns = [*RESULTS_COLUMNS, "run_dir"]
+    if not frames:
+        return pd.DataFrame({c: pd.Series(dtype=RESULTS_DTYPES.get(c, str)) for c in columns})
+    df = pd.concat(frames, ignore_index=True)
+    repeated = df.duplicated(list(RESULTS_KEY), keep=False)
+    if repeated.any():
+        first = df.loc[repeated, list(RESULTS_KEY)].iloc[0]
+        folders = sorted({Path(d).name for d in df.loc[repeated, "run_dir"]})
+        raise ValueError(
+            f"repeated key (reader, page_id, condition_hash, repeat) = {tuple(first.tolist())} in {folders}: the same row "
+            "was written twice (section 8 of PREREGISTRATION.md); resume a run, never start it again"
+        )
+    return df.sort_values(["reader", "page_id", "block", "condition_hash"], kind="stable").reset_index(drop=True)

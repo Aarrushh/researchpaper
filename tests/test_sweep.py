@@ -837,6 +837,24 @@ def test_a_mismatching_determinism_pair_is_recorded_and_does_not_stop_the_run(tm
         assert pair["identical"] == str(texts[0] == texts[1])
 
 
-def test_load_results_is_not_implemented_before_the_analysis():
-    with pytest.raises(NotImplementedError, match="W3.2"):
-        load_results(Path("configs/sweeps/pilot.yaml"), Path("results/runs"))
+@needs_data
+def test_load_results_reads_the_run_folder_with_every_id_a_string(full_run):
+    run_dir, _ = full_run
+    sweep_path, runs_root = run_dir.parent.parent / "two_blocks.yaml", run_dir.parent
+    assert sweep_module.sweep_run_dirs(sweep_path, runs_root) == [run_dir]
+    df = load_results(sweep_path, runs_root)
+    assert list(df.columns) == [*RESULTS_COLUMNS, "run_dir"]
+    assert len(df) == RUNNER_ROWS
+    assert set(df["run_dir"]) == {str(run_dir)}
+    for column in ("run_id", "reader", "page_id", "condition_hash", "transcription_file", "git_commit"):
+        assert all(isinstance(value, str) for value in df[column].tolist()), column
+    assert df["repeat"].tolist() == [0] * RUNNER_ROWS
+    assert df["hit_limit"].dtype == bool and not df["hit_limit"].any()
+    assert df["cer"].dtype == float and df["vision_tokens"].tolist() == [256] * RUNNER_ROWS
+    keys = list(zip(df["reader"], df["page_id"], df["block"], df["condition_hash"]))
+    assert keys == sorted(keys)
+
+
+def test_load_results_without_a_run_folder_returns_an_empty_frame(tmp_path):
+    df = load_results(_write_sweep(tmp_path), tmp_path / "no runs yet")
+    assert len(df) == 0 and list(df.columns) == [*RESULTS_COLUMNS, "run_dir"]
