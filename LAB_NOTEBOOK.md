@@ -476,3 +476,17 @@ Broke:
 Next:
 - For your decision, with Gate 1: how to make the pilot fit (power and sleep settings, the decode's CPU cost, the cost of loops, the page count).
 - Task P1.14 once the sysmem fallback is off; Task P1.16, including `make readers` with these limits.
+
+## 2026-10-14, Claude (D22): Phase 1 GPU checks at b6d0dc5 (Tasks P1.12 and P1.16)
+Did:
+- `make test-models` by hand at b6d0dc5, the review-fixes commit: `pytest -m model -v`, 79 passed, 257 deselected, 3 min 16 s (`tests/test_no_resize.py`, `tests/test_reader_facts.py`, `tests/test_readers.py`), no skips.
+- `make readers` by hand at b6d0dc5, for manifests after the review (finding 8): `results/runs/20261014-0755_checkreaders_qwen_b6d0dc5/`, `20261014-0756_checkreaders_smolvlm_b6d0dc5/` and `20261014-0757_checkreaders_smolvlm500m_b6d0dc5/`.
+Found:
+- Every check passed: bfloat16, every parameter on the GPU, the page itself at the encoder, 256, 81 and 64 image tokens. On AC power the first calls took 24.3, 68.4 and 7.8 s (47.6, 57.7 and 15.4 s on 13 October, on battery).
+- Qwen and SmolVLM-500M read exactly as on 13 October: 150 new tokens ending in an end token, and 54. SmolVLM-2.2B now runs to the new limit of 629 tokens (200 of 200 then), and its peak allocation grows from 4.29 to 4.36 GiB with the longer cache; Qwen 7.07 GiB and SmolVLM-500M 1.00 GiB as before.
+- `git_dirty` is True in the two SmolVLM manifests and False in Qwen's, on a clean tree: `git status --porcelain` lists the untracked run folder the previous reader had just written. The build guide (section 2.8) knows this: keep `git_dirty` as it is and add `code_dirty` and `code_changed_since` at the runner (Task P2.8). Until then a manifest's `git_dirty` is read with that in mind.
+Broke:
+- Nothing.
+Next:
+- Task P1.14 (D18, Qwen's placement) still waits for the sysmem fallback to be off; `make check-env` exits 1.
+- Push and CI (owner item: the token's `workflow` scope), then PR #2 ready for review.
