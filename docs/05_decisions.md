@@ -57,6 +57,7 @@ DO NOT: Delete or rewrite old entries. Supersede them with a new entry that refe
 - Options considered: go; no-go.
 - Evidence: TODO[G1]: token count check, overlay images, transcription test
 - Consequences: TODO[G1]: what happens next
+- Note (2026-10-14): G1 had not passed by Wed 14 Oct 12:00 CEST; the slip rule applied (D25). G1 is now Thu 15 Oct 12:00.
 
 ### D5. G2 outcome
 - ID: D5
@@ -165,6 +166,7 @@ DO NOT: Delete or rewrite old entries. Supersede them with a new entry that refe
 - Options considered: run H2 whatever the date; run it only if the data are frozen by 21 October; drop it.
 - Evidence: The guide of 6 October set this cut; H2 costs about three days.
 - Consequences: Gate 3 tags `spec-v1` either way.
+- Note (2026-10-14): the slip rule fired (D25), so the day later applies: the cut-off is Thursday 22 October.
 
 ### D17. Tests that need models are marked and kept out of CI
 - ID: D17
@@ -237,3 +239,13 @@ DO NOT: Delete or rewrite old entries. Supersede them with a new entry that refe
 - Options considered: As D12: the rounded threshold 0.0031308; the matched threshold 0.04045/12.92.
 - Evidence: Measured at W1.5. With the matched threshold, the round-trip test in `tests/test_color.py` (100,001 points, absolute tolerance 1e-12) passes with a largest error of 1.7e-16; with 0.0031308 the largest error is 3.0e-8, at v = 0.04045, and the test fails. Every value the decode's straight piece produces is at most 0.04045/12.92, and every value its power piece produces is above it (the power piece starts 2.3e-9 higher), so the encode applies the inverse of the piece that made each value. D12 also said that the sample code in W3C CSS Color 4 uses the matched pair. It does not: its `gam_sRGB` uses 0.0031308 (Candidate Recommendation Draft of 9 October 2026, section 19, read on 12 October 2026). That code is a source for the constants 0.04045, 12.92, 0.055, 1.055 and 2.4, not for this threshold.
 - Consequences: As D12: the docstring and DO NOT line of `src/mrr/color.py` change, and the specification (W4.1) states the threshold as our choice, with the round-trip test as its reason. `references/citations.md` cites CSS Color 4 for the constants only. Section 1A.1 of the build guide makes D12's claim too; `LAB_NOTEBOOK.md` records the error.
+
+### D25. The calendar slips one day (the slip rule of D21)
+- ID: D25
+- Status: decided
+- Date: 2026-10-14
+- Decision: G1 had not passed by Wed 14 Oct 12:00 CEST, so, by the slip rule the owner approved with the plan on 12 October, every later date of D21 moves by one day, D16 included: G1 Thu 15 12:00; `prereg-v1` Thu 15 18:00; the pilot Thu 15 night; Phase 3 Fri 16; G2 Sat 17 12:00; the full run Sat 17 to Thu 22 06:00; `data-freeze-v1` and D16's cut-off Thu 22; H2's paid calls Fri 23 to Sat 24; G3 and `spec-v1` Sun 25; the paper Sun 25 to Thu 29; buffer Fri 30. The deadline, Fri 30 Oct 19:00 UTC, does not move. The cut order applies from the top: cut 1 is the stretch tasks of Phase 3 except P3S.1, and the plan's only stretch task is P3S.1, so cut 1 removes nothing; cut 2 would be H2, which D16 governs by date.
+- Options considered: Apply the rule as written; hold the dates and compress Phase 3 (rejected: the rule exists so that this choice is never made under pressure).
+- Evidence: At 12:00 on 14 October the ladder (P2.9) had not run, because the runner (P2.8) was not built and the GPU still had the sysmem fallback on (D18), and the Gate 1 decisions had not been put to the owner. `LAB_NOTEBOOK.md`, 14 October.
+- Consequences: D4 stays open until G1 on Thu 15. D16's date moves to Thu 22 October. One day of buffer remains before the deadline; a second slip would take it.
+

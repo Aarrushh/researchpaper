@@ -16,7 +16,7 @@ import pytest
 import yaml
 
 from mrr import grid
-from mrr.sweep import HASH_KEYS, expand_conditions
+from mrr.sweep import HASH_KEYS, expand_conditions, pagination_key, plan_pages
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SWEEPS = sorted((ROOT / "configs" / "sweeps").glob("*.yaml"))
@@ -26,6 +26,7 @@ READERS = {
     reader["name"]: reader
     for reader in yaml.safe_load((ROOT / "configs" / "readers.yaml").read_text(encoding="utf-8"))["readers"]
 }
+DEFAULTS = yaml.safe_load((ROOT / "configs" / "render_defaults.yaml").read_text(encoding="utf-8"))
 PILOT_CONDITIONS = {"qwen": 50, "smolvlm": 62, "smolvlm500m": 54}  # per page per text type, section 2.3
 
 
@@ -42,14 +43,6 @@ def _concrete(sweep, size=16):
     elif isinstance(sizes, dict):
         sweep["font_size_px"] = {name: size if isinstance(value, str) else value for name, value in sizes.items()}
     return sweep
-
-
-def _pages_per_reader(sweep):
-    """Return the pages per reader from the config's counts, or None while a count is still a placeholder."""
-    counts = [sweep["pages"][kind]["per_text_type"] for kind in ("natural", "random62")]
-    if any(isinstance(count, str) for count in counts):
-        return None
-    return sum(counts)
 
 
 @pytest.mark.parametrize("path", SWEEPS, ids=lambda p: p.name)
@@ -81,12 +74,17 @@ def test_header_run_count_equals_the_computed_count(path):
     header = re.search(r"total runs = (TODO\S*|\d+)", path.read_text(encoding="utf-8"))
     assert header, "the header comment must state the total run count"
     sweep = _load(path)
-    pages = _pages_per_reader(sweep)
     if header.group(1).startswith("TODO"):
-        assert pages is None, "a config whose page counts are set must state its run count"
+        # A config whose counts or seed are still placeholders must refuse to plan (sections 2.3 and 2.4).
+        with pytest.raises(ValueError):
+            plan_pages(_concrete(sweep), READERS[sweep["readers"][0]], DEFAULTS, root=ROOT)
         pytest.skip(f"{path.name}: the run count is not set yet")
     sweep = _concrete(sweep)
-    total = sum(len(expand_conditions(sweep, READERS[r])) * pages * sweep["repeats"] for r in sweep["readers"])
+    total = 0  # rows = conditions x the pages each condition reads x repeats, as the runner counts them
+    for reader in sweep["readers"]:
+        plan = plan_pages(sweep, READERS[reader], DEFAULTS, root=ROOT)
+        rows = sum(len(plan[pagination_key(c)]) for c in expand_conditions(sweep, READERS[reader]))
+        total += rows * sweep["repeats"]
     assert int(header.group(1)) == total
 
 

@@ -583,3 +583,33 @@ Broke:
 Next:
 - Task P2.4: `Page` and `plan_pages` with the phase allowances; the header-count test then takes the page count from the plan rather than from the config's `per_text_type`.
 - `docs/03_pipeline.md` W2.2 stays unticked until the ladder's sizes are in `configs/sweeps/pilot.yaml`.
+
+## 2026-10-14, Claude (D22): W2.2, the pagination plan: shared pages across layouts with phase allowances (section 2.4), block Z pages (section 3.5)
+Did:
+- `src/mrr/text_source.py`: `Book`, `BOOKS` (pg105, pg84 and pg1661 with the front-matter skips of `data/raw/texts/README.md`), `TEXTS_DIR` and `book_text(book_id, root)`, the body of a book as the pages see it, read once per file and cached.
+- `src/mrr/sweep.py`: `Page` (page_id, book_id, text_type, start_word, text); `phase_allowances`, the ceiling of the largest φx and of the largest φy over the shared conditions; `pagination_key`, `shared` or `z:<render_mode>:<size>` for a block Z layout; and `plan_pages(sweep, reader_cfg, render_cfg, *, root, readers)`. A shared page fits when `render.fits_page` holds under every distinct shared layout at those allowances (conventional unaligned, conventional aligned and patch_aware unaligned in the pilot). Natural pages come from the books in rotation from their skip points, random pages from one `random_text(200_000, seed)` stream, interleaved natural then random. Block Z: each (size, render mode) layout is paginated alone at phase 0 with zero allowances; page i of every Z layout starts at the same word; passages of one source are spaced by the fullest page among the layouts; passages begin where the sweep's shared pages ended. `pages.natural.start_after` replans the sweeps it lists for every reader they list and starts each book after the last word any of them used; the seed must be new. A string where a page count or the seed belongs raises `ValueError` naming the key.
+- Tests first: `tests/test_sweep.py` (21 tests) and five registry tests in `tests/test_text_source.py`. `tests/test_configs.py` now takes each header's run count from the plan (conditions × the pages each one reads × repeats, as the runner will count them) and checks that `full.yaml` refuses to plan while its placeholders stand. `docs/04_data_dictionary.md`: the `page_id` and `book_id` rows now give the `pg<id>`, `rnd<seed>` and block Z formats.
+Found:
+- The shared page at 16 px holds exactly the characters of the table of section 2.4: 379 (Qwen), 298 (SmolVLM-2.2B), 419 (SmolVLM-500M). The shared page is the shortest of the three layouts' pages, because each layout's fit is monotone in the word count.
+- The pilot's allowances come out as the guide says: 105/26, 40/40 and 60/60 px.
+- In the ladder, Qwen's 10 px conventional page is the fullest of the twelve and sets the passage spacing; its 16 px conventional Z page, on a 420 × 420 block, holds more than the 840 characters of the same layout under the 105/26 allowances.
+- Planning is cheap: the pilot's 20 shared pages take 1.7 s per reader on the CPU, the ladder's 72 pages 1.3 s.
+- Page numbering: NNNN is the page's index among the pages of its text type in the plan (pg105_p0000, pg84_p0001, pg1661_p0002, pg105_p0003), the same rule for shared and Z pages. Ids are unique within one run and reader; `start_word` and `references/<page_id>.txt` (W2.3) identify the text.
+- [Rule, strict reading] `start_after` starts each book after the last word any reader of the earlier sweeps used. Section 2.4, step 6 does not say whether "used" means by this reader or by any; the strict reading can never be called reuse and costs nothing, the books being long. Say so if you want it per reader.
+Broke:
+- Nothing. Full CPU suite by hand in this worktree: 375 passed, 1 skipped, 110 deselected.
+Next:
+- Task P2.5: `condition_hash`, the 33-column schema (D19), `code_dirty`; then P2.6 (`score.py`), P2.8 (the runner).
+- `docs/03_pipeline.md` W2.2 stays unticked until the ladder's sizes are in `configs/sweeps/pilot.yaml`.
+
+## 2026-10-14, Claude (D22): the slip rule of the calendar fired at 12:00 (D21, D25)
+Did:
+- G1 was set for Wed 14 Oct 12:00 CEST (D21). At 12:00 the ladder (P2.9) had not run, because the runner (P2.8) is not built and the GPU still has the sysmem fallback on (D18), and the Gate 1 decisions had not been put to the owner. G1 therefore did not pass. The slip rule of the plan, approved with it on 12 October, moves every later date by one day, D16 included, and applies the cut order from the top. Recorded as D25; D4 stays open with a note; D16's date moved.
+Found:
+- New dates (CEST): G1 Thu 15 12:00; `prereg-v1` Thu 15 18:00; pilot Thu 15 night; Phase 3 Fri 16; G2 Sat 17 12:00; full run Sat 17 to Thu 22 06:00; Z.ai key Tue 20; `data-freeze-v1` and D16 Thu 22; H2 paid calls Fri 23 to Sat 24; G3 and `spec-v1` Sun 25; paper Sun 25 to Thu 29; buffer Fri 30. The deadline, Fri 30 Oct 19:00 UTC, does not move.
+- Cut 1 of the cut order is the stretch tasks of Phase 3 except P3S.1. The plan's only stretch task is P3S.1, which stays because it runs on the CPU, so cut 1 removes nothing. Cut 2 would be H2, which D16 already governs by date.
+- G1 still waits on the owner for: the NVIDIA sysmem-fallback setting (D18), the look at `reports/figures/render_check/`, and the Gate 1 batch (D9, D10, D11, D15, the typeface, the chapter headings, the target CER, the pilot budget).
+Broke:
+- Nothing.
+Next:
+- P2.5 to P2.8 today; the ladder as soon as the GPU is free of the sysmem fallback.

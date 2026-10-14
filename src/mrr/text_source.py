@@ -9,6 +9,8 @@ Learn B3 (error metrics; text normalisation matters for CER) before implementing
 
 from __future__ import annotations
 
+import dataclasses
+import functools
 import posixpath
 import re
 import string
@@ -303,3 +305,54 @@ def random_text(n_chars: int, seed: int, word_len: int = 5) -> str:
     indices = np.random.default_rng(seed).integers(0, len(_RANDOM_ALPHABET), size=n_chars)
     chars = "".join(_RANDOM_ALPHABET[k] for k in indices)
     return " ".join(chars[k : k + word_len] for k in range(0, n_chars, word_len))[:n_chars]
+
+
+# The books of the sweep configs (build guide section 2.4), by the id the configs use, with the front-matter skip of
+# data/raw/texts/README.md; tests/test_text_source.py checks this table against the README.
+
+TEXTS_DIR = Path("data") / "raw" / "texts"  # under the repository root
+
+
+@dataclasses.dataclass(frozen=True)
+class Book:
+    """One source text: its file under TEXTS_DIR and where its front matter ends (see skip_front_matter)."""
+
+    file: str
+    marker: str
+    occurrence: int
+
+
+BOOKS: dict[str, Book] = {
+    "pg105": Book("pg105-images-3.epub", "CHAPTER I.", 2),  # Persuasion
+    "pg84": Book("pg84-images-3.epub", "Letter 1", 2),  # Frankenstein
+    "pg1661": Book("pg1661-images-3.epub", "I. A SCANDAL IN BOHEMIA", 1),  # The Adventures of Sherlock Holmes
+}
+
+
+@functools.lru_cache(maxsize=16)
+def _book_body(book_id: str, root: str) -> str:
+    book = BOOKS[book_id]
+    body = strip_gutenberg_boilerplate(load_book(Path(root) / TEXTS_DIR / book.file))
+    return normalise_text(skip_front_matter(body, book.marker, book.occurrence))
+
+
+def book_text(book_id: str, root: str | Path) -> str:
+    """Return the body of one registered book as the pages see it: no boilerplate or front matter, D13 applied.
+
+    The file is read once per (book, root) and cached, which is safe because the raw files are immutable
+    (data/raw/texts/README.md).
+
+    Args:
+        book_id: a key of BOOKS, the id the sweep configs use (pg105, pg84, pg1661).
+        root: the repository root; the file is root / TEXTS_DIR / BOOKS[book_id].file.
+
+    Returns:
+        The normalised text from the first word after the front matter to the end of the body.
+
+    Raises:
+        ValueError: if book_id is not registered.
+        FileNotFoundError: if the file is not there.
+    """
+    if book_id not in BOOKS:
+        raise ValueError(f"unknown book {book_id!r}; the registered books are {sorted(BOOKS)}")
+    return _book_body(book_id, str(Path(root).resolve()))

@@ -15,6 +15,9 @@ import pytest
 from conftest import REPO_ROOT
 from mrr.render import load_glyph
 from mrr.text_source import (
+    BOOKS as REGISTERED_BOOKS,
+    TEXTS_DIR,
+    book_text,
     load_book,
     normalise_text,
     paginate,
@@ -266,3 +269,33 @@ def test_books_are_drawable():      # Review Focus 2
             except ValueError:
                 missing.append(f"U+{ord(char):04X}")
         assert not missing, (font.name, missing)
+
+
+# The registry of books (build guide section 2.4): the ids the sweep configs use, against the README's table.
+
+
+def test_books_registry_matches_the_readme_table():
+    assert list(REGISTERED_BOOKS) == ["pg105", "pg84", "pg1661"]
+    assert [(book.file, book.marker, book.occurrence) for book in REGISTERED_BOOKS.values()] == [row[:3] for row in FRONT_MATTER]
+    assert TEXTS_DIR.as_posix() == "data/raw/texts"
+
+
+@pytest.mark.parametrize(
+    ("book_id", "begins"),
+    [
+        ("pg105", "Sir Walter Elliot, of Kellynch Hall, in Somersetshire, was a man who"),
+        ("pg84", "To Mrs. Saville, England. St. Petersburgh, Dec. 11th, 17-."),
+        ("pg1661", "I. To Sherlock Holmes she is always the woman."),
+    ],
+)
+def test_book_text_is_the_normalised_body_after_the_skip(book_id, begins):
+    if not (TEXTS / REGISTERED_BOOKS[book_id].file).exists():
+        pytest.skip(f"{book_id} not present")
+    text = book_text(book_id, REPO_ROOT)
+    assert text.startswith(begins)
+    assert text == normalise_text(text)  # already NFC, straight quotes, hyphens and collapsed whitespace (D13)
+
+
+def test_book_text_refuses_an_unregistered_id():
+    with pytest.raises(ValueError, match="pg9999"):
+        book_text("pg9999", REPO_ROOT)

@@ -9,7 +9,7 @@ DO NOT: Rename or renumber step IDs; TODO markers across the repo depend on them
 
 Tick a box only when its "done when" is true. Gates are go/no-go decisions.
 
-Dates follow the re-plan of 12 October 2026 (D21). If G1 has not passed by Wed 14 Oct 12:00, every later date moves by one day. Steps W1.8 to W1.10 and W3.6 to W3.8 were appended that day; no existing ID changed. One laptop runs everything (D20), so a check written for "both laptops" runs once, on that laptop.
+Dates follow the re-plan of 12 October 2026 (D21). If G1 has not passed by Wed 14 Oct 12:00, every later date moves by one day. The rule fired on 14 October (D25): every date after Wed 14 Oct 12:00 below is one day later than written. Steps W1.8 to W1.10 and W3.6 to W3.8 were appended that day; no existing ID changed. One laptop runs everything (D20), so a check written for "both laptops" runs once, on that laptop.
 
 ## W1 Setup and theory (26 Sep to Wed 14 Oct 2026)
 

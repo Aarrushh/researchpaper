@@ -18,8 +18,8 @@ Examples are illustrative formats only, not results.
 | `run_id` | string | none | run ID format below | `20261005-1432_pilot_qwen_ab12cd3` |
 | `reader` | string | none | a `name` in `configs/readers.yaml` | `qwen` |
 | `reader_revision` | string | none | HF revision hash | `<40-char hash>` |
-| `page_id` | string | none | `<book_id>_p<NNNN>` | `1342_p0007` |
-| `book_id` | string | none | Project Gutenberg book ID | `1342` |
+| `page_id` | string | none | `<book_id>_p<NNNN>` (shared pages) or `<book_id>_z<size>_<mode>_p<NNNN>` (block Z; `<mode>` is `conv` or `pa`); NNNN is the page's index among the pages of its text type in the plan | `pg105_p0007` |
+| `book_id` | string | none | `pg<Gutenberg id>`, a key of `mrr.text_source.BOOKS` (`data/raw/texts/README.md`), or `rnd<seed>` for the sweep's random stream | `pg105` |
 | `repeat` | int | none | 0 to repeats minus 1 | `0` |
 | `font_file` | string | none | file name under `data/external/fonts/` | `NotoSans-Regular.ttf` |
 | `font_size_px` | float | pixels | positive | `10.0` |
