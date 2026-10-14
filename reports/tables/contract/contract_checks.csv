@@ -1,0 +1,71 @@
+rule,check,expected,observed,passed
+R01,FreeType version,"(2, 13, 2)","(2, 13, 2)",True
+R01,load flags include FT_LOAD_RENDER,True,True,True
+R01,load flags include FT_LOAD_NO_HINTING,True,True,True
+R01,load flags include FT_LOAD_NO_BITMAP,True,True,True
+R01,load target normal (bits 16 to 19 of the flags are 0),0,0,True
+R01,"linear advance of 'm' at 16 px, to 0.001 px",13.264,13.264022827148438,True
+R01,"linear advance of 'i' at 16 px, to 0.001 px",3.936,3.936004638671875,True
+R01,bitmap of 'o' at 16 px holds grey levels 1 to 254,some pixels,45 of 72 pixels,True
+R01,coverage values are bytes / 255,True,True,True
+R01,the space has an empty bitmap,"(0, 0)","(0, 0)",True
+R02,"phase 3.25 px splits into (whole pixels, 64ths)","(3, 16)","(3, 16)",True
+R02,"phase 13.0078125 px splits into (whole pixels, 64ths)","(13, 1)","(13, 1)",True
+R02,distinct bitmaps of 'o' at 16 px over the 64 fractional phases along x,64,64,True
+R02,distinct bitmaps of 'o' at 16 px over the 64 fractional phases along y,64,64,True
+R02,a phase of one patch (14 px) along x is the phase-zero page moved by 14 px,0 differing pixels,0 differing pixels,True
+R02,a phase of one patch (14 px) along y is the phase-zero page moved by 14 px,0 differing pixels,0 differing pixels,True
+R03,unaligned line pitch at 12 px,15,15,True
+R03,unaligned line pitch at 14 px,18,18,True
+R03,unaligned line pitch at 16 px,20,20,True
+R03,descender room at 12 px,4,4,True
+R03,descender room at 14 px,5,5,True
+R03,descender room at 16 px,6,6,True
+R03,ascender at 16 px,16,16.0,True
+R03,"qwen: text block (width, height) with allowances (105, 26) px","(315, 394)","(315, 394)",True
+R03,"smolvlm: text block (width, height) with allowances (40, 40) px","(310, 310)","(310, 310)",True
+R03,"smolvlm500m: text block (width, height) with allowances (60, 60) px","(420, 420)","(420, 420)",True
+R03,the 15 lines of the page are the greedy word wrap of the spec,identical lines,identical lines,True
+R03,"conventional origins and baselines follow the advance-sum formula at phase (0.0, 0.0)",0 of 544 glyphs differ,0 of 544 glyphs differ,True
+R03,"conventional origins and baselines follow the advance-sum formula at phase (3.25, 2.5)",0 of 544 glyphs differ,0 of 544 glyphs differ,True
+R03,patch-aware origin columns are whole pixels at phase 0.0,0 of 544,0 of 544,True
+R03,patch-aware origin columns are whole pixels at phase 7.0,0 of 544,0 of 544,True
+R03,"the same text at phases (0, 0) and (3.25, 2.5): the same glyphs on the same lines",True,True,True
+R03,"every origin moved by the same (x, y) in 1/64 px between those phases","{(208, 160)}","{(208, 160)}",True
+R03,lines on the page at most floor((h - ascender - d) / pitch) + 1 = 15,True,True,True
+R04,glyph bytes 27 and 100 at one pixel: S,127,127,True
+R04,glyph bytes 28 and 100 at one pixel: S,128,128,True
+R04,glyph bytes 200 and 100 at one pixel: S,255,255,True
+R04,"page coverage: integer sum / 255 against the reference's clipped fractional sums, largest difference",< 1e-12,5.551115123125783e-17,True
+R04,page coverage never above 1,True,True,True
+R04,pixels of the page inside two or more glyph boxes,some pixels,192 pixels,True
+R04,pixels of the page where the clip acts (unclipped sum above 255),reported,0 pixels,True
+R05,"binary: bitmap [[0, 64], [128, 255]] of (0, 0, 0) on (255, 255, 255)","[[255, 255], [0, 0]]","[[255, 255], [0, 0]]",True
+R05,"coverage_srgb: bitmap [[0, 64], [128, 255]] of (0, 0, 0) on (255, 255, 255)","[[255, 191], [127, 0]]","[[255, 191], [127, 0]]",True
+R05,"coverage_linear: bitmap [[0, 64], [128, 255]] of (0, 0, 0) on (255, 255, 255)","[[255, 224], [187, 0]]","[[255, 224], [187, 0]]",True
+R05,"binary: bitmap [[0, 64], [128, 255]] of (255, 255, 255) on (0, 0, 0)","[[0, 0], [255, 255]]","[[0, 0], [255, 255]]",True
+R05,"coverage_srgb: bitmap [[0, 64], [128, 255]] of (255, 255, 255) on (0, 0, 0)","[[0, 64], [128, 255]]","[[0, 64], [128, 255]]",True
+R05,"coverage_linear: bitmap [[0, 64], [128, 255]] of (255, 255, 255) on (0, 0, 0)","[[0, 137], [188, 255]]","[[0, 137], [188, 255]]",True
+R05,"binary: byte 128 of (200, 30, 60) on (250, 245, 230)","[200, 30, 60]","[200, 30, 60]",True
+R05,"coverage_srgb: byte 128 of (200, 30, 60) on (250, 245, 230)","[225, 137, 145]","[225, 137, 145]",True
+R05,"coverage_linear: byte 128 of (200, 30, 60) on (250, 245, 230)","[227, 181, 173]","[227, 181, 173]",True
+R05,"binary: glyph bytes 27 and 100 (S = 127), black on white","[255, 255, 255]","[255, 255, 255]",True
+R05,"binary: glyph bytes 28 and 100 (S = 128), black on white","[0, 0, 0]","[0, 0, 0]",True
+R05,"binary: glyph bytes 200 and 100 (S = 255), black on white","[0, 0, 0]","[0, 0, 0]",True
+R05,"coverage_srgb: glyph bytes 200 and 100 (S = 255), black on white","[0, 0, 0]","[0, 0, 0]",True
+R05,"coverage_linear: glyph bytes 200 and 100 (S = 255), black on white","[0, 0, 0]","[0, 0, 0]",True
+R05,"a 2.2 power in place of the sRGB curve on the coverage_linear examples: (bytes changed, bytes compared, largest change in levels)","(11, 27, 2)","(11, 27, 2)",True
+R06,"floor(255 * clip(0.5, 0, 1) + 0.5)",128,128,True
+R06,"floor(255 * clip(-0.1, 0, 1) + 0.5)",0,0,True
+R06,"floor(255 * clip(1.2, 0, 1) + 0.5)",255,255,True
+R06,binary: the page is the rounded composite of its coverage,0 differing bytes,0 differing bytes,True
+R06,binary: truncation in place of floor(v + 0.5) changes,0 bytes (the values are integers),0 bytes,True
+R06,coverage_srgb: the page is the rounded composite of its coverage,0 differing bytes,0 differing bytes,True
+R06,coverage_srgb: truncation in place of floor(v + 0.5) changes,some bytes,13710 bytes,True
+R06,coverage_linear: the page is the rounded composite of its coverage,0 differing bytes,0 differing bytes,True
+R06,coverage_linear: truncation in place of floor(v + 0.5) changes,some bytes,563595 bytes,True
+Conformance,coverage_srgb: smallest distance of 255 * o from a half-integer over all byte triples (equation (2)),1/510 = 0.00196078431372549,0.001960784313723707,True
+Conformance,"coverage_srgb: triples where single precision differs from double precision, of 16,777,216",0,0,True
+Conformance,"coverage_linear in single precision, mix written c * D(t) + (1 - c) * D(b): (triples moved, largest change in levels) of 16,777,216","(fewer than 1677, at most 1)","(148, 1)",True
+Conformance,"coverage_linear in single precision, mix written D(b) + c * (D(t) - D(b)): (triples moved, largest change in levels) of 16,777,216","(fewer than 1677, at most 1)","(148, 1)",True
+Conformance,a 2.2 power in place of the sRGB curve over all byte triples: largest change in levels,9,9,True
