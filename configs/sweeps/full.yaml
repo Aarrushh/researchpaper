@@ -1,23 +1,28 @@
-# PURPOSE: Full sweep definition (both readers, all factors).
-# WHAT GOES HERE: Readers, page count, seed, factor levels, repeats, output root.
+# PURPOSE: Full sweep: the readers that survive the pilot, blocks V, H, C, S and A on shared pages (D4, D10, D19).
+# WHAT GOES HERE: Readers, pages, seed, font and size per reader, blocks with their phase levels, output root.
 # FILLED IN AT STEP: W3.2. Frozen once W3.3 starts.
-# DO NOT: Edit after the sweep has started; resume instead.
+# DO NOT: Edit after the sweep has started; resume instead. Never reuse a seed or a pilot page (section 2.4).
 #
-# The sweep is the Cartesian product of all factor levels, times n_pages, times repeats, times readers.
-# Compute the total run count before launching and write it here:
-#   total runs = TODO[W3.2]: product of level counts x n_pages x repeats x readers
-#   estimated hours = TODO[W3.2]: total runs x seconds per run (from W1.7) / 3600
+# Rows per reader = conditions per page per text type x pages per text type x 2 text types x repeats:
+#   total runs = TODO[W3.2]: sum over the readers, from expand_conditions and the page plan
+#   estimated hours = TODO[W3.2]: total runs x seconds per run (W1.7) / 3600
 
-readers: ["TODO[W3.2]: both reader names from configs/readers.yaml"]
-n_pages: "TODO[W3.2]: number of pages"
-seed: "TODO[W3.2]: integer seed"
-factors:
-  phase_x_px: ["TODO[W3.2]: phase levels across one cell"]
-  phase_y_px: ["TODO[W3.2]: phase levels"]
-  font_size_px: ["TODO[W3.2]: font sizes"]
-  line_pitch_mode: ["TODO[W3.2]: aligned, unaligned"]
-  aa_mode: ["TODO[W3.2]: binary, coverage_srgb, coverage_linear"]
-  render_mode: ["TODO[W3.2]: conventional, patch_aware"]
-  font_file: ["TODO[W3.2]: font file(s)"]
-repeats: "TODO[W3.2]: repeats per condition"
+readers: [qwen, smolvlm, smolvlm500m]     # W3.2: drop a reader the pilot cut (D4)
+seed: "TODO[W3.2]: a new integer seed, never reused; the date makes one"
+pages:
+  natural: {books: [pg105, pg84, pg1661], per_text_type: "TODO[W3.2]: pages per text type from the budget (section 3.5)"}
+  random62: {per_text_type: "TODO[W3.2]: the same count"}
+repeats: 1
+font_file: data/external/fonts/source-sans-3/SourceSans3-Regular.ttf
+font_size_px: {qwen: "from the pilot", smolvlm: "from the pilot", smolvlm500m: "from the pilot"}
+aa_mode: coverage_srgb
+blocks:
+  V: {render_mode: conventional, line_pitch_mode: aligned, axis: y, range: cell,
+      step_px: {qwen: 2, smolvlm: 2, smolvlm500m: 4}}
+  H: {render_mode: patch_aware, line_pitch_mode: unaligned, axis: x, range: patch, step_px: 1}
+  C: {render_mode: conventional, line_pitch_mode: unaligned, axis: x, range: sweep,
+      step_px: {qwen: 7, smolvlm: 2, smolvlm500m: 4}}
+  S: {render_mode: patch_aware, line_pitch_mode: unaligned, axis: x, phases_px: [0.0, 0.25, 0.5, 0.75]}
+  A: {render_mode: conventional, line_pitch_mode: unaligned, axis: x, phases_px: [0.0],
+      aa_mode: [binary, coverage_linear]}
 output_root: results/runs

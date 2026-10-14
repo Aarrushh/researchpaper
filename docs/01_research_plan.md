@@ -25,19 +25,19 @@ Text rendering was designed for the human visual system. In visual text compress
 ## Design
 
 - **Three readers with different grids** (D7): Qwen2.5-VL-3B-Instruct (patch 14 px, token cell 28 px, attention windows 112 px), SmolVLM-2.2B (patch 14 px, token cell 42 px; its 27 × 27 patches see only the first 378 px of its 384 px page) and SmolVLM-500M (patch 16 px, token cell 64 px). If the error period tracks each reader's own grid, the effect is traced to the grid; the third reader's 16 px patch separates the patch embedding from the merge.
-- **Factors** varied in a Cartesian sweep (table below).
+- **Factors** varied in blocks, each one layout swept along one axis (D10; table below). Blocks V and H test H1; C is the control; S, A and Z are the rasteriser, anti-aliasing and font-size factors.
 - **Paired comparison:** the same pages are rendered under conventional and patch-aware modes and read by the same reader. Each page is its own control.
 
 ## Factors
 
 | Factor | Levels | Why |
 |---|---|---|
-| Glyph phase within one token cell (x, y) | TODO[W2.2]: number of phase steps across one cell | Tests H1 periodicity directly |
-| Font size in pixels | TODO[W2.2]: list of sizes | H1 predicts the effect is largest at small sizes |
+| Glyph phase within one token cell (x, y) | V: φy over one token cell, step 2 px (Qwen 14 levels, SmolVLM-2.2B 21) or 4 px (SmolVLM-500M 16). H: φx over one patch, step 1 px (14, 14, 16 levels). C: φx over the sweep period (112, 42, 64 px), step 7, 2, 4 px (16, 21, 16 levels). S: φx at 0, 0.25, 0.5, 0.75 px. A and Z: φ = 0. The step divides every tested period, since a curve of period T sampled every σ px repeats every lcm(σ, T) px (`configs/sweeps/pilot.yaml`) | Tests H1 periodicity directly |
+| Font size in pixels | Block Z, the ladder: 10, 12, 14, 16, 20 and 24 px in both render modes (`configs/sweeps/ladder.yaml`). Every other block: one size per reader, read off the ladder at its target CER (W1.10); until the ladder has run, `configs/sweeps/pilot.yaml` holds placeholders the runner rejects | H1 predicts the effect is largest at small sizes |
 | Line pitch | aligned to grid; not aligned to grid | Separates vertical grid alignment from glyph phase |
 | Anti-aliasing mode | binary; coverage in sRGB; coverage in linear light | Tests whether the encoder prefers hard edges or physically correct coverage |
 | Render mode | conventional; patch-aware | The paired comparison for H1's second clause |
-| Font file | TODO[W2.2]: fonts chosen at W1.4 | Checks the effect is not specific to one typeface |
+| Font file | Source Sans 3 Regular (W1.4) in every decoded block. Proposed for Gate 1: Source Serif 4 only in the equivariance measurement and the coherence table, which need no decoding, with the one-typeface limit stated in the paper | Checks the effect is not specific to one typeface |
 | Reader | TODO[W3.2]: both readers in full sweep | Traces period to cell size |
 
 ## Metrics

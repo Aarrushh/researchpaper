@@ -5,10 +5,12 @@
 
 PYTHON ?= python
 SWEEP  ?= configs/sweeps/pilot.yaml
+READERS ?=                        # e.g. READERS=qwen runs one reader of the ladder, pilot or sweep
+DEADLINE ?=                       # e.g. DEADLINE=2026-10-20T12:00 stops the sweep at a page boundary (section 3.6)
 
 .DEFAULT_GOAL := help
 .PHONY: help env check-env test test-models test-all readers render-check equivariance coherence
-.PHONY: pilot sweep analyze figures clean-interim
+.PHONY: ladder pilot sweep analyze figures clean-interim
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -30,28 +32,31 @@ test-all: ## Run every test, including todo tests
 	$(PYTHON) -m pytest
 
 readers: ## Check reader resize and token counts (W1.6)
-	$(PYTHON) scripts/01_check_readers.py --config configs/readers.yaml
+	$(PYTHON) scripts/01_check_readers.py --config "configs/readers.yaml"
 
 render-check: ## Render one page per reader at four cell phases and 0.5 px, with grid overlays (W1.5)
 	for r in qwen smolvlm smolvlm500m; do $(PYTHON) scripts/02_render_check.py --reader $$r || exit 1; done
 
 equivariance: ## Shift-equivariance error per layer of each vision tower, and Figure 0 (W1.9)
-	$(PYTHON) scripts/03_equivariance.py --config configs/readers.yaml
+	$(PYTHON) scripts/03_equivariance.py --config "configs/readers.yaml"
 
 coherence: ## Reproduce the D10 coherence table from the layout code, no model (W1.10)
-	$(PYTHON) scripts/05_coherence.py --config configs/readers.yaml
+	$(PYTHON) scripts/05_coherence.py --config "configs/readers.yaml"
 
-pilot: ## Run the pilot sweep (W2.3)
-	$(PYTHON) scripts/10_run_sweep.py --config configs/sweeps/pilot.yaml
+ladder: ## Run the font-size ladder, block Z at phase 0 (W1.10); READERS=... to pick readers
+	$(PYTHON) scripts/10_run_sweep.py --config "configs/sweeps/ladder.yaml" $(if $(READERS),--readers $(READERS),)
 
-sweep: ## Run the full sweep (W3.3)
-	$(PYTHON) scripts/10_run_sweep.py --config configs/sweeps/full.yaml
+pilot: ## Run the pilot sweep (W2.3); READERS=... to pick readers
+	$(PYTHON) scripts/10_run_sweep.py --config "configs/sweeps/pilot.yaml" $(if $(READERS),--readers $(READERS),)
+
+sweep: ## Run the full sweep (W3.3); READERS=... and DEADLINE=... to pick readers and a stop time
+	$(PYTHON) scripts/10_run_sweep.py --config "configs/sweeps/full.yaml" $(if $(READERS),--readers $(READERS),) $(if $(DEADLINE),--deadline $(DEADLINE),)
 
 analyze: ## Run statistics and write reports/tables (W2.4, W3.4); SWEEP=... to pick config
-	$(PYTHON) scripts/20_analyze.py --config $(SWEEP)
+	$(PYTHON) scripts/20_analyze.py --config "$(SWEEP)"
 
 figures: ## Generate Figures 1 and 2 into reports/figures (W2.5, W3.4); SWEEP=... to pick config
-	$(PYTHON) scripts/30_make_figures.py --config $(SWEEP)
+	$(PYTHON) scripts/30_make_figures.py --config "$(SWEEP)"
 
 clean-interim: ## Delete regenerable rendered pages in data/interim (keeps README files)
 	find data/interim -type f ! -name 'README.md' ! -name '.gitkeep' -delete

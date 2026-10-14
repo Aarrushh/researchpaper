@@ -1,22 +1,28 @@
-# PURPOSE: Pilot sweep definition (one reader, reduced levels).
-# WHAT GOES HERE: Readers, page count, seed, factor levels, repeats, output root.
+# PURPOSE: Pilot sweep: three readers, blocks V, H, C, S and A on shared pages (D10, D19).
+# WHAT GOES HERE: Readers, pages, seed, font and size per reader, blocks with their phase levels, output root.
 # FILLED IN AT STEP: W2.2. Frozen by prereg-v1 once used.
 # DO NOT: Edit after the pilot has run; copy to a new file instead and log the change.
 #
-# The sweep is the Cartesian product of all factor levels, times n_pages, times repeats, times readers.
-# Compute the total run count before launching and write it here:
-#   total runs = TODO[W2.2]: product of level counts x n_pages x repeats x readers
+# Rows per reader = conditions per page per text type x pages per text type x 2 text types x repeats:
+#   qwen 50 x 10 x 2 x 1 = 1000; smolvlm 62 x 10 x 2 x 1 = 1240; smolvlm500m 54 x 10 x 2 x 1 = 1080
+#   total runs = 3320
 
-readers: ["TODO[W2.2]: reader name(s) from configs/readers.yaml"]
-n_pages: "TODO[W2.2]: number of pages"
-seed: "TODO[W2.2]: integer seed"
-factors:
-  phase_x_px: ["TODO[W2.2]: phase levels across one cell"]
-  phase_y_px: ["TODO[W2.2]: phase levels"]
-  font_size_px: ["TODO[W2.2]: font sizes"]
-  line_pitch_mode: ["TODO[W2.2]: aligned and/or unaligned"]
-  aa_mode: ["TODO[W2.2]: binary, coverage_srgb, coverage_linear"]
-  render_mode: ["TODO[W2.2]: conventional and/or patch_aware"]
-  font_file: ["TODO[W2.2]: font file(s)"]
-repeats: "TODO[W2.2]: repeats per condition"
+readers: [qwen, smolvlm, smolvlm500m]
+seed: 20261013
+pages:
+  natural: {books: [pg105, pg84, pg1661], per_text_type: 10}
+  random62: {per_text_type: 10}
+repeats: 1
+font_file: data/external/fonts/source-sans-3/SourceSans3-Regular.ttf
+font_size_px: {qwen: "from the ladder", smolvlm: "from the ladder", smolvlm500m: "from the ladder"}
+aa_mode: coverage_srgb
+blocks:
+  V: {render_mode: conventional, line_pitch_mode: aligned, axis: y, range: cell,
+      step_px: {qwen: 2, smolvlm: 2, smolvlm500m: 4}}
+  H: {render_mode: patch_aware, line_pitch_mode: unaligned, axis: x, range: patch, step_px: 1}
+  C: {render_mode: conventional, line_pitch_mode: unaligned, axis: x, range: sweep,
+      step_px: {qwen: 7, smolvlm: 2, smolvlm500m: 4}}
+  S: {render_mode: patch_aware, line_pitch_mode: unaligned, axis: x, phases_px: [0.0, 0.25, 0.5, 0.75]}
+  A: {render_mode: conventional, line_pitch_mode: unaligned, axis: x, phases_px: [0.0],
+      aa_mode: [binary, coverage_linear]}
 output_root: results/runs

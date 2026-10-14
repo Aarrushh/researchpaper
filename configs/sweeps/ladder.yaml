@@ -1,0 +1,20 @@
+# PURPOSE: Font-size ladder: CER against size at phase 0, both render modes, a few pages (W1.10).
+# WHAT GOES HERE: Readers, pages, seed, font, the Z block of sizes and modes, the target CER.
+# FILLED IN AT STEP: W1.10. Frozen once run.
+# DO NOT: Edit after the ladder has run; the target CER is fixed before the run.
+#
+# Rows per reader = 6 sizes x 2 render modes x 3 pages x 2 text types = 72; total runs = 216.
+
+readers: [qwen, smolvlm, smolvlm500m]
+seed: 20261012
+pages:
+  natural: {books: [pg105, pg84, pg1661], per_text_type: 3}
+  random62: {per_text_type: 3}
+repeats: 1
+font_file: data/external/fonts/source-sans-3/SourceSans3-Regular.ttf
+aa_mode: coverage_srgb
+blocks:
+  Z: {line_pitch_mode: unaligned, phases_px: [0.0], render_mode: [conventional, patch_aware],
+      font_size_px: [10, 12, 14, 16, 20, 24], paginate: per_condition}
+target_cer_random62: 0.15     # your choice, fixed before the run (section 2.9)
+output_root: results/runs
