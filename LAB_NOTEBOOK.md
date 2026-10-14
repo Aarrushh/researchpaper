@@ -820,3 +820,16 @@ Broke:
 - Nothing. `tests/test_mtf.py`: 16 passed in 13 s (the 3 model-marked ones against the real tensors). Full CPU suite by hand in this worktree: 522 passed, 1 skipped, 107 deselected in 181 s.
 Next:
 - P3.5, the full sweep config, once the ladder gives the sizes; P4.1, the spec. Every run, Gate 2, the freeze and the tag wait for owner actions 1 to 3 and the GPU.
+
+## 2026-10-14, Claude (D22): W3.2, `configs/sweeps/full.yaml` as the template of section 3.5, numbers at Gate 2
+Did:
+- `configs/sweeps/full.yaml` rewritten to the template of build guide section 3.5: the pilot's blocks V, H, C, S and A unchanged, block Z as the ladder's design (10, 12, 14, 16, 20 and 24 px, both render modes, `paginate: per_condition`), seed 20261016 (the ladder's is 20261012, the pilot's 20261013), `pages.natural.start_after: [configs/sweeps/ladder.yaml, configs/sweeps/pilot.yaml]`, `z_per_text_type: 5`. The page counts per reader, the sizes, the run count and the hours are `TODO[W3.2]` strings, which `plan_pages` and `expand_conditions` refuse, so the file cannot start a run before Gate 2 fills it (D5).
+- `tests/test_configs.py`: the full sweep names both earlier sweeps, a new seed and five Z pages per text type; for every reader its blocks expand to the pilot's conditions plus the ladder's twelve Z layouts (62, 74 and 66 conditions); no page shares text with the ladder or the pilot, every natural page starts after the last word any earlier reader used and the random stream is new; every Z layout holds 2 x N_Z pages, each after this sweep's shared pages; page i of the twelve layouts starts with the same word. While the placeholders remain, the three plan tests run on a stand-in with the file's structure and small counts (16 px, 2 shared and 1 Z page per text type, the earlier sweeps replanned from concrete copies with one page each); once the numbers are in they run on the file itself. `test_header_run_count_equals_the_computed_count` now passes `readers=` to `plan_pages`, which `start_after` needs.
+Found:
+- The header test and the Gate 2 fill: when Gate 2 sets the counts, `total runs` and the hours in the header must be written in the same edit, or that test fails on the file.
+- `start_after` replans the pilot, so `pilot.yaml` must hold its sizes (not "from the ladder") before the full sweep can be planned at all; the ladder run writes them.
+- If the owner takes the Sunday plan (no separate pilot), `pilot.yaml` leaves `start_after`; nothing else in the file changes.
+Broke:
+- Nothing. `tests/test_configs.py`: 31 passed, 1 skipped (the full sweep's run count, until Gate 2) in 8 s.
+Next:
+- Gate 2: the counts from `pages_needed` under the 108 h budget, the header, the pilot's sizes; commit as `W3.2: full sweep config and budget (D5)`. Then P4.1 on `build/p4`.

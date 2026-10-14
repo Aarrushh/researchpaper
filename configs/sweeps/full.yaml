@@ -1,17 +1,22 @@
-# PURPOSE: Full sweep: the readers that survive the pilot, blocks V, H, C, S and A on shared pages (D4, D10, D19).
+# PURPOSE: Full sweep: blocks V, H, C, S and A on shared pages, block Z on its own pages (D10, D19).
 # WHAT GOES HERE: Readers, pages, seed, font and size per reader, blocks with their phase levels, output root.
 # FILLED IN AT STEP: W3.2. Frozen once W3.3 starts.
-# DO NOT: Edit after the sweep has started; resume instead. Never reuse a seed or a pilot page (section 2.4).
+# DO NOT: Edit after the sweep has started; resume instead. Never reuse a seed or a page of the ladder or the pilot (section 2.4).
 #
-# Rows per reader = conditions per page per text type x pages per text type x 2 text types x repeats:
-#   total runs = TODO[W3.2]: sum over the readers, from expand_conditions and the page plan
-#   estimated hours = TODO[W3.2]: total runs x seconds per run (W1.7) / 3600
+# Rows per reader = conditions per page x 2 text types x N + 24 x N_Z (24 = 6 sizes x 2 render modes x 2 text types):
+#   qwen 50 x 2 x N_Q + 24 x 5 = TODO[W3.2]; smolvlm 62 x 2 x N_2 + 120 = TODO[W3.2];
+#   smolvlm500m 54 x 2 x N_5 + 120 = TODO[W3.2]; total runs = TODO[W3.2]
+# Estimated hours (build guide section 3.5 with the pilot's and the ladder's mean latencies; one laptop, D20):
+#   TODO[W3.2]: h_B + h_A <= 108, the 114 h window less 6 h for restarts and model loads
 
-readers: [qwen, smolvlm, smolvlm500m]     # W3.2: drop a reader the pilot cut (D4)
-seed: "TODO[W3.2]: a new integer seed, never reused; the date makes one"
+readers: [qwen, smolvlm, smolvlm500m]     # W3.2: a reader Gate 2 cuts leaves this list and every per-reader map below
+seed: 20261016                            # new: the ladder used 20261012 and the pilot 20261013 (section 2.4, step 6)
 pages:
-  natural: {books: [pg105, pg84, pg1661], per_text_type: "TODO[W3.2]: pages per text type from the budget (section 3.5)"}
-  random62: {per_text_type: "TODO[W3.2]: the same count"}
+  natural: {books: [pg105, pg84, pg1661],
+            per_text_type: {qwen: "TODO[W3.2]: N_Q", smolvlm: "TODO[W3.2]: N_2", smolvlm500m: "TODO[W3.2]: N_5"},
+            start_after: [configs/sweeps/ladder.yaml, configs/sweeps/pilot.yaml]}
+  random62: {per_text_type: {qwen: "TODO[W3.2]: N_Q", smolvlm: "TODO[W3.2]: N_2", smolvlm500m: "TODO[W3.2]: N_5"}}
+  z_per_text_type: 5
 repeats: 1
 font_file: data/external/fonts/source-sans-3/SourceSans3-Regular.ttf
 font_size_px: {qwen: "from the pilot", smolvlm: "from the pilot", smolvlm500m: "from the pilot"}
@@ -25,4 +30,6 @@ blocks:
   S: {render_mode: patch_aware, line_pitch_mode: unaligned, axis: x, phases_px: [0.0, 0.25, 0.5, 0.75]}
   A: {render_mode: conventional, line_pitch_mode: unaligned, axis: x, phases_px: [0.0],
       aa_mode: [binary, coverage_linear]}
+  Z: {line_pitch_mode: unaligned, phases_px: [0.0], render_mode: [conventional, patch_aware],
+      font_size_px: [10, 12, 14, 16, 20, 24], paginate: per_condition}
 output_root: results/runs
