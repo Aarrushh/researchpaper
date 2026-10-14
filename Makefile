@@ -11,7 +11,7 @@ RESUME ?=                         # e.g. RESUME=results/runs/<run_id> continues 
 
 .DEFAULT_GOAL := help
 .PHONY: help env check-env test test-models test-all readers render-check equivariance coherence
-.PHONY: ladder pilot sweep analyze figures mtf freeze freeze-check clean-interim
+.PHONY: contract reader-facts ladder pilot sweep analyze figures mtf freeze freeze-check clean-interim
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -43,6 +43,12 @@ equivariance: ## Shift-equivariance error per layer of each vision tower, and Fi
 
 coherence: ## Reproduce the D10 coherence table from the layout code, no model (W1.10)
 	$(PYTHON) scripts/05_coherence.py --config "configs/readers.yaml"
+
+contract: ## Contract checks behind R01 to R06 and the Conformance table of the spec, into reports/tables/contract (W4.1); no model
+	$(PYTHON) scripts/08_contract_checks.py
+
+reader-facts: ## Reader facts table behind R07 and R08 of the spec, into reports/tables/readers (W4.1); GPU
+	$(PYTHON) scripts/01_check_readers.py --config "configs/readers.yaml" --out "reports/tables/readers/reader_facts.csv"
 
 ladder: ## Run the font-size ladder, block Z at phase 0 (W1.10); READERS=... to pick readers, RESUME=... to continue a run
 	$(PYTHON) scripts/10_run_sweep.py --config "configs/sweeps/ladder.yaml" $(if $(READERS),--readers $(READERS),) $(if $(RESUME),--resume $(RESUME),)

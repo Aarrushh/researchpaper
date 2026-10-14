@@ -67,5 +67,6 @@ def test_results_columns_match_data_dictionary():
     from mrr.manifest import RESULTS_COLUMNS
 
     text = (REPO_ROOT / "docs" / "04_data_dictionary.md").read_text(encoding="utf-8")
-    documented = re.findall(r"^\| `([a-z_]+)` \|", text, flags=re.MULTILINE)
+    section = text[text.index("\n## results.csv") : text.index("\n## Run folder layout")]  # later sections document other tables
+    documented = re.findall(r"^\| `([a-z_]+)` \|", section, flags=re.MULTILINE)
     assert tuple(documented) == RESULTS_COLUMNS

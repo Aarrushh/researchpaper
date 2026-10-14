@@ -81,6 +81,50 @@ results/mtf/
 
 Every row comes from the grey kernels K_d = sum over c of W_{d,c} / sigma_c (Qwen's two frame slices summed first), with sigma_c the processor's `image_std` at the pinned revision (`mrr.mtf.grey_kernels`). The tensors live under `data/external/weights/`, git-ignored; the manifest records their SHA-256. A value is a gain of one linear layer, never a resolution limit (notes A8, "Gain is not loss").
 
+## reports/tables/contract/contract_checks.csv (W4.1, the evidence of R01 to R06 and the Conformance table)
+
+One row per check, written by `scripts/08_contract_checks.py` (`make contract`) beside the folder's `manifest.json`, which is written first so that its `git_dirty` describes the tree the checks ran on. Rules R01 to R06 of `spec/RENDERING_SPEC.md` cite the rows whose `rule` names them; the Conformance table cites the `Conformance` rows. Every `expected` cell is a value the spec states or a bound it implies; every `observed` cell is recomputed, from the renderer where the rule describes the renderer and from the spec's equations where it states arithmetic (the three Conformance facts over all 16,777,216 byte triples). The script exits 1 if any row has `passed` False. A number the spec states may not be changed to match the script without a notebook entry saying why the earlier number was wrong.
+
+| Column | Type | Unit | Allowed values | Example |
+|---|---|---|---|---|
+| `rule` | string | none | `R01` to `R06`, or `Conformance` | `R05` |
+| `check` | string | none | what the row checks, in words | `coverage_linear: byte 128 of (200, 30, 60) on (250, 245, 230)` |
+| `expected` | string | none | the spec's value, or a bound such as `< 1e-12` | `[227, 181, 173]` |
+| `observed` | string | none | the computed value | `[227, 181, 173]` |
+| `passed` | string | none | `True` or `False` | `True` |
+
+## reports/tables/readers/reader_facts.csv (W4.1, the evidence of R07 and R08)
+
+One row per reader of `configs/readers.yaml`, written on the GPU by `scripts/01_check_readers.py --out reports/tables/readers/reader_facts.csv` (`make reader-facts`) once every reader's checks have passed, beside the folder's `manifest.json` (written first). The column list is `FACTS_COLUMNS` in that script; `tests/test_check_readers.py` checks that it and this table agree. The blind-strip columns come from replacing a region of the native page with the bytes of `numpy.random.default_rng(2)` and comparing the encoder's and the connector's outputs with the page's, as `tests/test_reader_facts.py` does.
+
+| Column | Type | Unit | Allowed values | Example |
+|---|---|---|---|---|
+| `reader` | string | none | `qwen`, `smolvlm`, `smolvlm500m` | `smolvlm` |
+| `hf_id` | string | none | the Hub id | `HuggingFaceTB/SmolVLM-Instruct` |
+| `revision` | string | none | the pinned 40-character commit | `81cd9a775a4d644f2faf4e7becff4559b46b14c7` |
+| `dtype` | string | none | `bfloat16` | `bfloat16` |
+| `placement` | string | none | the `hf_device_map` summary the script prints, or `no hf_device_map` | `hf_device_map {'': 0}` |
+| `patch_px` | int | px | 14, 16 | `14` |
+| `merge` | int | patches per token side | 2, 3, 4 | `3` |
+| `token_cell_px` | int | px | 28, 42, 64 | `42` |
+| `window_px` | int or empty | px | 112 for `qwen`; empty for the SmolVLM readers, which attend over the whole frame | `` |
+| `page_height_px` | int | px | 448, 384, 512 | `384` |
+| `page_width_px` | int | px | 448, 384, 512 | `384` |
+| `encoder_input` | string | none | the processor output's shape and the patch and token grids, in words | `pixel_values (1, 1, 3, 384, 384): 27 x 27 patches of 14 px, 9 x 9 tokens of 3 x 3 patches` |
+| `encoder_input_px` | string | frames x px x px | what reached the encoder; one frame of the page size for a native page | `1x384x384` |
+| `vision_tokens` | int | tokens | the image tokens counted in the prompt | `81` |
+| `grid_token_count` | int | tokens | the formula's count, `grid.token_count` | `81` |
+| `native_frame` | bool | none | True when one frame of exactly the page size reached the encoder and the two counts agree (R07) | `True` |
+| `blind_from_px` | int or empty | px | 378 for `smolvlm`; empty for the others | `378` |
+| `blind_strip_px` | int | px | 6 for `smolvlm`, 0 for the others | `6` |
+| `blind_strip_invisible` | bool or empty | none | True when noise in the columns and in the rows from `blind_from_px` onward leaves the encoder's output identical (R08); empty for a reader without a strip | `True` |
+| `control_column_visible` | bool or empty | none | True when noise in the column before the strip changes the output; empty for a reader without a strip | `True` |
+| `max_new_tokens` | int | tokens | from `configs/readers.yaml` | `629` |
+| `transcription_tokens` | int | tokens | new tokens of the one transcription, the end token included | `412` |
+| `hit_limit` | bool | none | the transcription stopped at `max_new_tokens`, not at an end token | `False` |
+| `latency_s` | float | s | the first generate call after loading, warm-up included, to 3 decimals | `21.374` |
+| `peak_gib` | float | GiB | `torch.cuda.max_memory_allocated`, to 3 decimals | `5.012` |
+
 ## Run ID format
 
 `YYYYMMDD-HHMM_<sweep>_<reader>_<short-git-sha>`
