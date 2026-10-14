@@ -191,10 +191,15 @@ def test_plot_mtf_writes_a_pdf_with_and_without_a_degree_axis_and_checks_its_inp
     plotting.plot_mtf(curves, tmp_path / "fig3.pdf")
     plotting.plot_mtf(curves, tmp_path / "fig3_deg.pdf", px_per_degree=60.0)
     assert _is_pdf(tmp_path / "fig3.pdf") and _is_pdf(tmp_path / "fig3_deg.pdf")
+    reference = {"name": "human CSF (assumed)", "frequency": np.linspace(0, 0.5, 50), "gain": np.exp(-np.linspace(0, 0.5, 50))}
+    plotting.plot_mtf(curves, tmp_path / "fig3_ref.pdf", px_per_degree=40.0, reference=reference)
+    assert _is_pdf(tmp_path / "fig3_ref.pdf")
     with pytest.raises(ValueError, match="no curves"):
         plotting.plot_mtf({}, tmp_path / "no.pdf")
     with pytest.raises(ValueError, match="one length"):
         plotting.plot_mtf({"bad": {"frequency": [0.1, 0.2], "gain": [1.0]}}, tmp_path / "no.pdf")
+    with pytest.raises(ValueError, match="reference"):
+        plotting.plot_mtf(curves, tmp_path / "no.pdf", reference={"frequency": [0.1], "gain": [1.0, 2.0]})
     with pytest.raises(ValueError, match="positive"):
         plotting.plot_mtf(curves, tmp_path / "no.pdf", px_per_degree=0.0)
 
@@ -220,13 +225,27 @@ def test_plot_equivariance_writes_a_pdf_from_a_synthetic_frame(tmp_path):
 # --------------------------------------------------------------------------- the script
 
 
-def _figures(sweep_path: Path, runs_root: Path, out_dir: Path) -> subprocess.CompletedProcess:
+def _figures(sweep_path, runs_root: Path, out_dir: Path, mtf_dir=None) -> subprocess.CompletedProcess:
+    """Run the script; without mtf_dir an empty folder stands in, so the repository's results/mtf stays out of the test."""
     env = {**os.environ, "PYTHONUTF8": "1",
            "PYTHONPATH": os.pathsep.join(p for p in (str(REPO_ROOT / "src"), os.environ.get("PYTHONPATH", "")) if p)}
-    return subprocess.run(
-        [sys.executable, str(SCRIPT), "--config", str(sweep_path), "--runs-root", str(runs_root), "--out-dir", str(out_dir)],
-        capture_output=True, text=True, env=env, cwd=REPO_ROOT,
-    )
+    args = [sys.executable, str(SCRIPT), "--runs-root", str(runs_root), "--out-dir", str(out_dir),
+            "--mtf-dir", str(mtf_dir if mtf_dir is not None else Path(out_dir).parent / "no_mtf")]
+    if sweep_path is not None:
+        args += ["--config", str(sweep_path)]
+    return subprocess.run(args, capture_output=True, text=True, env=env, cwd=REPO_ROOT)
+
+
+def _layer0_csv(folder: Path, reader: str, decay: float) -> Path:
+    """A fake results/mtf/layer0_<reader>.csv with the four profiles scripts/04_mtf.py writes."""
+    ring_f = (np.arange(32) + 0.5) / 64
+    lines = ["profile,f_cyc_per_px,value"]
+    lines += [f"ring,{f:.10g},{np.exp(-decay * f):.12g}" for f in ring_f]
+    lines += [f"horizontal,{f:.10g},{np.exp(-decay * f):.12g}" for f in np.arange(64) / 128]
+    lines += [f"m0_0deg,{f:.10g},{1.0:.12g}" for f in ring_f] + [f"m0_45deg,{f:.10g},{1.0:.12g}" for f in ring_f]
+    path = folder / f"layer0_{reader}.csv"
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
+    return path
 
 
 @pytest.fixture(scope="module")
@@ -256,4 +275,28 @@ def test_the_script_without_a_run_folder_exits_1(tmp_path):
     sweep_path = _write_sweep(tmp_path)
     result = _figures(sweep_path, tmp_path / "runs", tmp_path / "figures")
     assert result.returncode == 1 and "no run folder" in result.stderr
+    assert not (tmp_path / "figures").exists()
+
+
+def test_the_script_draws_figure_3a_from_the_mtf_csvs_without_a_sweep(tmp_path):
+    mtf_dir = tmp_path / "mtf"
+    mtf_dir.mkdir()
+    _layer0_csv(mtf_dir, "qwen", 2.0)
+    _layer0_csv(mtf_dir, "smolvlm", 4.0)
+    out_dir = tmp_path / "figures"
+    result = _figures(None, tmp_path / "runs", out_dir, mtf_dir=mtf_dir)
+    assert result.returncode == 0, result.stderr
+    assert _is_pdf(out_dir / "fig3a_layer0_mtf.pdf") and "Figure 3a" in result.stderr and "qwen, smolvlm" in result.stderr
+    assert sorted(p.name for p in out_dir.iterdir()) == ["fig3a_layer0_mtf.pdf"]
+    first = (out_dir / "fig3a_layer0_mtf.pdf").read_bytes()
+    assert _figures(None, tmp_path / "runs", out_dir, mtf_dir=mtf_dir).returncode == 0
+    assert (out_dir / "fig3a_layer0_mtf.pdf").read_bytes() == first  # the same CSVs give the same bytes
+    sweep_path = _write_sweep(tmp_path)  # a sweep without a run folder still exits 1, with Figure 3a drawn
+    result = _figures(sweep_path, tmp_path / "runs", tmp_path / "figures2", mtf_dir=mtf_dir)
+    assert result.returncode == 1 and "no run folder" in result.stderr and _is_pdf(tmp_path / "figures2" / "fig3a_layer0_mtf.pdf")
+
+
+def test_the_script_with_neither_a_sweep_nor_mtf_csvs_exits_1(tmp_path):
+    result = _figures(None, tmp_path / "runs", tmp_path / "figures", mtf_dir=tmp_path / "mtf")
+    assert result.returncode == 1 and "nothing to draw" in result.stderr
     assert not (tmp_path / "figures").exists()

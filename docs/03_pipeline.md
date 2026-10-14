@@ -94,8 +94,8 @@ Dates follow the re-plan of 12 October 2026 (D21). If G1 has not passed by Wed 1
 - [ ] **W3.5** Copy final CSVs to `results/final/`; create git tag `data-freeze-v1`.
   - Files: `scripts/40_freeze.py`, `tests/test_freeze.py`, `Makefile` (`freeze`, `freeze-check`), `results/final/`
   - Done when: tag `data-freeze-v1` exists and every paper number traces to a file in `results/final/`.
-- [ ] **W3.6** Layer-0 MTF from the weights (B7, stretch).
-  - Files: `src/mrr/mtf.py`, `scripts/04_mtf.py`, `tests/test_mtf.py`, `results/mtf/layer0_<reader>.csv`, `src/mrr/plotting.py` (`plot_mtf`), `scripts/30_make_figures.py`
+- [x] **W3.6** Layer-0 MTF from the weights (B7, stretch). Done 14 October 2026, CPU only, no model loaded.
+  - Files: `src/mrr/mtf.py`, `scripts/04_mtf.py`, `tests/test_mtf.py`, `results/mtf/layer0_<reader>.csv` and `manifest.json`, `data/external/weights/README.md` (the fetched tensors, git-ignored), `src/mrr/plotting.py` (`plot_mtf`), `scripts/30_make_figures.py` (`--mtf-dir`), `Makefile` (`mtf`), `reports/figures/fig3a_layer0_mtf.pdf`
   - Done when: `tests/test_mtf.py` passes and paper Figure 3a (`reports/figures/fig3a_layer0_mtf.pdf`) exists.
 - [ ] **W3.7** Grating MTF through the whole encoder (B7, stretch).
   - Files: `src/mrr/gratings.py`, `tests/test_gratings.py`, `scripts/06_gratings.py`, `results/mtf/gratings_<reader>.csv`, `scripts/30_make_figures.py`

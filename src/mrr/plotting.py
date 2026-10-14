@@ -331,8 +331,17 @@ def plot_tradeoff(df: Any, out_path: str | Path, pe_assumed: Sequence[float] = (
 # --------------------------------------------------------------------------- Figure 3 (section 3S.4)
 
 
+def _curve(name: str, curve: Mapping[str, Sequence[float]]) -> tuple[np.ndarray, np.ndarray]:
+    f = np.asarray(curve["frequency"], dtype=np.float64)
+    g = np.asarray(curve["gain"], dtype=np.float64)
+    if f.ndim != 1 or f.shape != g.shape or f.size == 0:
+        raise ValueError(f"{name}: frequency and gain must be one-dimensional sequences of one length")
+    order = np.argsort(f)
+    return f[order], g[order]
+
+
 def plot_mtf(curves: Mapping[str, Mapping[str, Sequence[float]]], out_path: str | Path,
-             px_per_degree: float | None = None) -> None:
+             px_per_degree: float | None = None, *, reference: Mapping[str, Any] | None = None) -> None:
     """Figure 3: the encoder's modulation transfer, gain against spatial frequency, one line per curve.
 
     Args:
@@ -340,12 +349,16 @@ def plot_mtf(curves: Mapping[str, Mapping[str, Sequence[float]]], out_path: str 
             reader or per layer (results/mtf/, build guide 3S.4). A light line marks the Nyquist frequency, half a
             cycle per pixel.
         out_path: the PDF to write, under reports/figures/.
-        px_per_degree: when given, a second x axis on top in cycles per degree, so the curve can be read against a
-            human contrast-sensitivity function at one viewing distance.
+        px_per_degree: when given, a second x axis on top in cycles per degree at that many pixels per degree, so
+            the curve can be read against a human contrast-sensitivity function at one viewing distance; the axis
+            label names the value as an assumption, since it is one (a 96 dpi screen at 60 cm gives 39.6).
+        reference: an optional ``{"name", "frequency", "gain"}`` drawn as a plain black line without markers, for
+            a curve that is not a measurement of the encoder, such as the Mannos-Sakrison CSF of ``mtf.csf_mannos_sakrison``
+            placed on the pixel axis by f_px = f_deg / px_per_degree.
 
     Raises:
-        ValueError: on an empty mapping, a curve whose two sequences differ in length or are empty, or a
-            px_per_degree that is not positive.
+        ValueError: on an empty mapping, a curve or reference whose two sequences differ in length or are empty, or
+            a px_per_degree that is not positive.
     """
     import matplotlib
     from matplotlib.figure import Figure
@@ -359,12 +372,12 @@ def plot_mtf(curves: Mapping[str, Mapping[str, Sequence[float]]], out_path: str 
         ax = fig.subplots()
         f_max = 0.0
         for name, curve in curves.items():
-            f = np.asarray(curve["frequency"], dtype=np.float64)
-            g = np.asarray(curve["gain"], dtype=np.float64)
-            if f.ndim != 1 or f.shape != g.shape or f.size == 0:
-                raise ValueError(f"{name}: frequency and gain must be one-dimensional sequences of one length")
-            order = np.argsort(f)
-            ax.plot(f[order], g[order], "-o", markersize=2.5, linewidth=0.9, label=str(name))
+            f, g = _curve(str(name), curve)
+            ax.plot(f, g, "-o", markersize=2.5, linewidth=0.9, label=str(name))
+            f_max = max(f_max, float(f.max()))
+        if reference is not None:
+            f, g = _curve("reference", reference)
+            ax.plot(f, g, "-", color="black", linewidth=0.9, label=str(reference.get("name", "reference")))
             f_max = max(f_max, float(f.max()))
         ax.axvline(0.5, color="0.7", linewidth=0.6, zorder=0)
         ax.set_xlabel("spatial frequency (cycles per pixel)")
@@ -374,6 +387,6 @@ def plot_mtf(curves: Mapping[str, Mapping[str, Sequence[float]]], out_path: str 
         if px_per_degree is not None:
             scale = float(px_per_degree)
             top = ax.secondary_xaxis("top", functions=(lambda f: f * scale, lambda c: c / scale))
-            top.set_xlabel("cycles per degree")
-        ax.legend(frameon=False)
+            top.set_xlabel(f"cycles per degree at ρ = {scale:g} px per degree (assumed)")
+        ax.legend(frameon=False, fontsize=6, loc="lower right")  # every curve rises from the left; the right stays free
         _save(fig, out_path)

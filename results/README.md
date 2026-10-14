@@ -18,6 +18,7 @@ results/
 │   ├── references/<page_id>.txt, coherence.csv, determinism.csv, progress.log
 │   └── images/            (gitignored)
 ├── equivariance/          <reader>_<text_type>.csv and manifest.json (W1.9)
+├── mtf/                   layer0_<reader>.csv (profile, f_cyc_per_px, value) and manifest.json (W3.6)
 └── final/                 the freeze (W3.5): copies of runs/, equivariance/ and the stretch folders,
                            without images/, plus README.md with the SHA-256 of every file
 ```

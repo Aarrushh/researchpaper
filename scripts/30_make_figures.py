@@ -1,49 +1,103 @@
-# PURPOSE: Generate the paper's figures from run CSVs.
-# WHAT GOES HERE: Load results and call mrr.plotting for Figures 1 and 2.
-# FILLED IN AT STEP: W2.5 (Figure 1), W3.4 (Figure 2).
+# PURPOSE: Generate the paper's figures from results/.
+# WHAT GOES HERE: Load results and call mrr.plotting for Figures 1, 2 and 3a.
+# FILLED IN AT STEP: W2.5 (Figure 1), W3.4 (Figure 2), W3.6 (Figure 3a).
 # DO NOT: Hand-edit figures. Do not read data from anywhere but results/.
-"""Steps W2.5 and W3.4: make figures.
+"""Steps W2.5, W3.4 and W3.6: make figures.
 
-    python scripts/30_make_figures.py --config configs/sweeps/pilot.yaml [--runs-root results/runs] [--out-dir reports/figures]
+    python scripts/30_make_figures.py [--config configs/sweeps/pilot.yaml] [--runs-root results/runs]
+                                      [--mtf-dir results/mtf] [--out-dir reports/figures]
 
-Reads the run folders of the sweep (results/runs/<run_id>/manifest.json and results.csv) through
+With --config, reads the run folders of the sweep (results/runs/<run_id>/manifest.json and results.csv) through
 ``sweep.load_results`` and drops the pages section 8 of PREREGISTRATION.md excludes, exactly as scripts/20_analyze.py
 does, so the figures show the rows the tables used. Writes ``fig1_phase_<sweep_name>.pdf`` (Figure 1) and, when the
 rows hold block Z, ``fig2_tradeoff_<sweep_name>.pdf`` (Figure 2). Nothing is read from reports/tables/: the figures
 recompute what they draw with mrr.stats, with the preregistered seed and 2,000 page resamples (section 9).
+
+Whenever --mtf-dir holds ``layer0_<reader>.csv`` files (scripts/04_mtf.py), writes ``fig3a_layer0_mtf.pdf``
+(Figure 3a): each reader's ring profile against cycles per pixel, beside the Mannos-Sakrison contrast sensitivity
+placed on the same axis at an assumed 40 pixels per degree (a 96 dpi screen seen from 60 cm gives 39.6; notes A8),
+the assumption written in the axis label. Nothing to draw, neither a sweep nor MTF files, is an error.
 """
 
 from __future__ import annotations
 
 import argparse
+import csv
 import logging
 import sys
 from pathlib import Path
 from typing import Sequence
 
+import numpy as np
 import yaml
 
 from mrr import plotting
+from mrr.mtf import csf_mannos_sakrison
 from mrr.sweep import RunFolder, complete_rows, load_results, sweep_run_dirs
 
 RESAMPLES = 2000  # PREREGISTRATION.md section 9
 SEED = 20261014
+PX_PER_DEGREE = 40.0  # pixels per degree of visual angle: 96 dpi at 60 cm gives 39.6 (notes A8, equation (8)); an assumption
 
 _log = logging.getLogger("figures")
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--config", required=True, help="configs/sweeps/<name>.yaml")
+    p.add_argument("--config", default=None, help="configs/sweeps/<name>.yaml for Figures 1 and 2")
     p.add_argument("--runs-root", default="results/runs", help="where the run folders are (default results/runs)")
+    p.add_argument("--mtf-dir", default="results/mtf", help="where layer0_<reader>.csv are (default results/mtf)")
     p.add_argument("--out-dir", default="reports/figures", help="where the PDFs go (default reports/figures)")
     return p.parse_args(argv)
 
 
+def layer0_curves(mtf_dir: Path) -> dict[str, dict[str, np.ndarray]]:
+    """reader -> its ring profile from ``<mtf_dir>/layer0_<reader>.csv`` (the rows whose profile is ``ring``)."""
+    curves: dict[str, dict[str, np.ndarray]] = {}
+    for path in sorted(Path(mtf_dir).glob("layer0_*.csv")):
+        with open(path, encoding="utf-8", newline="") as fh:
+            rows = [row for row in csv.DictReader(fh) if row["profile"] == "ring"]
+        if not rows:
+            raise ValueError(f"{path}: no ring rows")
+        curves[path.stem[len("layer0_"):]] = {
+            "frequency": np.array([float(row["f_cyc_per_px"]) for row in rows]),
+            "gain": np.array([float(row["value"]) for row in rows]),
+        }
+    return curves
+
+
+def draw_figure_3a(curves: dict[str, dict[str, np.ndarray]], out_dir: Path) -> Path:
+    """Figure 3a: the ring profiles beside the human CSF at PX_PER_DEGREE pixels per degree (build guide 3S.4)."""
+    f_deg = np.linspace(0.0, 0.5 * PX_PER_DEGREE, 201)  # up to the pixel limit, half a cycle per pixel
+    reference = {
+        "name": f"human CSF (Mannos–Sakrison), ρ = {PX_PER_DEGREE:g} px/deg assumed",
+        "frequency": f_deg / PX_PER_DEGREE,  # notes A8, equation (9)
+        "gain": csf_mannos_sakrison(f_deg),
+    }
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out = out_dir / "fig3a_layer0_mtf.pdf"
+    plotting.plot_mtf(curves, out, px_per_degree=PX_PER_DEGREE, reference=reference)
+    return out
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
+    logging.getLogger("fontTools").setLevel(logging.WARNING)  # the PDF backend's font subsetting logs every glyph at INFO
     args = parse_args(argv)
-    sweep_path, runs_root, out_dir = Path(args.config), Path(args.runs_root), Path(args.out_dir)
+    out_dir, mtf_dir = Path(args.out_dir), Path(args.mtf_dir)
+
+    curves = layer0_curves(mtf_dir)
+    if curves:
+        fig3a = draw_figure_3a(curves, out_dir)
+        _log.info("Figure 3a: %s (%s from %s)", fig3a, ", ".join(curves), mtf_dir)
+    elif args.config is None:
+        _log.error("nothing to draw: pass --config <sweep> for Figures 1 and 2, or write %s first (scripts/04_mtf.py) "
+                   "for Figure 3a", mtf_dir)
+        return 1
+    if args.config is None:
+        return 0
+
+    sweep_path, runs_root = Path(args.config), Path(args.runs_root)
     sweep_cfg = yaml.safe_load(sweep_path.read_text(encoding="utf-8"))
     sweep_name = sweep_path.stem
     run_dirs = sweep_run_dirs(sweep_path, runs_root)
