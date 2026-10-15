@@ -425,3 +425,29 @@ def test_every_test_row_carries_its_minimum_detectable_effect_at_the_pages_obtai
     for r in paired:
         if int(r["n"]) >= 2 and r["sd_diff"] not in ("", "0.0") and float(r["sd_diff"]) > 0:
             assert float(r["mde_median_diff"]) == pytest.approx(stats.paired_mde(float(r["sd_diff"]), int(r["n"])), rel=1e-9)
+
+
+def test_the_summary_restates_every_table_and_applies_section_10(analysis, tmp_path):
+    out = tmp_path / "summary.md"
+    done = subprocess.run([sys.executable, str(REPO_ROOT / "scripts" / "50_summary.py"), "--tables",
+                           str(analysis.out_dir), "--out", str(out)], capture_output=True, text=True,
+                          env=dict(os.environ, PYTHONPATH=str(REPO_ROOT / "src")))
+    assert done.returncode == 0, done.stderr
+    text = out.read_text(encoding="utf-8")
+    for heading in ("## Verdicts", "## Checks", "family a_random62", "family a_natural", "family control_C",
+                    "## Paired tests", "## Block S", "## Block Z", "## Coherence"):
+        assert heading in text, heading
+    harmonics = _rows(analysis.out_dir / "harmonics.csv")
+    readers = sorted({r["reader"] for r in harmonics})
+    for reader in readers:
+        prim = [r for r in harmonics if r["reader"] == reader and r["family"] == "a_random62"]
+        supported = any(r["p_holm"] != "" and float(r["p_holm"]) < 0.05 for r in prim)
+        line = next(l for l in text.splitlines() if l.startswith(f"- **{reader}**"))
+        assert ("clause (a): SUPPORTED" in line) == supported
+    assert len([l for l in text.splitlines() if l.startswith("| ") and "random62" in l]) >= 1
+
+
+def test_the_summary_without_tables_exits_1(tmp_path):
+    done = subprocess.run([sys.executable, str(REPO_ROOT / "scripts" / "50_summary.py"), "--tables", str(tmp_path)],
+                          capture_output=True, text=True)
+    assert done.returncode == 1 and "run scripts/20_analyze.py first" in done.stderr
