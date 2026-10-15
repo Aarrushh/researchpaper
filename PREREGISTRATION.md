@@ -162,7 +162,7 @@ Every table is written by `scripts/20_analyze.py` into `reports/tables/<sweep_na
 
 ## 11. Date and commit hash
 
-- **Drafted:** 14 October 2026 (Claude, D22). **Approved by the owner, for both authors (D22):** APPROVAL_PENDING.
+- **Drafted:** 14 October 2026 (Claude, D22). **Approved by the owner, for both authors (D22):** 15 October 2026, 15:20 CEST, with the font sizes of the ladder, the page ceilings and the schedule of D26 above (the owner's answer: "Approve and launch").
 - **Tag.** `prereg-v1` goes on the commit that adds this file's final text, which also holds `configs/sweeps/full.yaml` with the ladder's sizes and page ceilings and the runner (`src/mrr/sweep.py`, `scripts/10_run_sweep.py`); a commit cannot contain its own hash, so the tag names it: `git rev-list -n 1 prereg-v1`. The runner was committed as `495f1f3` (W2.3, 14 October 2026); the configs with the ladder's sizes, the page ceilings and the schedule are in the tagged commit itself.
 - D13 and D14 are marked decided when the tag goes on.
 

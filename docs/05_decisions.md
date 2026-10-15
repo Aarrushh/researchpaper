@@ -51,22 +51,22 @@ DO NOT: Delete or rewrite old entries. Supersede them with a new entry that refe
 
 ### D4. G1 outcome
 - ID: D4
-- Status: open
-- Date: TODO[G1]: date of G1 decision
-- Decision: TODO[G1]: go or no-go at G1
+- Status: decided
+- Date: 2026-10-15 (the owner's go, 15:20 CEST, with the preregistration's approval)
+- Decision: Go. The readers see exactly the pages we render, Figure 0 shows the predicted periods, and the runner survives a real interruption.
 - Options considered: go; no-go.
-- Evidence: TODO[G1]: token count check, overlay images, transcription test
-- Consequences: TODO[G1]: what happens next
+- Evidence: The six items of build guide 2.10 (`LAB_NOTEBOOK.md`, "Gate 1 evidence assembled", 14 October, and the ladder entry, 15 October). (1) No-resize test and reader facts: 79 model tests passed at b6d0dc5; 256, 81 and 64 vision tokens equal to `grid.token_count`. (2) Overlays: the owner's "overlays OK" on 15 October, on a contact sheet of the 15 crops of `reports/figures/render_check/`; the raw-page hashes are in the W1.5 render-check entry. (3) Figure 0: layer-0 E is 0 to the last bit at every multiple of P, E(0.25) and the plateau inside appendix C.3's ranges (W1.9). (4) `scripts/05_coherence.py` reproduces the coherence table (W1.10). (5) The ladder chose 24, 24 and 20 px (`reports/tables/ladder/chosen_sizes.csv`). (6) `tests/test_sweep.py` passes, and the SmolVLM-500M ladder run, killed during its third page, resumed with 2 of 72 rows done and finished with 72.
+- Consequences: The full run starts after `prereg-v1` under D26; there is no pilot.
 - Note (2026-10-14): G1 had not passed by Wed 14 Oct 12:00 CEST; the slip rule applied (D25). G1 is now Thu 15 Oct 12:00.
 
 ### D5. G2 outcome
 - ID: D5
-- Status: open
-- Date: TODO[W2.5]: date of G2 decision
-- Decision: TODO[W2.5]: periodic or not
-- Options considered: go (periodic); no-go (negative-result framing).
-- Evidence: TODO[W2.5]: Figure 1 and the preregistered periodicity test
-- Consequences: TODO[W2.5]: framing for W3 onward
+- Status: decided (not held)
+- Date: 2026-10-15
+- Decision: Gate 2 is not held (D26): there is no pilot to read, and the full run's own tests decide the framing under section 10 of the preregistration.
+- Options considered: go (periodic); no-go (negative-result framing); not held (D26).
+- Evidence: D26.
+- Consequences: The page count is the clock's, and power is reported as the minimum detectable amplitude at the pages obtained.
 
 ### D6. G3 outcome
 - ID: D6
@@ -133,8 +133,8 @@ DO NOT: Delete or rewrite old entries. Supersede them with a new entry that refe
 
 ### D13. How transcriptions are scored
 - ID: D13
-- Status: open
-- Date: 2026-10-12 (opened; to be decided at W2.1)
+- Status: decided
+- Date: 2026-10-12 (opened); 2026-10-15 (decided with `prereg-v1`)
 - Decision: CER is primary and WER secondary, as in D2. Reference and transcription both pass through `normalise_text`: NFC; curly quotes become straight ones and the em dash a hyphen; whitespace is collapsed. There is no case folding and no punctuation removal. Each row stores the four jiwer counts. Any summary over pages pools the counts (total errors over total reference characters) instead of averaging page CERs. Random pages are scored the same way. A transcription that stops at `max_new_tokens` is kept and flagged.
 - Options considered: the mean of page CERs or pooled counts; case-folded or exact comparison; dropping or keeping transcriptions that stop at the token limit.
 - Evidence: The pooling, case and empty-reference behaviour of jiwer 4.0.0, measured for the build guide.
@@ -142,8 +142,8 @@ DO NOT: Delete or rewrite old entries. Supersede them with a new entry that refe
 
 ### D14. The statistical model
 - ID: D14
-- Status: open
-- Date: 2026-10-12 (opened; to be decided at W2.1)
+- Status: decided
+- Date: 2026-10-12 (opened); 2026-10-15 (decided with `prereg-v1`)
 - Decision: For each reader and each block, an ordinary least-squares fit of row CER on page fixed effects plus cosine and sine terms for the harmonics of each period group, with the number of harmonics per group fixed before the pilot. Each group is tested with an F-test against the model without it, and the groups of one reader are corrected with Holm's method at the preregistered α. Harmonic columns that are identically zero at the sampled phases are dropped. Amplitudes get page-bootstrap intervals. The paired comparison of conventional and patch-aware pages is a Wilcoxon signed-rank test over pages: each page's CER under H at phase 0 against its CER pooled over the levels of C. Because every level reads the same reference, the pooled CER equals the mean of the page's C rows. The test reports the median paired difference with its bootstrap interval, and Holm's method runs across the three readers.
 - Options considered: Wilcoxon tests on every pair of phases (the plan of 25 September); one harmonic regression per reader and block, with a period test per group.
 - Evidence: Learning notes A7, equations (11) and (12); SciPy 1.17.1.

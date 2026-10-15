@@ -43,12 +43,12 @@ D26 (15 October): the experiment finishes by Saturday 17 October. There is no se
 - [x] **W1.9** Shift-equivariance error at the embedding level: paper Figure 0 (B4).
   - Files: `src/mrr/equivariance.py`, `src/mrr/readers.py` (additions), `scripts/03_equivariance.py`, `tests/test_equivariance.py`, `src/mrr/plotting.py`, `results/equivariance/`, `reports/figures/fig0_equivariance.pdf`
   - Done when: `scripts/03_equivariance.py` writes `fig0_equivariance.pdf` and the layer-0 values match the reference values in Appendix C of the build guide (asserted in `tests/test_equivariance.py`).
-- [ ] **W1.10** Coherence of the layouts and the font-size ladder.
+- [x] **W1.10** Coherence of the layouts and the font-size ladder.
   - Files: `src/mrr/render.py`, `src/mrr/grid.py` (additions), `scripts/05_coherence.py`, `configs/sweeps/ladder.yaml`, `tests/test_configs.py`, `Makefile` (`ladder`), `results/runs/<run_id>/`, `LAB_NOTEBOOK.md`
   - Done when: the coherence table and the chosen size per reader are in `LAB_NOTEBOOK.md`.
   - D26: the choice is computed by `scripts/09_ladder_choice.py` into `reports/tables/ladder/`.
 
-> **GATE G1 (Wed 14 Oct, 12:00)**
+> **GATE G1 (Wed 14 Oct, 12:00)**: passed on Thu 15 Oct, 15:20 (D4, go).
 > Question: Do the readers see exactly the pages we render, and does paper Figure 0 show the predicted periods?
 > - Go: start W2.
 > - No-go: fix the failing part; W2 does not start until G1 passes.
@@ -57,7 +57,7 @@ D26 (15 October): the experiment finishes by Saturday 17 October. There is no se
 
 ## W2 Pilot sweep (Wed 14 to Fri 16 Oct)
 
-- [ ] **W2.1** Fill `PREREGISTRATION.md` completely; commit; create git tag `prereg-v1`.
+- [x] **W2.1** Fill `PREREGISTRATION.md` completely; commit; create git tag `prereg-v1`.
   - Files: `PREREGISTRATION.md`
   - Done when: no W2.1 TODOs remain and tag `prereg-v1` exists.
 - [ ] **W2.2** Fill `configs/sweeps/pilot.yaml`.
@@ -85,7 +85,7 @@ D26 (15 October): the experiment finishes by Saturday 17 October. There is no se
 - [ ] **W3.1** Add the second reader to the sweep.
   - Files: `configs/readers.yaml`, `configs/sweeps/full.yaml`
   - Done when: the second reader passes `make readers` and is listed in `full.yaml`.
-- [ ] **W3.2** Fill `configs/sweeps/full.yaml` (all factors).
+- [x] **W3.2** Fill `configs/sweeps/full.yaml` (all factors).
   - Files: `configs/sweeps/full.yaml`
   - Done when: every level is set and the total run count and estimated hours are in the comment.
 - [ ] **W3.3** Run conventional and patch-aware rendering on identical pages (paired).

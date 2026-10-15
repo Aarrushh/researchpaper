@@ -951,3 +951,15 @@ Broke:
 Next:
 - Done at 2e42ac1: `full.yaml` holds the sizes (24, 24, 20 px) and 300 pages per text type as the ceiling (99,960 rows in all, far beyond the clock); `configs/schedules/full.yaml` six phases, Qwen until Thu 23:00, Fri 14:00 and Sat 04:00, the SmolVLM readers until Fri 09:00, Sat 00:00 and Sat 13:00 (CEST); the preregistration filled but for the approval date. The ladder's run folders committed at b86a5dc; `reports/tables/ladder/` generated there with a clean manifest (the worktree's `.serena/` cache excluded from `git status` like the run outputs).
 - The owner: the approval of the preregistration (owner action 7), "overlays OK" (G1 item 2, a contact sheet sent), SmolVLM-500M kept or cut, the NVIDIA setting. Then `prereg-v1`, G1 (D4), and the launch.
+
+## 2026-10-15, Claude (D22): Gate 1 passed (D4), the preregistration approved and tagged `prereg-v1`
+Did:
+- The owner, at 15:20 CEST, answered four questions: the preregistration as filled ("Approve and launch"), the render-check overlays ("Overlays OK", on a contact sheet of the 15 crops of `reports/figures/render_check/` at their native magnification), SmolVLM-500M kept at 20 px by the rule, and the run to go ahead with the sysmem fallback still on.
+- D4 decided (go) with the six items of build guide 2.10; D5 closed as not held (D26); D13 and D14 decided with the tag, as the preregistration's section 11 says; D18 decided at the ladder. `PREREGISTRATION.md` section 11 carries the approval. `docs/03_pipeline.md`: W1.10, W2.1 and W3.2 ticked, the G1 box marked passed. `docs/01_research_plan.md:41` names the three readers and their sizes.
+- `prereg-v1` goes on this commit: it holds the preregistration's final text, `configs/sweeps/full.yaml` with the ladder's sizes and the ceilings, `configs/schedules/full.yaml`, the runner (`src/mrr/sweep.py`, `scripts/10_run_sweep.py`) and the driver (`scripts/11_run_schedule.py`). The run worktree is moved to the tag before the launch.
+Found:
+- Nothing new.
+Broke:
+- Nothing.
+Next:
+- Launch `scripts/11_run_schedule.py --config configs/sweeps/full.yaml --schedule configs/schedules/full.yaml` in the run worktree at `prereg-v1`, with `PYTHONPATH=src` and `HF_HUB_OFFLINE=1`; watch `progress.log` and `logs/schedule.log`; the first finished pages get a pipeline check only (`checks.csv`, determinism, `hit_limit`), never a test of H1 (section 7).

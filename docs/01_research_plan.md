@@ -38,7 +38,7 @@ Text rendering was designed for the human visual system. In visual text compress
 | Anti-aliasing mode | binary; coverage in sRGB; coverage in linear light | Tests whether the encoder prefers hard edges or physically correct coverage |
 | Render mode | conventional; patch-aware | The paired comparison for H1's second clause |
 | Font file | Source Sans 3 Regular (W1.4) in every decoded block. Proposed for Gate 1: Source Serif 4 only in the equivariance measurement and the coherence table, which need no decoding, with the one-typeface limit stated in the paper | Checks the effect is not specific to one typeface |
-| Reader | TODO[W3.2]: both readers in full sweep | Traces period to cell size |
+| Reader | the three readers of D7 in the full sweep (Qwen 24 px, SmolVLM-2.2B 24 px, SmolVLM-500M 20 px) | Traces period to cell size |
 
 ## Metrics
 
