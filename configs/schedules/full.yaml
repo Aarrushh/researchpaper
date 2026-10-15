@@ -1,0 +1,14 @@
+# PURPOSE: The clock that stops the full run (D26): which readers run in which phase, and until when.
+# WHAT GOES HERE: Phases in order, each with its readers (run side by side) and its end as ISO 8601 with the UTC offset; max_restarts per reader.
+# FILLED IN AT STEP: W3.3, under D26, before prereg-v1; read by scripts/11_run_schedule.py.
+# DO NOT: Edit after the full run has started. A crash is resumed by the driver, and the lost time is not made up.
+#
+# Qwen runs alone (7.1 GiB of the 8 GiB card); the two SmolVLM readers run together (6.1 GiB peak in the ladder).
+# Alternating blocks keep both groups of readers in the data if the laptop fails late in the run.
+
+phases:
+  - {readers: [qwen], until: "TODO[W3.3]"}
+  - {readers: [smolvlm, smolvlm500m], until: "TODO[W3.3]"}
+  - {readers: [qwen], until: "TODO[W3.3]"}
+  - {readers: [smolvlm, smolvlm500m], until: "TODO[W3.3]"}
+max_restarts: 5

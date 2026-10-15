@@ -25,7 +25,7 @@ import pytest
 import yaml
 
 from conftest import REPO_ROOT
-from mrr import grid
+from mrr import grid, stats
 from mrr.manifest import RESULTS_COLUMNS
 from mrr.readers import Transcription
 from mrr.sweep import load_results, run_sweep, sweep_run_dirs
@@ -406,3 +406,22 @@ def test_the_script_without_a_run_folder_exits_1(tmp_path):
     result = _analyze(sweep_path, tmp_path / "runs", tmp_path / "tables")
     assert result.returncode == 1 and "no run folder" in result.stderr
     assert not (tmp_path / "tables").exists()
+
+
+def test_every_test_row_carries_its_minimum_detectable_effect_at_the_pages_obtained(analysis):
+    # PREREGISTRATION.md section 5 (D26): power is reported as the smallest detectable effect, not planned.
+    script = _script_module()
+    for r in _rows(analysis.out_dir / "harmonics.csv"):
+        if r["mde_rms"] == "":
+            continue  # too few residual degrees of freedom for 80% power: left undefined and logged
+        family_size = 3 if r["family"].startswith("a_") else None
+        mde = float(r["mde_rms"])
+        assert mde > 0
+        if family_size:
+            lam = stats.power_noncentrality(int(r["q"]), int(r["df2"]), 0.05 / family_size)
+            assert mde == pytest.approx(float(r["sigma"]) * (lam / int(r["n_rows"])) ** 0.5, rel=1e-9)
+    paired = _rows(analysis.out_dir / "paired.csv")
+    assert paired and all(set(script.COLUMNS["paired"]) <= set(r) for r in paired)
+    for r in paired:
+        if int(r["n"]) >= 2 and r["sd_diff"] not in ("", "0.0") and float(r["sd_diff"]) > 0:
+            assert float(r["mde_median_diff"]) == pytest.approx(stats.paired_mde(float(r["sd_diff"]), int(r["n"])), rel=1e-9)

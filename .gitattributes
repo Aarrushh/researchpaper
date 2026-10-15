@@ -1,0 +1,3 @@
+# The runner identifies a sweep by the SHA-1 of its file bytes (manifest sweep_sha1); every run so far was made
+# from a CRLF checkout (core.autocrlf=true on the laptop), so every checkout must give the same bytes (D26 notebook entry).
+configs/sweeps/*.yaml text eol=crlf

@@ -202,10 +202,9 @@ def _end(page):
 def full_sweep(tmp_path_factory):
     """The full sweep as it will run or, while W3.2's placeholders remain, a stand-in with small counts.
 
-    The stand-in keeps every structural choice of full.yaml (its blocks, its seed, start_after naming both earlier
-    sweeps) and replaces only what Gate 2 sets: 16 px for every reader, 2 shared pages and 1 block Z page per text
-    type. The earlier sweeps are replanned from concrete copies with one page per text type, because the pilot's sizes
-    read "from the ladder" until the ladder has run. Returns (sweep, stand_in).
+    The stand-in keeps every structural choice of full.yaml (its blocks, its seed, start_after naming the ladder,
+    D26) and replaces only what the ladder sets: 16 px for every reader, 2 shared pages and 1 block Z page per text
+    type. The earlier sweeps are replanned from concrete copies with one page per text type. Returns (sweep, stand_in).
     """
     if not HAVE_DATA:
         pytest.skip("font or books not present (W1.4)")
@@ -237,9 +236,10 @@ def full_plans(full_sweep):
     }
 
 
-def test_the_full_sweep_names_both_earlier_sweeps_a_new_seed_and_five_z_pages_per_text_type():
+def test_the_full_sweep_starts_after_the_ladder_with_a_new_seed_and_five_z_pages_per_text_type():
+    # D26: the pilot is not run, so the full sweep starts after the ladder only; its seed still differs from both.
     sweep, ladder, pilot = _load(FULL), _load(LADDER), _load(PILOT)
-    assert sweep["pages"]["natural"]["start_after"] == ["configs/sweeps/ladder.yaml", "configs/sweeps/pilot.yaml"]
+    assert sweep["pages"]["natural"]["start_after"] == ["configs/sweeps/ladder.yaml"]
     assert all((ROOT / entry).is_file() for entry in sweep["pages"]["natural"]["start_after"])
     assert sweep["seed"] not in {ladder["seed"], pilot["seed"]}
     assert sweep["pages"]["z_per_text_type"] == 5 and sweep["repeats"] == 1

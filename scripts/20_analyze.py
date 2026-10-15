@@ -64,11 +64,11 @@ COLUMNS = {
     ],
     "harmonics": [
         "reader", "text_type", "block", "axis", "range_px", "period_px", "bins", "q", "F", "df1", "df2", "p", "p_holm",
-        "rms", "rms_low", "rms_high", "share", "sigma", "n_pages", "n_levels", "n_rows", "status", "family",
+        "rms", "rms_low", "rms_high", "share", "sigma", "n_pages", "n_levels", "n_rows", "mde_rms", "status", "family",
     ],
     "paired": [
         "reader", "text_type", "comparison", "n", "n_zero", "statistic", "p", "method", "p_holm", "median_diff",
-        "diff_low", "diff_high", "status", "family",
+        "diff_low", "diff_high", "sd_diff", "mde_median_diff", "status", "family",
     ],
     "subpixel": ["reader", "text_type", "F", "df1", "df2", "p", "p_holm", "n_pages", "n_levels", "n_rows", "status", "family"],
     "sizes": [
@@ -204,11 +204,31 @@ def harmonics_table(df, folders_by_reader: Mapping[str, RunFolder]) -> list[dict
                         "period_px": int(T), "bins": " ".join(str(k) for k in g["bins"]), "q": g["q"], "F": g["F"],
                         "df1": g["df1"], "df2": g["df2"], "p": g["p"], "p_holm": NAN, "rms": g["rms"], "rms_low": low,
                         "rms_high": high, "share": g["share"], "sigma": fit["sigma"], "n_pages": fit["n_pages"],
-                        "n_levels": len(levels), "n_rows": fit["n_rows"], "status": status, "family": family,
-                        "_holm": f"{family}|{reader}|{text_type}",
+                        "n_levels": len(levels), "n_rows": fit["n_rows"], "mde_rms": NAN, "status": status,
+                        "family": family, "_holm": f"{family}|{reader}|{text_type}",
                     })
+    _fill_mde(out)
     _fill_holm(out)
     return out
+
+
+def _fill_mde(rows: list[dict[str, Any]]) -> None:
+    """PREREGISTRATION.md section 5 (D26): the smallest RMS amplitude each F-test detects with 80% power at the pages
+    obtained, s_g = sigma sqrt(lambda_q / (N n)), N n being the rows of the fit and lambda_q the noncentrality at
+    alpha / m, m the size of the row's Holm family (3 in a primary family)."""
+    sizes: dict[str, int] = {}
+    for row in rows:
+        sizes[row["_holm"]] = sizes.get(row["_holm"], 0) + 1
+    for row in rows:
+        q, dfd, sigma, n_rows = int(row["q"]), int(row["df2"]), float(row["sigma"]), int(row["n_rows"])
+        if q >= 1 and dfd >= 1 and sigma > 0 and n_rows > 0:
+            try:
+                lam = stats.power_noncentrality(q, dfd, ALPHA / sizes[row["_holm"]])
+            except ValueError:  # so few residual degrees of freedom that 80% power needs lambda > 400: left undefined
+                _log.warning("%s %s %s %s px: no minimum detectable amplitude at df2 = %d", row["reader"],
+                             row["text_type"], row["block"], row["period_px"], dfd)
+                continue
+            row["mde_rms"] = sigma * math.sqrt(lam / n_rows)
 
 
 def _paired_row(reader: str, text_type: str, comparison: str, a: np.ndarray, b: np.ndarray, family: str,
@@ -217,7 +237,7 @@ def _paired_row(reader: str, text_type: str, comparison: str, a: np.ndarray, b: 
     row: dict[str, Any] = {
         "reader": reader, "text_type": text_type, "comparison": comparison, "n": int(a.size), "n_zero": NAN,
         "statistic": NAN, "p": NAN, "method": "", "p_holm": NAN, "median_diff": NAN, "diff_low": NAN, "diff_high": NAN,
-        "status": PREREGISTERED, "family": family, "_holm": holm_group,
+        "sd_diff": NAN, "mde_median_diff": NAN, "status": PREREGISTERED, "family": family, "_holm": holm_group,
     }
     try:
         w = stats.paired_wilcoxon(a, b)
@@ -226,6 +246,10 @@ def _paired_row(reader: str, text_type: str, comparison: str, a: np.ndarray, b: 
         row["method"] = f"undefined: {exc}"
     row["median_diff"] = stats.median_paired_difference(a, b)
     row["diff_low"], row["diff_high"] = stats.bootstrap_ci(b - a, np.median, RESAMPLES, ALPHA, SEED)
+    if a.size >= 2:  # PREREGISTRATION.md section 5 (D26): the smallest detectable median difference at these pages
+        row["sd_diff"] = float(np.std(b - a, ddof=1))
+        if row["sd_diff"] > 0:
+            row["mde_median_diff"] = stats.paired_mde(row["sd_diff"], int(a.size), ALPHA)
     return row
 
 

@@ -2,6 +2,7 @@
 # WHAT GOES HERE: Readers, pages, seed, font and size per reader, blocks with their phase levels, output root.
 # FILLED IN AT STEP: W3.2. Frozen once W3.3 starts.
 # DO NOT: Edit after the sweep has started; resume instead. Never reuse a seed or a page of the ladder or the pilot (section 2.4).
+# D26: no pilot; the page counts are ceilings and each reader stops at its --deadline (PREREGISTRATION.md section 5).
 #
 # Rows per reader = conditions per page x 2 text types x N + 24 x N_Z (24 = 6 sizes x 2 render modes x 2 text types):
 #   qwen 50 x 2 x N_Q + 24 x 5 = TODO[W3.2]; smolvlm 62 x 2 x N_2 + 120 = TODO[W3.2];
@@ -14,12 +15,12 @@ seed: 20261016                            # new: the ladder used 20261012 and th
 pages:
   natural: {books: [pg105, pg84, pg1661],
             per_text_type: {qwen: "TODO[W3.2]: N_Q", smolvlm: "TODO[W3.2]: N_2", smolvlm500m: "TODO[W3.2]: N_5"},
-            start_after: [configs/sweeps/ladder.yaml, configs/sweeps/pilot.yaml]}
+            start_after: [configs/sweeps/ladder.yaml]}     # D26: the pilot is not run
   random62: {per_text_type: {qwen: "TODO[W3.2]: N_Q", smolvlm: "TODO[W3.2]: N_2", smolvlm500m: "TODO[W3.2]: N_5"}}
   z_per_text_type: 5
 repeats: 1
 font_file: data/external/fonts/source-sans-3/SourceSans3-Regular.ttf
-font_size_px: {qwen: "from the pilot", smolvlm: "from the pilot", smolvlm500m: "from the pilot"}
+font_size_px: {qwen: "from the ladder", smolvlm: "from the ladder", smolvlm500m: "from the ladder"}
 aa_mode: coverage_srgb
 blocks:
   V: {render_mode: conventional, line_pitch_mode: aligned, axis: y, range: cell,
