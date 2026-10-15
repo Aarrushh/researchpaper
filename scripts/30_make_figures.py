@@ -24,12 +24,17 @@ from __future__ import annotations
 import argparse
 import csv
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Sequence
 
-import numpy as np
-import yaml
+# One BLAS thread before NumPy loads, as scripts/20_analyze.py: the fitted lines come from the same least squares.
+for _var in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
+    os.environ[_var] = "1"
+
+import numpy as np  # noqa: E402
+import yaml  # noqa: E402
 
 from mrr import plotting
 from mrr.mtf import csf_mannos_sakrison
@@ -115,9 +120,12 @@ def main(argv: Sequence[str] | None = None) -> int:
               sweep_name, len(df_all), len(folders), sum(len(p) for p in excluded.values()), len(df))
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    fig1 = out_dir / f"fig1_phase_{sweep_name}.pdf"
-    plotting.plot_phase_curve(df, fig1, n_resamples=RESAMPLES, seed=SEED, reader_cfgs=reader_cfgs)
-    _log.info("Figure 1: %s", fig1)
+    if df["block"].isin(("V", "H", "C")).any():
+        fig1 = out_dir / f"fig1_phase_{sweep_name}.pdf"
+        plotting.plot_phase_curve(df, fig1, n_resamples=RESAMPLES, seed=SEED, reader_cfgs=reader_cfgs)
+        _log.info("Figure 1: %s", fig1)
+    else:  # the ladder: block Z only
+        _log.info("no rows of blocks V, H or C in %s: no Figure 1", sweep_name)
     if (df["block"] == "Z").any():
         fig2 = out_dir / f"fig2_tradeoff_{sweep_name}.pdf"
         plotting.plot_tradeoff(df, fig2)

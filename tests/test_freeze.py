@@ -164,3 +164,13 @@ def test_the_script_freezes_then_checks_and_exits_1_after_a_change(results, tmp_
     (final / "equivariance" / "qwen_natural.csv").write_text("edited", encoding="utf-8")
     proc = _freeze("--check", "--final", final)
     assert proc.returncode == 1 and "changed: equivariance/qwen_natural.csv" in proc.stderr
+
+
+def test_progress_logs_under_results_are_not_ignored_by_git():
+    # The freeze lists the SHA-256 of every file it copies, progress.log included; a file git ignores would be missing
+    # from every clone and the check would fail there (pre-analysis audit, 15 October).
+    probe = "results/final/runs/20990101-0000_full_qwen_0000000/progress.log"
+    done = subprocess.run(["git", "check-ignore", "-q", probe], cwd=REPO_ROOT, capture_output=True, text=True)
+    assert done.returncode == 1, "git ignores progress.log under results/: .gitignore needs !results/**/progress.log"
+    other = subprocess.run(["git", "check-ignore", "-q", "scratch.log"], cwd=REPO_ROOT, capture_output=True, text=True)
+    assert other.returncode == 0  # other logs stay ignored

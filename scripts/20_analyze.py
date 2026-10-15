@@ -36,17 +36,24 @@ import csv
 import hashlib
 import logging
 import math
+import os
 import sys
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-import numpy as np
-import yaml
+# One BLAS thread, set before NumPy loads: the freeze check (scripts/40_freeze.py --check) regenerates every table and
+# compares it byte for byte, and least-squares results can differ in the last bit between thread counts.
+for _var in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
+    os.environ[_var] = "1"  # forced, not defaulted: the analysis and its check must run the same arithmetic
 
-from mrr import grid, stats
-from mrr.manifest import new_run_id, write_manifest
-from mrr.score import CharCounts, pooled_cer
-from mrr.sweep import RunFolder, complete_rows, load_results, reader_periods, sweep_run_dirs
+import numpy as np  # noqa: E402
+import yaml  # noqa: E402
+
+from mrr import grid, render, stats  # noqa: E402
+from mrr import sweep as sweep_mod  # noqa: E402
+from mrr.manifest import new_run_id, write_manifest  # noqa: E402
+from mrr.score import CharCounts, pooled_cer  # noqa: E402
+from mrr.sweep import RunFolder, complete_rows, load_results, reader_periods, sweep_run_dirs  # noqa: E402
 
 RESAMPLES = 2000  # PREREGISTRATION.md section 9: every resampling is by page, with 2,000 resamples
 SEED = 20261014  # and this seed
@@ -55,16 +62,18 @@ DELTA = 0.01  # section 9, item 5: s* = min{s : CER(s) <= CER_inf + delta}, in a
 PLATEAU_SIZES = (20.0, 24.0)  # section 9, item 5: CER_inf is the pooled CER of the rows at 20 and 24 px
 PREREGISTERED, EXPLORATORY = "preregistered", "exploratory"
 HARMONIC_BLOCKS = ("V", "H", "C")  # section 9, item 2
-TABLES = ("checks", "harmonics", "paired", "subpixel", "sizes", "coherence_summary")
+TABLES = ("checks", "harmonics", "paired", "subpixel", "sizes", "coherence_summary", "wer", "pages", "density")
 COLUMNS = {
     "checks": [
-        "run_dir", "reader", "rows_done", "rows_planned", "repeated_keys", "missing_transcriptions", "hit_limit_count",
-        "hit_limit_share", "determinism_pairs", "determinism_mismatches", "pages_seen", "pages_excluded",
+        "run_dir", "reader", "rows_done", "rows_planned", "repeated_keys", "missing_transcriptions",
+        "empty_transcriptions", "hit_limit_count", "hit_limit_share", "median_output_tokens", "determinism_pairs",
+        "determinism_expected", "determinism_mismatches", "coherence_malformed", "pages_seen", "pages_excluded",
         "excluded_page_ids", "median_latency_s", "status", "family",
     ],
     "harmonics": [
         "reader", "text_type", "block", "axis", "range_px", "period_px", "bins", "q", "F", "df1", "df2", "p", "p_holm",
         "rms", "rms_low", "rms_high", "share", "sigma", "n_pages", "n_levels", "n_rows", "mde_rms", "status", "family",
+        "note",
     ],
     "paired": [
         "reader", "text_type", "comparison", "n", "n_zero", "statistic", "p", "method", "p_holm", "median_diff",
@@ -77,7 +86,20 @@ COLUMNS = {
     ],
     "coherence_summary": [
         "reader", "text_type", "block", "render_mode", "line_pitch_mode", "axis", "period_px", "harmonic", "R_mean",
-        "R_min", "R_max", "n_pages", "rms", "status", "family",
+        "R_min", "R_max", "n_pages", "rms_bin", "rms", "status", "family",
+    ],
+    "wer": [  # section 4: WER is secondary and descriptive, the mean of row WERs over a cell
+        "reader", "text_type", "block", "render_mode", "line_pitch_mode", "aa_mode", "font_size_px", "phase_x_px",
+        "phase_y_px", "wer_mean", "n_pages", "n_rows", "status", "family",
+    ],
+    "pages": [  # sections 4 and 5: every page's characters and symbols per vision token, and its place in its source
+        "reader", "run_dir", "page_id", "pagination", "text_type", "book_id", "start_word", "n_words",
+        "reference_chars", "reference_symbols", "vision_tokens", "chars_per_token", "symbols_per_token", "rows_done",
+        "rows_planned", "complete", "reference_matches_plan", "status", "family",
+    ],
+    "density": [  # section 3: the density cost of each shared layout, beside R_k
+        "reader", "text_type", "render_mode", "line_pitch_mode", "n_pages", "glyphs_per_page", "lines_per_page",
+        "glyphs_per_line", "status", "family",
     ],
 }
 NAN = float("nan")
@@ -90,6 +112,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     p.add_argument("--config", required=True, help="configs/sweeps/<name>.yaml; the tables go to <out-dir>/<name>/")
     p.add_argument("--runs-root", default="results/runs", help="where the run folders are (default results/runs)")
     p.add_argument("--out-dir", default="reports/tables", help="the parent of the sweep's table folder")
+    p.add_argument("--readers-config", default="configs/readers.yaml",
+                   help="every reader config by name, to replan the pages (pages.csv, density.csv)")
+    p.add_argument("--render-config", default="configs/render_defaults.yaml", help="the render defaults the run used")
+    p.add_argument("--checks-only", action="store_true",
+                   help="write checks.csv alone (and its manifest): the pipeline check allowed while a run is going "
+                        "(PREREGISTRATION.md section 7), which computes no test of H1")
     return p.parse_args(argv)
 
 
@@ -133,21 +161,57 @@ def _fill_holm(rows: list[dict[str, Any]]) -> None:
 # --------------------------------------------------------------------------- the tables
 
 
+def _coherence_row_ok(r: Mapping[str, Any]) -> bool:
+    """A coherence.csv row with its eight fields, a numeric R and period: a torn line merged with the next is not."""
+    if None in r or any(v is None for v in r.values()):
+        return False
+    try:
+        float(r["R"]), float(r["period_px"]), int(r["harmonic"])
+    except (TypeError, ValueError, KeyError):
+        return False
+    return True
+
+
+def _has_twins(folder: RunFolder) -> bool:
+    """Whether the run's shared conditions hold a pair that renders the same pixels ((H, 0) and (S, 0))."""
+    keys = [sweep_mod._twin_key(c) for c in folder.conditions if c.paginate == sweep_mod.SHARED]
+    return len(keys) != len(set(keys))
+
+
 def checks_table(df_all, folders: Sequence[RunFolder], excluded: Mapping[str, set[str]]) -> list[dict[str, Any]]:
-    """Section 9, item 1: one row per run folder."""
+    """Section 9, item 1: one row per run folder.
+
+    Beyond the list of section 9: transcription files that exist but are empty while the row counts output tokens
+    (an OS crash between a row's fsync and its file), the median output tokens (section 4), the number of complete
+    shared pages that should each hold one determinism row, and coherence rows that do not parse (a torn line).
+    """
     out = []
     for folder in folders:
         key = str(folder.run_dir)
         rows = df_all[df_all["run_dir"] == key]
         n = int(len(rows))
-        missing = sum(1 for f in rows["transcription_file"].tolist() if not (folder.run_dir / str(f)).exists())
+        files = [folder.run_dir / str(f) for f in rows["transcription_file"].tolist()]
+        missing = sum(1 for f in files if not f.exists())
+        empty = sum(1 for f, t in zip(files, rows["output_tokens"].tolist()) if f.exists() and int(t) > 0
+                    and f.stat().st_size == 0)
         hit = int(rows["hit_limit"].astype(bool).sum()) if n else 0
         mismatches = sum(1 for r in folder.determinism if str(r.get("identical")) != "True")
+        expected = 0
+        if n and _has_twins(folder):
+            for page_id, group in rows.groupby("page_id", sort=True):
+                if folder.page_key(str(page_id)) != sweep_mod.SHARED:
+                    continue
+                done = set(zip(group["condition_hash"].tolist(), (int(r) for r in group["repeat"].tolist())))
+                expected += int(not (folder.planned_rows(str(page_id)) - done))
         out.append({
             "run_dir": folder.run_dir.name, "reader": folder.reader, "rows_done": n, "rows_planned": folder.rows_planned,
             "repeated_keys": 0,  # load_results raises on a repeated key, so a table exists only when there is none
-            "missing_transcriptions": int(missing), "hit_limit_count": hit, "hit_limit_share": hit / n if n else NAN,
-            "determinism_pairs": len(folder.determinism), "determinism_mismatches": int(mismatches),
+            "missing_transcriptions": int(missing), "empty_transcriptions": int(empty), "hit_limit_count": hit,
+            "hit_limit_share": hit / n if n else NAN,
+            "median_output_tokens": float(rows["output_tokens"].median()) if n else NAN,
+            "determinism_pairs": len(folder.determinism), "determinism_expected": expected,
+            "determinism_mismatches": int(mismatches),
+            "coherence_malformed": sum(1 for r in folder.coherence if not _coherence_row_ok(r)),
             "pages_seen": int(rows["page_id"].nunique()) if n else 0, "pages_excluded": len(excluded.get(key, ())),
             "excluded_page_ids": ";".join(sorted(excluded.get(key, ()))),
             "median_latency_s": float(rows["latency_s"].median()) if n else NAN,
@@ -190,9 +254,22 @@ def harmonics_table(df, folders_by_reader: Mapping[str, RunFolder]) -> list[dict
                 axis = str(spec.get("axis", "x"))
                 phase = rows["phase_x_px" if axis == "x" else "phase_y_px"].to_numpy(dtype=np.float64)
                 y, pages = rows["cer"].to_numpy(dtype=np.float64), rows["page_id"].to_numpy()
-                fit = stats.harmonic_fit(y, pages, phase, L, groups, levels)
-                for T, g in sorted(fit["groups"].items()):
-                    low, high = stats.page_bootstrap_rms(y, pages, phase, L, groups, levels, T, RESAMPLES, SEED, ALPHA)
+                try:
+                    fit = stats.harmonic_fit(y, pages, phase, L, groups, levels)
+                except ValueError as exc:
+                    # No within-page variation (a reader at its floor reads every page alike at every phase): every
+                    # group's test is undefined. The rows are written with empty statistics so the table says so.
+                    _log.warning("%s %s block %s: harmonic model undefined (%s)", reader, text_type, block, exc)
+                    fit = None
+                for T in sorted(groups):
+                    if fit is not None:
+                        g = fit["groups"][int(T)]
+                        low, high = stats.page_bootstrap_rms(y, pages, phase, L, groups, levels, T, RESAMPLES, SEED,
+                                                             ALPHA)
+                    else:
+                        g = {"bins": sorted(int(k) for k in groups[T]), "q": 0, "F": NAN, "df1": 0, "df2": 0, "p": NAN,
+                             "rms": NAN, "share": NAN}
+                        low = high = NAN
                     if block == "C":
                         status, family = PREREGISTERED, "control_C"
                     elif (block == "H" and T == patch) or (block == "V" and T in (patch, cell)):
@@ -203,9 +280,11 @@ def harmonics_table(df, folders_by_reader: Mapping[str, RunFolder]) -> list[dict
                         "reader": reader, "text_type": text_type, "block": block, "axis": axis, "range_px": L,
                         "period_px": int(T), "bins": " ".join(str(k) for k in g["bins"]), "q": g["q"], "F": g["F"],
                         "df1": g["df1"], "df2": g["df2"], "p": g["p"], "p_holm": NAN, "rms": g["rms"], "rms_low": low,
-                        "rms_high": high, "share": g["share"], "sigma": fit["sigma"], "n_pages": fit["n_pages"],
-                        "n_levels": len(levels), "n_rows": fit["n_rows"], "mde_rms": NAN, "status": status,
-                        "family": family, "_holm": f"{family}|{reader}|{text_type}",
+                        "rms_high": high, "share": g["share"], "sigma": fit["sigma"] if fit else NAN,
+                        "n_pages": fit["n_pages"] if fit else int(len(np.unique(pages))),
+                        "n_levels": len(levels), "n_rows": fit["n_rows"] if fit else int(y.size), "mde_rms": NAN,
+                        "status": status, "family": family, "_holm": f"{family}|{reader}|{text_type}",
+                        "note": "" if fit else "undefined: no variation within any page",
                     })
     _fill_mde(out)
     _fill_holm(out)
@@ -292,7 +371,11 @@ def subpixel_table(df, folders_by_reader: Mapping[str, RunFolder]) -> list[dict[
         phase = sub["phase_x_px" if axis == "x" else "phase_y_px"].to_numpy(dtype=np.float64)
         y, pages = sub["cer"].to_numpy(dtype=np.float64), sub["page_id"].to_numpy()
         X, names = stats.harmonic_design(phase, 1.0, [1, 2])  # cos1, sin1, cos2; sin2 vanishes at quarter pixels
-        test = stats.group_f_test(y, pages, X, names, names)
+        try:
+            test = stats.group_f_test(y, pages, X, names, names)
+        except ValueError as exc:  # no within-page variation: the test is undefined, written with empty statistics
+            _log.warning("%s %s block S: F-test undefined (%s)", reader, text_type, exc)
+            test = {"F": NAN, "df1": 0, "df2": 0, "p": NAN}
         errors, ref = _errors_and_ref(sub)
         pooled = stats.pooled_cer_by_level(errors, ref, pages, phase, RESAMPLES, SEED, ALPHA)
         row: dict[str, Any] = {
@@ -348,11 +431,22 @@ def coherence_table(df, folders: Sequence[RunFolder], harmonics: Sequence[Mappin
     """Section 9, item 6: the mean and range of R_k over the analysed pages, beside the matching RMS amplitude."""
     text_type_of = {(str(r), str(p)): str(t) for r, p, t in
                     df.drop_duplicates(["reader", "page_id"])[["reader", "page_id", "text_type"]].itertuples(index=False)}
-    rms_of = {(h["reader"], h["text_type"], h["block"], int(h["period_px"])): float(h["rms"]) for h in harmonics}
+    # R_k(T) is the coherence at harmonic k of period T, i.e. at sweep bin k * L / T of the block's model, and that
+    # bin belongs to whichever period group stats.bin_groups gave it (R_2(28) is the 14 px patch bin), so the RMS beside
+    # it is the RMS of the group holding that bin; a bin the levels cannot identify (above n / 2) gets none.
+    range_of: dict[tuple, int] = {}
+    bin_rms: dict[tuple, float] = {}
+    for h in harmonics:
+        block_key = (h["reader"], h["text_type"], h["block"])
+        range_of[block_key] = int(h["range_px"])
+        for b in str(h["bins"]).split():
+            bin_rms[block_key + (int(b),)] = float(h["rms"])
     groups: dict[tuple, list[float]] = {}
     pages_of: dict[tuple, set[str]] = {}
     for folder in folders:
         for r in folder.coherence:
+            if not _coherence_row_ok(r):
+                continue  # a torn line; counted in checks.csv (coherence_malformed)
             text_type = text_type_of.get((folder.reader, r["page_id"]))
             if text_type is None:
                 continue  # a page without analysed rows (excluded, or its run stopped before its first row)
@@ -364,12 +458,113 @@ def coherence_table(df, folders: Sequence[RunFolder], harmonics: Sequence[Mappin
     for key in sorted(groups):
         reader, text_type, block, render_mode, pitch_mode, axis, period, harmonic = key
         values = np.asarray(groups[key], dtype=np.float64)
+        L = range_of.get((reader, text_type, block))
+        k_bin = harmonic * L // period if L is not None and (harmonic * L) % period == 0 else None
+        rms = bin_rms.get((reader, text_type, block, k_bin), NAN) if k_bin is not None else NAN
         out.append({
             "reader": reader, "text_type": text_type, "block": block, "render_mode": render_mode,
             "line_pitch_mode": pitch_mode, "axis": axis, "period_px": period, "harmonic": harmonic,
             "R_mean": float(values.mean()), "R_min": float(values.min()), "R_max": float(values.max()),
-            "n_pages": len(pages_of[key]), "rms": rms_of.get((reader, text_type, block, period), NAN),
+            "n_pages": len(pages_of[key]), "rms_bin": k_bin if not math.isnan(rms) else "", "rms": rms,
             "status": PREREGISTERED, "family": "description",
+        })
+    return out
+
+
+def wer_table(df) -> list[dict[str, Any]]:
+    """Section 4: WER, secondary and descriptive, as the mean of row WERs over each cell (no test uses it)."""
+    keys = COLUMNS["wer"][:9]
+    out = []
+    for values, group in df.groupby(keys, sort=True, dropna=False):
+        out.append({**dict(zip(keys, values)), "wer_mean": float(group["wer"].mean()),
+                    "n_pages": int(group["page_id"].nunique()), "n_rows": int(len(group)),
+                    "status": PREREGISTERED, "family": "description"})
+    return out
+
+
+def _replan(folder: RunFolder, readers_by_name: Mapping[str, Mapping[str, Any]], render_cfg: Mapping[str, Any],
+            root: Path) -> dict[str, list]:
+    """The run's pages, replanned from its manifest with the runner's own plan_pages (section 5: start_word)."""
+    readers = {**readers_by_name, folder.reader: folder.reader_cfg}
+    return sweep_mod.plan_pages(folder.sweep, folder.reader_cfg, render_cfg, root=root, readers=readers)
+
+
+def pages_table(df_all, folders: Sequence[RunFolder], plans: Mapping[str, dict[str, list]]) -> list[dict[str, Any]]:
+    """Sections 4 and 5: one row per page with at least one row on disk, in each run folder.
+
+    The page's source and start word come from replanning the run (``plans``), and the replanned text is compared
+    with the references/<page_id>.txt the runner wrote: ``reference_matches_plan`` false would mean the pages were
+    not the ones this code plans. Characters and symbols per vision token are the reference's, as section 4 lists.
+    """
+    out = []
+    for folder in folders:
+        plan = plans.get(str(folder.run_dir))
+        if plan is None:
+            continue
+        rows = df_all[df_all["run_dir"] == str(folder.run_dir)]
+        rows_of = {str(p): g for p, g in rows.groupby("page_id", sort=True)}
+        for key, pages in plan.items():
+            for page in pages:
+                group = rows_of.get(page.page_id)
+                if group is None:
+                    continue  # never started: the clock stopped the run before it (D26)
+                done = set(zip(group["condition_hash"].tolist(), (int(r) for r in group["repeat"].tolist())))
+                planned = folder.planned_rows(page.page_id)
+                ref_path = folder.run_dir / "references" / f"{page.page_id}.txt"
+                reference = ref_path.read_text(encoding="utf-8") if ref_path.exists() else None
+                tokens = int(group["vision_tokens"].iloc[0])
+                chars = int(group["reference_chars"].iloc[0])
+                symbols = folder.reference_symbols(page.page_id)
+                out.append({
+                    "reader": folder.reader, "run_dir": folder.run_dir.name, "page_id": page.page_id,
+                    "pagination": key, "text_type": page.text_type, "book_id": page.book_id,
+                    "start_word": int(page.start_word), "n_words": len(page.text.split()), "reference_chars": chars,
+                    "reference_symbols": symbols, "vision_tokens": tokens, "chars_per_token": chars / tokens,
+                    "symbols_per_token": symbols / tokens, "rows_done": len(done), "rows_planned": len(planned),
+                    "complete": not (planned - done), "reference_matches_plan": reference == page.text,
+                    "status": PREREGISTERED, "family": "description",
+                })
+    return out
+
+
+def density_table(df, folders: Sequence[RunFolder], plans: Mapping[str, dict[str, list]],
+                  render_cfg: Mapping[str, Any], root: Path) -> list[dict[str, Any]]:
+    """Section 3: the density cost of each shared layout, glyphs per line and per page, on the analysed pages.
+
+    Each layout is the runner's own at phase 0 under the run's phase allowances (sweep._layout_cfg), laid out by
+    render.layout_page; spaces are not placed glyphs, so they do not count.
+    """
+    totals: dict[tuple, list[int]] = {}
+    for folder in folders:
+        plan = plans.get(str(folder.run_dir))
+        if plan is None or sweep_mod.SHARED not in plan:
+            continue
+        shared = [c for c in folder.conditions if c.paginate == sweep_mod.SHARED]
+        allowances = sweep_mod.phase_allowances(shared)
+        font_paths = sweep_mod._font_paths(folder.sweep, root)
+        layouts: dict[tuple, tuple[str, str, dict]] = {}
+        for c in shared:
+            lid = (c.render_mode, c.line_pitch_mode, sweep_mod._layout_id(c))
+            if lid not in layouts:
+                layouts[lid] = (c.render_mode, c.line_pitch_mode,
+                                sweep_mod._layout_cfg(c, folder.reader_cfg, render_cfg, font_paths, allowances))
+        analysed = set(df.loc[df["run_dir"] == str(folder.run_dir), "page_id"].astype(str))
+        for page in plan[sweep_mod.SHARED]:
+            if page.page_id not in analysed:
+                continue
+            for mode, pitch_mode, cfg in layouts.values():
+                placed = render.layout_page(page.text, cfg)
+                lines = (max(g.line for g in placed) + 1) if placed else 0
+                t = totals.setdefault((folder.reader, page.text_type, mode, pitch_mode), [0, 0, 0])
+                t[0] += 1
+                t[1] += len(placed)
+                t[2] += lines
+    out = []
+    for (reader, text_type, mode, pitch_mode), (n, glyphs, lines) in sorted(totals.items()):
+        out.append({
+            "reader": reader, "text_type": text_type, "render_mode": mode, "line_pitch_mode": pitch_mode,
+            "n_pages": n, "glyphs_per_page": glyphs / n, "lines_per_page": lines / n,
+            "glyphs_per_line": glyphs / lines if lines else NAN, "status": PREREGISTERED, "family": "description",
         })
     return out
 
@@ -412,17 +607,43 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     out_dir = Path(args.out_dir) / sweep_name
     out_dir.mkdir(parents=True, exist_ok=True)
-    harmonics = harmonics_table(df, folders_by_reader)
-    tables = {
-        "checks": checks_table(df_all, folders, excluded),
-        "harmonics": harmonics,
-        "paired": paired_table(df),
-        "subpixel": subpixel_table(df, folders_by_reader),
-        "sizes": sizes_table(df, folders),
-        "coherence_summary": coherence_table(df, folders, harmonics),
-    }
-    counts = {name: write_table(out_dir / f"{name}.csv", tables[name], COLUMNS[name]) for name in TABLES}
-    for name in TABLES:
+    if args.checks_only:  # section 7: while a run is going, its pages are looked at for the pipeline only
+        names = ("checks",)
+        tables = {"checks": checks_table(df_all, folders, excluded)}
+        replan_errors: dict[str, str] = {}
+    else:
+        root = Path(".")
+        readers_cfg = yaml.safe_load(Path(args.readers_config).read_text(encoding="utf-8"))
+        readers_by_name = {str(r["name"]): r for r in readers_cfg["readers"]}
+        render_cfg = yaml.safe_load(Path(args.render_config).read_text(encoding="utf-8"))
+        plans: dict[str, dict[str, list]] = {}
+        replan_errors = {}
+        for folder in folders:
+            try:
+                plans[str(folder.run_dir)] = _replan(folder, readers_by_name, render_cfg, root)
+            except (ValueError, OSError, KeyError) as exc:  # descriptive tables only; the tests do not need it
+                _log.error("%s: could not replan its pages (%s); pages.csv and density.csv leave it out",
+                           folder.run_dir.name, exc)
+                replan_errors[folder.run_dir.name] = str(exc)
+        harmonics = harmonics_table(df, folders_by_reader)
+        names = TABLES
+        tables = {
+            "checks": checks_table(df_all, folders, excluded),
+            "harmonics": harmonics,
+            "paired": paired_table(df),
+            "subpixel": subpixel_table(df, folders_by_reader),
+            "sizes": sizes_table(df, folders),
+            "coherence_summary": coherence_table(df, folders, harmonics),
+            "wer": wer_table(df),
+            "pages": pages_table(df_all, folders, plans),
+            "density": density_table(df, folders, plans, render_cfg, root),
+        }
+        mismatched = [r["page_id"] for r in tables["pages"] if not r["reference_matches_plan"]]
+        if mismatched:
+            _log.error("%d page(s) whose reference differs from the replanned text: %s", len(mismatched),
+                       ", ".join(mismatched[:10]))
+    counts = {name: write_table(out_dir / f"{name}.csv", tables[name], COLUMNS[name]) for name in names}
+    for name in names:
         _log.info("  %-18s %5d row(s)  %s", name + ".csv", counts[name], out_dir / f"{name}.csv")
 
     planned_readers = [str(r) for r in (sweep_cfg.get("readers") or [])]
@@ -434,7 +655,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         "rows_loaded": int(len(df_all)), "rows_analysed": int(len(df)),
         "pages_excluded": {Path(k).name: sorted(v) for k, v in excluded.items() if v},
         "resamples": RESAMPLES, "seed": SEED, "alpha": ALPHA, "delta": DELTA, "plateau_sizes_px": list(PLATEAU_SIZES),
-        "tables": counts, "analysis_plan": "PREREGISTRATION.md section 9",
+        "tables": counts, "analysis_plan": "PREREGISTRATION.md section 9", "checks_only": bool(args.checks_only),
+        "blas_threads": 1, "replan_errors": replan_errors,
     }
     write_manifest(out_dir, cfg, run_id=new_run_id(sweep_name, "analysis"))
     return 0

@@ -12,7 +12,7 @@ from the table folder and writes a Markdown file with one section per table. Eve
 lines apply section 10 of PREREGISTRATION.md as written: clause (a) holds for a reader when a group of its family
 ``a_random62`` has a Holm-adjusted p below 0.05; clause (b) names those groups' periods against the patch and the
 cell; clause (c) holds when ``H_phi0_vs_C_pooled`` on random62 pages has a Holm-adjusted p below 0.05 and a negative
-median difference; a significant group of the control block C with none in V or H contradicts D10. Rows whose
+median difference; a significant group of the control block C with no significant V or H group of either text type (families a_random62 and a_natural) for the same reader contradicts D10. Rows whose
 ``status`` is ``exploratory`` are listed apart.
 """
 
@@ -103,12 +103,19 @@ def verdicts(harmonics: list[dict[str, str]], paired: list[dict[str, str]]) -> l
             ok = significant(r) and num(r["median_diff"]) < 0
             c = ("clause (c): SUPPORTED" if ok else "clause (c): not supported") + (
                 f" (median b - a {fmt(r['median_diff'])}, Holm p {fmt_p(r['p_holm'])}, n {r['n']})")
+        # Section 10, literally: a significant C group with no significant V or H group for the same reader, on either
+        # text type (the preregistered V and H groups are the families a_random62 and a_natural).
         control = [r for r in harmonics if r["reader"] == reader and r["family"] == "control_C" and significant(r)]
-        coherent = [r for r in harmonics if r["reader"] == reader and r["block"] in ("V", "H")
-                    and r["text_type"] == "random62" and significant(r)]
-        d10 = ("control C: CONTRADICTS D10 (a significant C group, none in V or H on random62)"
-               if control and not coherent else
-               "control C: " + ("significant group(s) beside significant V or H" if control else "no significant group"))
+        coherent = [r for r in harmonics if r["reader"] == reader and r["family"] in ("a_random62", "a_natural")
+                    and significant(r)]
+        where_c = ", ".join(sorted({r["text_type"] for r in control}))
+        where_vh = ", ".join(sorted({r["text_type"] for r in coherent}))
+        if control and not coherent:
+            d10 = f"control C: CONTRADICTS D10 (a significant C group on {where_c}, none in V or H on either text type)"
+        elif control:
+            d10 = f"control C: significant group(s) on {where_c}, beside significant V or H on {where_vh}"
+        else:
+            d10 = "control C: no significant group"
         lines.append(f"- **{reader}**: {a}; {b}; {c}; {d10}.")
     return lines
 
@@ -130,10 +137,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     lines += verdicts(harmonics, paired) or ["- no tests"]
     lines += ["", "## Checks (`checks.csv`)", ""]
     lines += table(["run", "reader", "rows done", "pages seen", "excluded", "hit_limit share", "determinism pairs",
-                    "mismatches", "missing transcriptions", "median latency s"],
+                    "expected", "mismatches", "missing / empty transcriptions", "malformed coherence rows",
+                    "median output tokens", "median latency s"],
                    [[r["run_dir"], r["reader"], r["rows_done"], r["pages_seen"], r["pages_excluded"],
-                     fmt(r["hit_limit_share"]), r["determinism_pairs"], r["determinism_mismatches"],
-                     r["missing_transcriptions"], fmt(r["median_latency_s"], 1)] for r in checks])
+                     fmt(r["hit_limit_share"]), r["determinism_pairs"], r.get("determinism_expected", "–"),
+                     r["determinism_mismatches"],
+                     f"{r['missing_transcriptions']} / {r.get('empty_transcriptions', '–')}",
+                     r.get("coherence_malformed", "–"), fmt(r.get("median_output_tokens", ""), 0),
+                     fmt(r["median_latency_s"], 1)] for r in checks])
     for family_title, keep in (("Clause (a), random62 (`harmonics.csv`, family a_random62)", "a_random62"),
                                ("Clause (a), natural (`harmonics.csv`, family a_natural)", "a_natural"),
                                ("Control block C (`harmonics.csv`, family control_C)", "control_C")):
@@ -183,6 +194,28 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "pages"],
                    [[r["reader"], r["text_type"], r["block"], r["axis"], r["period_px"], fmt(r["R_mean"]),
                      fmt(r["R_min"]), fmt(r["R_max"]), fmt(r["rms"], 4), r["n_pages"]] for r in first]) if first else ["(none)"]
+    pages, density = read(folder / "pages.csv"), read(folder / "density.csv")
+    lines += ["", "## Pages (`pages.csv`)", ""]
+    if pages:
+        keys = sorted({(r["reader"], r["text_type"], r["pagination"] == "shared") for r in pages})
+        rows_out = []
+        for reader, text_type, shared in keys:
+            sel = [r for r in pages if r["reader"] == reader and r["text_type"] == text_type
+                   and (r["pagination"] == "shared") == shared]
+            complete = sum(r["complete"] == "True" for r in sel)
+            matches = sum(r["reference_matches_plan"] == "True" for r in sel)
+            cpt = [num(r["chars_per_token"]) for r in sel]
+            rows_out.append([reader, text_type, "shared" if shared else "block Z", len(sel), complete,
+                             f"{matches} of {len(sel)}", fmt(str(sum(cpt) / len(cpt)), 2)])
+        lines += table(["reader", "text", "pagination", "pages seen", "complete", "reference = plan",
+                        "mean chars/token"], rows_out)
+    else:
+        lines += ["(none)"]
+    lines += ["", "## Density of the shared layouts (`density.csv`)", ""]
+    lines += table(["reader", "text", "mode", "line pitch", "pages", "glyphs/page", "lines/page", "glyphs/line"],
+                   [[r["reader"], r["text_type"], r["render_mode"], r["line_pitch_mode"], r["n_pages"],
+                     fmt(r["glyphs_per_page"], 1), fmt(r["lines_per_page"], 2), fmt(r["glyphs_per_line"], 2)]
+                    for r in density]) if density else ["(none)"]
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
     print(out)

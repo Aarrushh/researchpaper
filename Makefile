@@ -4,7 +4,7 @@
 # DO NOT: Put experiment logic here. Targets only call scripts.
 
 PYTHON ?= python
-SWEEP  ?= configs/sweeps/pilot.yaml
+SWEEP  ?= configs/sweeps/full.yaml
 READERS ?=                        # e.g. READERS=qwen runs one reader of the ladder, pilot or sweep
 DEADLINE ?=                       # e.g. DEADLINE=2026-10-20T12:00 stops the sweep at a page boundary (section 3.6)
 RESUME ?=                         # e.g. RESUME=results/runs/<run_id> continues an interrupted run of one reader

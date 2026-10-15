@@ -46,7 +46,12 @@ __all__ = [
     "power_noncentrality",
     "pages_needed",
     "paired_mde",
+    "WITHIN_SS_FLOOR",
 ]
+
+# group_f_test: a within-page sum of squares at or below this fraction of y·y is rounding error, not variation.
+# One row of a page off by one character in 500 gives about 4e-6 of a CER-squared, far above it.
+WITHIN_SS_FLOOR = 1e-12
 
 
 # --------------------------------------------------------------------------- Holm
@@ -144,7 +149,10 @@ def group_f_test(y, page_ids, X_harm, names: Sequence[str], group_cols: Sequence
 
     Both models hold the page dummies (PREREGISTRATION.md section 6, equation (7)). Returns F, df1 (the
     rank the group adds), df2 (rows minus the full model's rank) and p. Raises ValueError when the test is
-    undefined: no column added, no residual degree of freedom, or a residual sum of squares of zero.
+    undefined: no column added, no residual degree of freedom, or no variation within any page. The last
+    case (every page's CER the same at every phase, as a reader at its floor can give) leaves both residual
+    sums of squares at rounding level, about 1e-33, where their ratio is noise that can read as any F; it is
+    caught on the within-page sum of squares, relative to y·y, before the ratio is formed.
     """
     y = np.asarray(y, dtype=np.float64)
     names = list(names)
@@ -161,11 +169,12 @@ def group_f_test(y, page_ids, X_harm, names: Sequence[str], group_cols: Sequence
         return float(np.sum((y - X @ np.linalg.lstsq(X, y, rcond=None)[0]) ** 2))
 
     rss1, rss0 = rss(X1), rss(X0)
+    within = rss(D)  # the within-page sum of squares: zero when no page varies across phases
     p1, p0 = np.linalg.matrix_rank(X1), np.linalg.matrix_rank(X0)
     q, dfd = int(p1 - p0), int(len(y) - p1)
-    if q <= 0 or dfd <= 0 or rss1 <= 0:
-        raise ValueError(f"F-test undefined: q={q}, dfd={dfd}, rss1={rss1}")
-    F = ((rss0 - rss1) / q) / (rss1 / dfd)
+    if q <= 0 or dfd <= 0 or rss1 <= 0 or within <= WITHIN_SS_FLOOR * max(1.0, float(y @ y)):
+        raise ValueError(f"F-test undefined: q={q}, dfd={dfd}, rss1={rss1}, within-page SS={within}")
+    F = (max(rss0 - rss1, 0.0) / q) / (rss1 / dfd)  # rss0 >= rss1 in exact arithmetic
     return {"F": float(F), "df1": q, "df2": dfd, "p": float(sps.f.sf(F, q, dfd))}
 
 

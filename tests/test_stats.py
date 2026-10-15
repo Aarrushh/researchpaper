@@ -339,3 +339,24 @@ def test_pages_needed():
 def test_paired_mde():
     assert stats.paired_mde(0.05, 41) == pytest.approx(0.0224, abs=5e-5)
     assert stats.paired_mde(0.05, 41, alpha=0.05 / 3) == pytest.approx(0.0259, abs=5e-5)
+
+
+def test_a_group_f_test_with_no_variation_within_any_page_is_undefined_not_a_ratio_of_rounding_errors():
+    # Every page reads the same at every phase (a reader at its floor): both residual sums of squares are rounding
+    # error, about 1e-33, and their ratio could read as any F. The test must refuse instead.
+    levels = np.arange(0.0, 28.0, 2.0)
+    pages = np.repeat(np.arange(16), levels.size)
+    phase = np.tile(levels, 16)
+    y = np.repeat(np.where(np.arange(16) % 5 == 0, 1 / 312, 0.0), levels.size)
+    groups = stats.bin_groups(28, [14, 28], levels.size)
+    bins = sorted(k for ks in groups.values() for k in ks)
+    X, names = stats.harmonic_design(phase, 28, bins)
+    cols = [n for n in names if int(n[3:]) in set(groups[14])]
+    with pytest.raises(ValueError, match="within-page"):
+        stats.group_f_test(y, pages, X, names, cols)
+    with pytest.raises(ValueError, match="within-page"):
+        stats.harmonic_fit(y, pages, phase, 28, groups, levels)
+    y2 = y.copy()
+    y2[3] += 1 / 500  # one row of one page off by one character in 500: real variation, a defined test
+    test = stats.group_f_test(y2, pages, X, names, cols)
+    assert test["F"] >= 0 and 0 <= test["p"] <= 1 and test["df2"] > 0

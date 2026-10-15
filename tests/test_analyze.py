@@ -28,7 +28,7 @@ from conftest import REPO_ROOT
 from mrr import grid, stats
 from mrr.manifest import RESULTS_COLUMNS
 from mrr.readers import Transcription
-from mrr.sweep import load_results, run_sweep, sweep_run_dirs
+from mrr.sweep import RunFolder, load_results, run_sweep, sweep_run_dirs
 from mrr.text_source import BOOKS, TEXTS_DIR
 
 SCRIPT = REPO_ROOT / "scripts" / "20_analyze.py"
@@ -40,7 +40,7 @@ DEFAULTS = yaml.safe_load((REPO_ROOT / "configs" / "render_defaults.yaml").read_
 FONT = REPO_ROOT / "data" / "external" / "fonts" / "source-sans-3" / "SourceSans3-Regular.ttf"
 HAVE_DATA = FONT.exists() and all((REPO_ROOT / TEXTS_DIR / book.file).exists() for book in BOOKS.values())
 needs_data = pytest.mark.skipif(not HAVE_DATA, reason="font or books not present (W1.4)")
-TABLES = ("checks", "harmonics", "paired", "subpixel", "sizes", "coherence_summary")
+TABLES = ("checks", "harmonics", "paired", "subpixel", "sizes", "coherence_summary", "wer", "pages", "density")
 
 # Qwen only: V over its 28 px cell in steps of 7 (4 levels: groups 28 px {1} and 14 px {2}), H over its 14 px patch in
 # steps of 7 (2 levels: group 14 px {1}), C over its 112 px sweep in steps of 14 (8 levels: groups 112 px {1, 2, 3}
@@ -294,16 +294,30 @@ def test_sizes_has_block_z_with_tokens_characters_per_token_the_plateau_and_s_st
 @needs_data
 def test_coherence_summary_puts_the_matching_rms_beside_the_mean_r(analysis):
     rows = _rows(analysis.out_dir / "coherence_summary.csv")
-    harmonics = {(r["text_type"], r["block"], int(r["period_px"])): float(r["rms"])
-                 for r in _rows(analysis.out_dir / "harmonics.csv")}
+    # R_k(T) sits at sweep bin k * L / T, which belongs to whichever group bin_groups gave it (R_2(28) is the 14 px
+    # bin); a bin no group holds (beyond n / 2, or not a whole bin) gets no RMS.
+    by_bin, range_of = {}, {}
+    for h in _rows(analysis.out_dir / "harmonics.csv"):
+        range_of[(h["text_type"], h["block"])] = int(h["range_px"])
+        for b in h["bins"].split():
+            by_bin[(h["text_type"], h["block"], int(b))] = float(h["rms"])
     assert len(rows) == 2 * (5 + 2) * 3 * 3  # two text types; V, H, C, S, A and the two modes of Z; 3 periods; 3 harmonics
+    mispaired_before = 0
     for r in rows:
         assert r["family"] == "description" and 0 <= float(r["R_min"]) <= float(r["R_mean"]) <= float(r["R_max"]) <= 1
-        key = (r["text_type"], r["block"], int(r["period_px"]))
-        if key in harmonics:
-            assert math.isclose(float(r["rms"]), harmonics[key])
+        L = range_of.get((r["text_type"], r["block"]))
+        k, T = int(r["harmonic"]), int(r["period_px"])
+        expected = None
+        if L is not None and (k * L) % T == 0:
+            expected = by_bin.get((r["text_type"], r["block"], k * L // T))
+        if expected is None:
+            assert r["rms"] == "" and r["rms_bin"] == ""
         else:
-            assert r["rms"] == ""
+            assert math.isclose(float(r["rms"]), expected) and int(r["rms_bin"]) == k * L // T
+            if k > 1 and (r["text_type"], r["block"], L // T) in by_bin and \
+                    by_bin[(r["text_type"], r["block"], L // T)] != expected:
+                mispaired_before += 1  # the pairing by period alone would have put another group's RMS here
+    assert mispaired_before > 0  # Qwen's V (R_2(28) is the 14 px bin) is among them
     v = [r for r in rows if r["block"] == "V" and r["text_type"] == "natural"]
     assert {r["axis"] for r in v} == {"y"} and all(int(r["n_pages"]) == 3 for r in v)
     assert all(int(r["n_pages"]) == 6 for r in rows if r["block"] == "Z")  # 3 sizes x 2 pages, no size column
@@ -451,3 +465,76 @@ def test_the_summary_without_tables_exits_1(tmp_path):
     done = subprocess.run([sys.executable, str(REPO_ROOT / "scripts" / "50_summary.py"), "--tables", str(tmp_path)],
                           capture_output=True, text=True)
     assert done.returncode == 1 and "run scripts/20_analyze.py first" in done.stderr
+
+
+def test_the_new_descriptive_tables_wer_pages_and_density(analysis):
+    # Section 4 (WER, output tokens, characters and symbols per vision token), section 5 (start_word), section 3
+    # (density cost): descriptive tables, every one written by the same run of the script.
+    results = _rows(analysis.run_dir / "results.csv")
+    wer = _rows(analysis.out_dir / "wer.csv")
+    assert wer and all(r["family"] == "description" for r in wer)
+    assert sum(int(r["n_rows"]) for r in wer) == len(results)
+    pages = _rows(analysis.out_dir / "pages.csv")
+    assert {r["page_id"] for r in pages} == {r["page_id"] for r in results}
+    assert all(r["reference_matches_plan"] == "True" and r["complete"] == "True" for r in pages)
+    for r in pages:
+        assert int(r["start_word"]) >= 0 and int(r["n_words"]) > 0
+        assert math.isclose(float(r["chars_per_token"]), int(r["reference_chars"]) / int(r["vision_tokens"]))
+    density = _rows(analysis.out_dir / "density.csv")
+    modes = {(r["text_type"], r["render_mode"], r["line_pitch_mode"]) for r in density}
+    assert ("natural", "patch_aware", "unaligned") in modes and ("random62", "conventional", "aligned") in modes
+    for r in density:
+        assert float(r["glyphs_per_line"]) > 0
+        assert math.isclose(float(r["glyphs_per_line"]), float(r["glyphs_per_page"]) / float(r["lines_per_page"]))
+    checks = _rows(analysis.out_dir / "checks.csv")[0]
+    shared_complete = sum(1 for r in pages if r["pagination"] == "shared" and r["complete"] == "True")
+    assert int(checks["determinism_expected"]) == shared_complete == int(checks["determinism_pairs"])
+    assert checks["empty_transcriptions"] == "0" and checks["coherence_malformed"] == "0"
+    assert float(checks["median_output_tokens"]) > 0
+
+
+def test_checks_only_writes_checks_and_no_test_of_h1(analysis, tmp_path):
+    env = {**os.environ, "PYTHONUTF8": "1",
+           "PYTHONPATH": os.pathsep.join(p for p in (str(REPO_ROOT / "src"), os.environ.get("PYTHONPATH", "")) if p)}
+    done = subprocess.run([sys.executable, str(SCRIPT), "--config", str(analysis.sweep_path), "--runs-root",
+                           str(analysis.runs_root), "--out-dir", str(tmp_path), "--checks-only"],
+                          capture_output=True, text=True, env=env, cwd=REPO_ROOT)
+    assert done.returncode == 0, done.stderr
+    written = sorted(p.name for p in (tmp_path / analysis.sweep_path.stem).iterdir())
+    assert written == ["checks.csv", "manifest.json"]
+    assert (tmp_path / analysis.sweep_path.stem / "checks.csv").read_bytes() == (analysis.out_dir / "checks.csv").read_bytes()
+
+
+def test_a_block_with_no_variation_within_any_page_is_written_as_undefined(analysis):
+    module = _script_module()
+    df = load_results(analysis.sweep_path, analysis.runs_root)
+    folders = {RunFolder(d).reader: RunFolder(d) for d in sweep_run_dirs(analysis.sweep_path, analysis.runs_root)}
+    flat = df.copy()
+    is_h = flat["block"] == "H"
+    flat.loc[is_h, "cer"] = flat.loc[is_h, "page_id"].map(lambda p: 0.003 if p.endswith("1") else 0.0)
+    rows = module.harmonics_table(flat, folders)
+    h = [r for r in rows if r["block"] == "H"]
+    assert h and all(r["note"].startswith("undefined") and math.isnan(r["F"]) and math.isnan(r["p"])
+                     and r["q"] == 0 and math.isnan(r["mde_rms"]) for r in h)
+    assert any(not math.isnan(r["F"]) for r in rows if r["block"] == "V")  # the other blocks are unaffected
+
+
+def test_the_summary_reads_section_10_literally_for_the_control_block():
+    summary = importlib.util.spec_from_file_location("summary_script", REPO_ROOT / "scripts" / "50_summary.py")
+    module = importlib.util.module_from_spec(summary)
+    sys.modules["summary_script"] = module
+    summary.loader.exec_module(module)
+
+    def h(text_type, block, period, family, p):
+        return {"reader": "qwen", "text_type": text_type, "block": block, "period_px": str(period),
+                "family": family, "p_holm": str(p)}
+
+    base = [h("random62", "H", 14, "a_random62", 0.5), h("random62", "V", 28, "a_random62", 0.4),
+            h("random62", "V", 14, "a_random62", 0.6), h("natural", "C", 112, "control_C", 0.01),
+            h("random62", "C", 112, "control_C", 0.5)]
+    line = module.verdicts(base + [h("natural", "V", 28, "a_natural", 0.001)], [])[0]
+    assert "CONTRADICTS" not in line and "beside significant V or H on natural" in line
+    line = module.verdicts(base + [h("natural", "V", 28, "a_natural", 0.3)], [])[0]
+    assert "CONTRADICTS D10 (a significant C group on natural" in line
+    line = module.verdicts([h("random62", "H", 14, "a_random62", 0.01)], [])[0]
+    assert "clause (a): SUPPORTED by H 14 px" in line and "no significant group" in line

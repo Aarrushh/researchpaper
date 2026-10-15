@@ -59,6 +59,7 @@ paper/*.pdf
 *.fdb_latexmk
 *.fls
 *.log
+!results/**/progress.log
 *.out
 *.synctex.gz
 *.toc
