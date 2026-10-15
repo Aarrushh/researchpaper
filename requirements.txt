@@ -17,4 +17,4 @@ freetype-py
 pyyaml
 pytest
 jupyter
-# triton  # needed at W4.2
+triton-windows<3.9; sys_platform == "win32"

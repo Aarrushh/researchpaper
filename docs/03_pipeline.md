@@ -121,7 +121,7 @@ W3.6 to W3.8 are stretch work and the first to go under the cut order: tick each
 - [ ] **W4.1** Write `spec/RENDERING_SPEC.md`; every rule cites the result that supports it.
   - Files: `spec/RENDERING_SPEC.md`; `scripts/08_contract_checks.py` and `reports/tables/contract/` (the evidence of R01 to R06 and the Conformance table, `make contract`); `scripts/01_check_readers.py --out` and `reports/tables/readers/reader_facts.csv` (the evidence of R07 and R08, `make reader-facts`, GPU); `tests/test_spec.py`, `tests/test_contract_checks.py`, `tests/test_check_readers.py`
   - Done when: no W4.1 TODOs remain, every rule's EVIDENCE names a file in `reports/` that exists, `make contract` exits 0, and the todo marks come off `tests/test_spec.py`.
-- [ ] **W4.2** Run Triton tutorials 01 and 02; notes in `LAB_NOTEBOOK.md`.
+- [x] **W4.2** Run Triton tutorials 01 and 02; notes in `LAB_NOTEBOOK.md`.
   - Files: `LAB_NOTEBOOK.md`, `requirements.txt` (uncomment triton)
   - Done when: both tutorials ran on one laptop and notes are logged.
 - [ ] **W4.3** Give GLM-5.3 only the spec via `h2/prompts/`; save its output verbatim in `h2/kernels/`.

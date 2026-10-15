@@ -24,9 +24,9 @@ import subprocess
 import sys
 from importlib import metadata
 
-TRITON = "triton-windows" if sys.platform == "win32" else "triton"
+TRITON_DISTS = ("triton-windows", "triton")  # the Windows fork's distribution first, then the official one (W4.2)
 PACKAGES = ["torch", "torchvision", "transformers", "accelerate", "pillow", "numpy",
-            "pandas", "scipy", "jiwer", "matplotlib", "freetype-py", "pyyaml", TRITON]
+            "pandas", "scipy", "jiwer", "matplotlib", "freetype-py", "pyyaml", *TRITON_DISTS]
 FREETYPE_VERSION = (2, 13, 2)
 NVIDIA_SMI = ["nvidia-smi", "--query-gpu=name,driver_version,memory.total",
               "--format=csv,noheader"]
@@ -71,8 +71,17 @@ def main() -> int:
     print("Packages:")
     for dist in PACKAGES:
         print(f"  {dist:<14} {version(dist)}")
-    if version(TRITON) == "not installed":
-        print(f"\nWARNING: {TRITON} is not installed. It is needed from W4.2 only.")
+    installed = [dist for dist in TRITON_DISTS if version(dist) != "not installed"]
+    if not installed:
+        return fail('Triton is not installed. From W4.2 it is required: pip install -U "triton-windows<3.9" '
+                    "on Windows (build guide 4.3); never install both triton and triton-windows.")
+    if len(installed) > 1:
+        return fail(f"both {' and '.join(installed)} are installed; they provide the same module, keep only one.")
+    try:
+        import triton
+    except ImportError as err:
+        return fail(f"{installed[0]} is installed but `import triton` fails: {err}")
+    print(f"triton module   {triton.__version__} (distribution {installed[0]})")
 
     try:
         import freetype

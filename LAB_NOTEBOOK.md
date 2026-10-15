@@ -898,3 +898,18 @@ Broke:
 - Nothing. `tests/test_h2_judge.py`: 39 passed, 10 deselected (model) in 85 s. Full CPU suite in this worktree: 632 passed, 1 skipped, 129 deselected in 343 s (202 s at W4.1; this run shared the processor with the ladder run of smolvlm500m in the `run` worktree).
 Next:
 - W4.2 (yours): the VC++ redistributable and `pip install -U "triton-windows<3.9"`; then `python -m pytest -m model tests/test_h2_judge.py -v` on the GPU: both good kernels 186 of 186, and the eight faulty kernels with the messages of guide 4.4 (expect 15 to 30 minutes per good kernel). After the freeze: rebuild the pages from the full runs and commit `judge_pages.csv` before attempt 1.
+
+## 2026-10-15, Claude (D22): W4.2, Triton on Windows; `check-env` requires it
+Did:
+- Owner action 12 was already met: the Microsoft Visual C++ 2015–2022 Redistributable (x64) v14.51.36247 is installed (`HKLM\SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64`; `vcruntime140.dll`, `vcruntime140_1.dll`, `msvcp140.dll` in System32).
+- `pip install -U "triton-windows<3.9"` in the project venv: triton-windows 3.8.0.post29 (52.8 MB wheel from PyPI). `pip list` shows `triton-windows` and no `triton` distribution.
+- Versions: torch 2.14.1+cu130, `triton.__version__` 3.8.0, `torch.cuda.get_device_capability()` (12, 0).
+- The README's `test_triton.py` printed `tensor([0., 0., 0.], device='cuda:0')` (11 s wall for the first run, cold cache: process start, imports and the first compile). Tutorial 01 printed "The maximum difference between torch and triton is 0.0" (first call 0.83 s with the cache warm from `test_triton.py`'s identical kernel; `do_bench` 0.0146 ms). Tutorial 02, the fused softmax on a 1823 × 781 input, matched `torch.softmax` under `allclose` (largest difference 7.5e-9; first call, its own compile, 0.80 s). The three scripts were run from a scratch folder outside the repository, while the SmolVLM-500M ladder run shared the GPU.
+- `requirements.txt:20` is now `triton-windows<3.9; sys_platform == "win32"`; `requirements.lock.txt` regenerated from `pip freeze --exclude-editable` below its unchanged header: one line added, `triton-windows==3.8.0.post29`.
+- `scripts/00_check_env.py`: looks up `triton-windows`, then `triton`; fails when neither is installed, when both are, or when `import triton` fails; prints the module's version beside the distribution's. The `sm_120` and sysmem-fallback checks are unchanged.
+Found:
+- `make check-env` still exits 1, on the sysmem fallback alone (owner action 2). Running it while a reader is on the GPU is a mistake I made once today: its 1.1 × allocation test pushes the running reader's memory towards system RAM while the fallback is on. The SmolVLM-500M ladder run went on unharmed (no error; its next rows took 76 and 56 s, in the range of the pages before). From here `check-env` runs only with the GPU idle.
+Broke:
+- Nothing.
+Next:
+- `python -m pytest -m model tests/test_h2_judge.py -v` on the GPU (both good kernels 186 of 186, the eight faulty kernels), at a time the full run leaves the card to the SmolVLM readers (6.1 GiB), not during a Qwen phase.
