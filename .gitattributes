@@ -1,0 +1,6 @@
+# PURPOSE: Keep git from converting line endings where the bytes are the record.
+# WHAT GOES HERE: Path patterns with -text: the model's verbatim output and the frozen prompts (build guide 4.5).
+# FILLED IN AT STEP: W4.3.
+# DO NOT: Remove these lines: the SHA-256 of a prompt or a kernel must hold on every checkout (core.autocrlf is true on Windows).
+h2/kernels/** -text
+h2/prompts/** -text
