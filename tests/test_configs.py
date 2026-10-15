@@ -251,8 +251,11 @@ def test_the_full_sweep_starts_after_the_ladder_with_a_new_seed_and_five_z_pages
 
 @pytest.mark.parametrize("reader", _load(FULL)["readers"])
 def test_the_full_sweep_reads_the_pilot_blocks_and_the_ladder_block_z_unchanged(reader):
-    full = expand_conditions(_concrete(_load(FULL)), READERS[reader])
-    assert [c for c in full if c.block != "Z"] == expand_conditions(_concrete(_load(PILOT)), READERS[reader])
+    full_cfg = _concrete(_load(FULL))
+    full = expand_conditions(full_cfg, READERS[reader])
+    pilot = _load(PILOT)  # never run (D26); its blocks at the full sweep's sizes, which the ladder chose
+    pilot["font_size_px"] = full_cfg["font_size_px"]
+    assert [c for c in full if c.block != "Z"] == expand_conditions(pilot, READERS[reader])
     assert [c for c in full if c.block == "Z"] == expand_conditions(_load(LADDER), READERS[reader])
     assert len(full) == FULL_CONDITIONS[reader]
 

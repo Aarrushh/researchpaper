@@ -4,11 +4,15 @@
 # DO NOT: Edit after the full run has started. A crash is resumed by the driver, and the lost time is not made up.
 #
 # Qwen runs alone (7.1 GiB of the 8 GiB card); the two SmolVLM readers run together (6.1 GiB peak in the ladder).
-# Alternating blocks keep both groups of readers in the data if the laptop fails late in the run.
+# Alternating blocks keep both groups of readers in the data if the laptop fails late in the run. The runner checks
+# a deadline only between pages and a page holds every condition (up to about an hour for a looping reader), so a
+# phase can end up to an hour late and the next one starts when it does.
 
 phases:
-  - {readers: [qwen], until: "TODO[W3.3]"}
-  - {readers: [smolvlm, smolvlm500m], until: "TODO[W3.3]"}
-  - {readers: [qwen], until: "TODO[W3.3]"}
-  - {readers: [smolvlm, smolvlm500m], until: "TODO[W3.3]"}
+  - {readers: [qwen], until: "2026-10-15T23:00:00+02:00"}
+  - {readers: [smolvlm, smolvlm500m], until: "2026-10-16T09:00:00+02:00"}
+  - {readers: [qwen], until: "2026-10-16T14:00:00+02:00"}
+  - {readers: [smolvlm, smolvlm500m], until: "2026-10-17T00:00:00+02:00"}
+  - {readers: [qwen], until: "2026-10-17T04:00:00+02:00"}
+  - {readers: [smolvlm, smolvlm500m], until: "2026-10-17T13:00:00+02:00"}   # a page started before 13:00 is finished; the run ends by about 14:00
 max_restarts: 5

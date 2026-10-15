@@ -5,22 +5,25 @@
 # D26: no pilot; the page counts are ceilings and each reader stops at its --deadline (PREREGISTRATION.md section 5).
 #
 # Rows per reader = conditions per page x 2 text types x N + 24 x N_Z (24 = 6 sizes x 2 render modes x 2 text types):
-#   qwen 50 x 2 x N_Q + 24 x 5 = TODO[W3.2]; smolvlm 62 x 2 x N_2 + 120 = TODO[W3.2];
-#   smolvlm500m 54 x 2 x N_5 + 120 = TODO[W3.2]; total runs = TODO[W3.2]
-# Estimated hours (build guide section 3.5 with the pilot's and the ladder's mean latencies; one laptop, D20):
-#   TODO[W3.2]: h_B + h_A <= 108, the 114 h window less 6 h for restarts and model loads
+#   qwen 50 x 2 x 300 + 24 x 5 = 30120; smolvlm 62 x 2 x 300 + 120 = 37320;
+#   smolvlm500m 54 x 2 x 300 + 120 = 32520; total runs = 99960
+# These are ceilings (D26): 300 pages per text type is more than the clock allows, and each reader stops at the
+# deadline of its phase in configs/schedules/full.yaml.
+# Hours (D26): not planned from latencies; the schedule's deadlines stop the run. From the ladder's mean latencies,
+#   one page of each text type takes about 1 h for Qwen alone, 0.3 h for SmolVLM-2.2B and 1.3 h for SmolVLM-500M
+#   (these two side by side), so the run reaches far fewer pages than the ceiling.
 
 readers: [qwen, smolvlm, smolvlm500m]     # W3.2: a reader Gate 2 cuts leaves this list and every per-reader map below
 seed: 20261016                            # new: the ladder used 20261012 and the pilot 20261013 (section 2.4, step 6)
 pages:
   natural: {books: [pg105, pg84, pg1661],
-            per_text_type: {qwen: "TODO[W3.2]: N_Q", smolvlm: "TODO[W3.2]: N_2", smolvlm500m: "TODO[W3.2]: N_5"},
+            per_text_type: {qwen: 300, smolvlm: 300, smolvlm500m: 300},
             start_after: [configs/sweeps/ladder.yaml]}     # D26: the pilot is not run
-  random62: {per_text_type: {qwen: "TODO[W3.2]: N_Q", smolvlm: "TODO[W3.2]: N_2", smolvlm500m: "TODO[W3.2]: N_5"}}
+  random62: {per_text_type: {qwen: 300, smolvlm: 300, smolvlm500m: 300}}
   z_per_text_type: 5
 repeats: 1
 font_file: data/external/fonts/source-sans-3/SourceSans3-Regular.ttf
-font_size_px: {qwen: "from the ladder", smolvlm: "from the ladder", smolvlm500m: "from the ladder"}
+font_size_px: {qwen: 24, smolvlm: 24, smolvlm500m: 20}   # the ladder's choice (W1.10, reports/tables/ladder/)
 aa_mode: coverage_srgb
 blocks:
   V: {render_mode: conventional, line_pitch_mode: aligned, axis: y, range: cell,
