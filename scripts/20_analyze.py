@@ -99,7 +99,7 @@ COLUMNS = {
     ],
     "density": [  # section 3: the density cost of each shared layout, beside R_k
         "reader", "text_type", "render_mode", "line_pitch_mode", "n_pages", "glyphs_per_page", "lines_per_page",
-        "glyphs_per_line", "status", "family",
+        "glyphs_per_line", "glyphs_per_full_line", "status", "family",
     ],
 }
 NAN = float("nan")
@@ -147,15 +147,21 @@ def _page_cer(rows) -> dict[str, float]:
 
 
 def _fill_holm(rows: list[dict[str, Any]]) -> None:
-    """Holm within each ``_holm`` group (section 6), then drop the group key. Undefined p-values stay NaN."""
+    """Holm within each ``_holm`` group (section 6), then drop the group key.
+
+    An undefined test stays in its family as p = 1, so the family keeps the size m section 6 sets (and _fill_mde
+    assumes); its own p and p_holm stay NaN.
+    """
     groups: dict[str, list[dict[str, Any]]] = {}
     for row in rows:
         groups.setdefault(row.pop("_holm"), []).append(row)
     for members in groups.values():
-        tested = [r for r in members if not math.isnan(r["p"])]
-        if tested:
-            for r, adjusted in zip(tested, stats.holm([r["p"] for r in tested])):
-                r["p_holm"] = float(adjusted)
+        if all(math.isnan(r["p"]) for r in members):
+            continue
+        adjusted = stats.holm([1.0 if math.isnan(r["p"]) else r["p"] for r in members])
+        for r, a in zip(members, adjusted):
+            if not math.isnan(r["p"]):
+                r["p_holm"] = float(a)
 
 
 # --------------------------------------------------------------------------- the tables
@@ -172,6 +178,12 @@ def _coherence_row_ok(r: Mapping[str, Any]) -> bool:
     return True
 
 
+def _torn_transcription(path: Path, scored_chars: int) -> bool:
+    """A transcription file that exists but is empty or NUL-filled although the scored text had ``scored_chars`` > 0
+    characters (hits + substitutions + insertions): what an OS crash between a row's fsync and its file leaves."""
+    return scored_chars > 0 and path.exists() and (path.stat().st_size == 0 or b"\x00" in path.read_bytes())
+
+
 def _has_twins(folder: RunFolder) -> bool:
     """Whether the run's shared conditions hold a pair that renders the same pixels ((H, 0) and (S, 0))."""
     keys = [sweep_mod._twin_key(c) for c in folder.conditions if c.paginate == sweep_mod.SHARED]
@@ -181,8 +193,9 @@ def _has_twins(folder: RunFolder) -> bool:
 def checks_table(df_all, folders: Sequence[RunFolder], excluded: Mapping[str, set[str]]) -> list[dict[str, Any]]:
     """Section 9, item 1: one row per run folder.
 
-    Beyond the list of section 9: transcription files that exist but are empty while the row counts output tokens
-    (an OS crash between a row's fsync and its file), the median output tokens (section 4), the number of complete
+    Beyond the list of section 9: transcription files that exist but are empty or NUL-filled while the scored text was
+    not (an OS crash between a row's fsync and its file; a reply of the end token alone is a real empty text and does
+    not count), the median output tokens (section 4), the number of complete
     shared pages that should each hold one determinism row, and coherence rows that do not parse (a torn line).
     """
     out = []
@@ -192,8 +205,8 @@ def checks_table(df_all, folders: Sequence[RunFolder], excluded: Mapping[str, se
         n = int(len(rows))
         files = [folder.run_dir / str(f) for f in rows["transcription_file"].tolist()]
         missing = sum(1 for f in files if not f.exists())
-        empty = sum(1 for f, t in zip(files, rows["output_tokens"].tolist()) if f.exists() and int(t) > 0
-                    and f.stat().st_size == 0)
+        scored = (rows["hits"] + rows["substitutions"] + rows["insertions"]).astype(int).tolist()  # > 0: text not empty
+        empty = sum(1 for f, h in zip(files, scored) if _torn_transcription(f, h))
         hit = int(rows["hit_limit"].astype(bool).sum()) if n else 0
         mismatches = sum(1 for r in folder.determinism if str(r.get("identical")) != "True")
         expected = 0
@@ -254,13 +267,15 @@ def harmonics_table(df, folders_by_reader: Mapping[str, RunFolder]) -> list[dict
                 axis = str(spec.get("axis", "x"))
                 phase = rows["phase_x_px" if axis == "x" else "phase_y_px"].to_numpy(dtype=np.float64)
                 y, pages = rows["cer"].to_numpy(dtype=np.float64), rows["page_id"].to_numpy()
+                why = ""
                 try:
                     fit = stats.harmonic_fit(y, pages, phase, L, groups, levels)
                 except ValueError as exc:
-                    # No within-page variation (a reader at its floor reads every page alike at every phase): every
-                    # group's test is undefined. The rows are written with empty statistics so the table says so.
+                    # No within-page variation (a reader at its floor reads every page alike at every phase), or a
+                    # single complete page (no residual degree of freedom): every group's test is undefined. The rows
+                    # are written with empty statistics and the cause, so the table says so.
                     _log.warning("%s %s block %s: harmonic model undefined (%s)", reader, text_type, block, exc)
-                    fit = None
+                    fit, why = None, getattr(exc, "cause", str(exc))
                 for T in sorted(groups):
                     if fit is not None:
                         g = fit["groups"][int(T)]
@@ -284,7 +299,7 @@ def harmonics_table(df, folders_by_reader: Mapping[str, RunFolder]) -> list[dict
                         "n_pages": fit["n_pages"] if fit else int(len(np.unique(pages))),
                         "n_levels": len(levels), "n_rows": fit["n_rows"] if fit else int(y.size), "mde_rms": NAN,
                         "status": status, "family": family, "_holm": f"{family}|{reader}|{text_type}",
-                        "note": "" if fit else "undefined: no variation within any page",
+                        "note": "" if fit else f"undefined: {why}",
                     })
     _fill_mde(out)
     _fill_holm(out)
@@ -555,16 +570,22 @@ def density_table(df, folders: Sequence[RunFolder], plans: Mapping[str, dict[str
             for mode, pitch_mode, cfg in layouts.values():
                 placed = render.layout_page(page.text, cfg)
                 lines = (max(g.line for g in placed) + 1) if placed else 0
-                t = totals.setdefault((folder.reader, page.text_type, mode, pitch_mode), [0, 0, 0])
+                t = totals.setdefault((folder.reader, page.text_type, mode, pitch_mode), [0, 0, 0, 0, 0])
                 t[0] += 1
                 t[1] += len(placed)
                 t[2] += lines
+                # Full lines only: a shared page is cut to fit the tightest layout, so every looser layout ends
+                # partway through its last line; the density cost of a layout (as W1.10 measures it) leaves that out.
+                t[3] += sum(1 for g in placed if g.line < lines - 1)
+                t[4] += max(lines - 1, 0)
     out = []
-    for (reader, text_type, mode, pitch_mode), (n, glyphs, lines) in sorted(totals.items()):
+    for (reader, text_type, mode, pitch_mode), (n, glyphs, lines, full_glyphs, full_lines) in sorted(totals.items()):
         out.append({
             "reader": reader, "text_type": text_type, "render_mode": mode, "line_pitch_mode": pitch_mode,
             "n_pages": n, "glyphs_per_page": glyphs / n, "lines_per_page": lines / n,
-            "glyphs_per_line": glyphs / lines if lines else NAN, "status": PREREGISTERED, "family": "description",
+            "glyphs_per_line": glyphs / lines if lines else NAN,
+            "glyphs_per_full_line": full_glyphs / full_lines if full_lines else NAN,
+            "status": PREREGISTERED, "family": "description",
         })
     return out
 
@@ -572,8 +593,21 @@ def density_table(df, folders: Sequence[RunFolder], plans: Mapping[str, dict[str
 # --------------------------------------------------------------------------- writing
 
 
+FLOAT_DIGITS = 12  # significant digits written: the last bits of a least-squares fit depend on the BLAS kernel
+
+
+def _cell(v: Any) -> Any:
+    """NaN as an empty cell; any other float rounded to FLOAT_DIGITS significant digits, so the tables regenerate
+    alike on machines whose BLAS picks another kernel (they then differ only at a rare rounding boundary)."""
+    if isinstance(v, (float, np.floating)):
+        v = float(v)
+        return "" if math.isnan(v) else float(f"{v:.{FLOAT_DIGITS}g}")
+    return v
+
+
 def write_table(path: Path, rows: Sequence[Mapping[str, Any]], columns: Sequence[str]) -> int:
-    """Write ``rows`` as CSV with ``columns`` first and any further key in order of appearance; NaN is an empty cell."""
+    """Write ``rows`` as CSV with ``columns`` first and any further key in order of appearance; NaN is an empty cell
+    and floats carry FLOAT_DIGITS significant digits."""
     names = list(columns)
     for row in rows:
         names.extend(k for k in row if k not in names)
@@ -581,7 +615,7 @@ def write_table(path: Path, rows: Sequence[Mapping[str, Any]], columns: Sequence
         writer = csv.DictWriter(fh, fieldnames=names, lineterminator="\n")
         writer.writeheader()
         for row in rows:
-            writer.writerow({k: "" if isinstance(v, float) and math.isnan(v) else v for k, v in row.items()})
+            writer.writerow({k: _cell(v) for k, v in row.items()})
     return len(rows)
 
 

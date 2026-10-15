@@ -1029,3 +1029,20 @@ Broke:
 - Nothing.
 Next:
 - The phase switch at 23:00 CEST (SmolVLM-2.2B and SmolVLM-500M side by side).
+
+## 2026-10-15, Claude (D22): W3.4, an adversarial review of the audit fixes, and seven small corrections
+Did:
+- A second workflow (three reviewers on the table code, the statistics and the documents; one verifier per slice) read the audit fixes of 9cff510 against the live Qwen run; 7 findings survived, all LOW. Fixed in p4 (the run worktree's code is untouched):
+  - `scripts/20_analyze.py` `checks_table`: `empty_transcriptions` counted a reply of the end token alone (output_tokens 1, empty text, CER 1: three such rows in the SmolVLM-2.2B ladder) as a crash artifact, and missed NUL-filled files. It now counts a file that is empty or NUL-filled while the scored text was not (`_torn_transcription`).
+  - `_fill_holm`: an undefined test (p NaN) left its family, so H alone could be corrected with m = 1 instead of section 6's 3 (and the D10 line could flip). It now stays in the family as p = 1; its own `p_holm` stays empty. A no-op when every test is defined.
+  - `harmonics_table`: the note of an undefined block names its cause (`stats.UndefinedTest.cause`: "no variation within any page" or "no residual degree of freedom", the second for a reader and text type with one complete page) instead of always the first.
+  - `density_table`: new column `glyphs_per_full_line`, the density cost without each page's partial last line (shared pages are cut to fit the 13-line patch-aware layout, so conventional pages end partway through a line: about 5% lower glyphs per line as written). `glyphs_per_line` is kept; the summary prints both.
+  - `write_table`: floats carry 12 significant digits, so a last-bit difference from another BLAS kernel (shown with OPENBLAS_CORETYPE) does not change a table; the freeze README and the amendment say that the byte-for-byte check holds on the machine that wrote the tables.
+  - `tests/test_freeze.py`: the git-ignore test skips outside a git work tree or without git (a supplementary archive has no `.git`).
+  - `PREREGISTRATION.md` amendment of 15 October, item 4 corrected (still additions only against `prereg-v1`, 16 lines): the MDE columns were already in the tagged code (2330096); the undefined F-test wording; the Holm rule; the density column; the 12 digits; no Figure 1 without V, H or C. Item 2: same first start word per source. `HANDOFF.md`: the Saturday commands with `--sweep`, `--config`, `--tables` (as `make` targets), and `spec-v1` before H2.
+Found:
+- The guard of `group_f_test`, the coherence pairing, the replanning (all 720 Qwen pages and references reproduce), the D10 line, the BLAS setting and the `.gitignore` negation were confirmed on the live data.
+Broke:
+- Nothing in the analysis. Tests: 77 passed in the stats, analysis and freeze files; the whole CPU suite (`-m "not todo and not model"`, GPU hidden) passed on its second pass. The first pass failed once in `tests/test_run_schedule.py` (the side-by-side phase): the two fake runners of one phase read and appended `calls.jsonl` without a lock, so under load one could read the other's half-written line. A race in the test harness, not in the driver; the fake runner now takes a lock file (11 passed, five times in a row).
+Next:
+- The phase switch at 23:00 CEST.

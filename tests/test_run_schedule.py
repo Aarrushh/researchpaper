@@ -22,7 +22,7 @@ from conftest import REPO_ROOT
 SCRIPT = REPO_ROOT / "scripts" / "11_run_schedule.py"
 
 FAKE_RUNNER = r'''
-import argparse, hashlib, json, sys
+import argparse, hashlib, json, os, sys, time
 from pathlib import Path
 p = argparse.ArgumentParser()
 p.add_argument("--config"); p.add_argument("--readers"); p.add_argument("--deadline")
@@ -30,9 +30,20 @@ p.add_argument("--save-images"); p.add_argument("--resume", default=None)
 a = p.parse_args()
 root = Path(sys.argv[0]).parent
 calls = root / "calls.jsonl"
-n = sum(1 for line in open(calls, encoding="utf-8") if json.loads(line)["reader"] == a.readers) if calls.exists() else 0
-with open(calls, "a", encoding="utf-8") as fh:
-    fh.write(json.dumps({"reader": a.readers, "deadline": a.deadline, "resume": a.resume}) + "\n")
+lock = root / "calls.lock"  # two runners of one phase start together: one reads while the other appends otherwise
+while True:
+    try:
+        fd = os.open(lock, os.O_CREAT | os.O_EXCL)
+        break
+    except FileExistsError:
+        time.sleep(0.01)
+try:
+    n = sum(1 for line in open(calls, encoding="utf-8") if json.loads(line)["reader"] == a.readers) if calls.exists() else 0
+    with open(calls, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps({"reader": a.readers, "deadline": a.deadline, "resume": a.resume}) + "\n")
+finally:
+    os.close(fd)
+    os.unlink(lock)
 if a.resume is None:
     sha = hashlib.sha1(Path(a.config).read_bytes()).hexdigest()
     run = root / "runs" / f"run_{a.readers}"

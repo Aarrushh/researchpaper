@@ -166,9 +166,13 @@ def test_the_script_freezes_then_checks_and_exits_1_after_a_change(results, tmp_
     assert proc.returncode == 1 and "changed: equivariance/qwen_natural.csv" in proc.stderr
 
 
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not on PATH")
 def test_progress_logs_under_results_are_not_ignored_by_git():
     # The freeze lists the SHA-256 of every file it copies, progress.log included; a file git ignores would be missing
     # from every clone and the check would fail there (pre-analysis audit, 15 October).
+    inside = subprocess.run(["git", "rev-parse", "--is-inside-work-tree"], cwd=REPO_ROOT, capture_output=True, text=True)
+    if inside.returncode != 0 or inside.stdout.strip() != "true":
+        pytest.skip("not a git work tree (an unpacked archive): nothing to check")
     probe = "results/final/runs/20990101-0000_full_qwen_0000000/progress.log"
     done = subprocess.run(["git", "check-ignore", "-q", probe], cwd=REPO_ROOT, capture_output=True, text=True)
     assert done.returncode == 1, "git ignores progress.log under results/: .gitignore needs !results/**/progress.log"

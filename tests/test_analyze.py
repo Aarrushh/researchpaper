@@ -415,6 +415,38 @@ def test_write_table_puts_the_fixed_columns_first_and_nan_as_an_empty_cell(tmp_p
     assert n == 2 and path.read_text(encoding="utf-8") == "a,b,extra\n1,,x\n2,0.5,\n"
 
 
+def test_write_table_rounds_floats_to_12_significant_digits(tmp_path):
+    # A last-bit difference from another BLAS kernel must not change a table (review of 15 October, tables-4).
+    module = _script_module()
+    path = tmp_path / "t.csv"
+    module.write_table(path, [{"x": 0.1 + 0.2, "y": 1 / 3, "z": 5.158097418071552e-68, "n": 7, "w": 3.0}],
+                       ["x", "y", "z", "n", "w"])
+    assert path.read_text(encoding="utf-8") == "x,y,z,n,w\n0.3,0.333333333333,5.15809741807e-68,7,3.0\n"
+    assert module._cell(0.013093651613888303) == module._cell(0.013093651613888318)
+
+
+def test_holm_keeps_an_undefined_test_in_its_family_as_p_1():
+    # Section 6 sets Holm over the three tests of one reader; an undefined V must not shrink H's family to one.
+    module = _script_module()
+    nan = float("nan")
+    rows = [{"p": 0.03, "p_holm": nan, "_holm": "f"}, {"p": nan, "p_holm": nan, "_holm": "f"},
+            {"p": nan, "p_holm": nan, "_holm": "f"}, {"p": nan, "p_holm": nan, "_holm": "g"}]
+    module._fill_holm(rows)
+    assert math.isclose(rows[0]["p_holm"], 0.09) and all(math.isnan(r["p_holm"]) for r in rows[1:])
+    assert all("_holm" not in r for r in rows)
+
+
+def test_a_torn_transcription_is_empty_or_nul_filled_while_the_scored_text_was_not(tmp_path):
+    module = _script_module()
+    empty, nul, fine = tmp_path / "e.txt", tmp_path / "n.txt", tmp_path / "f.txt"
+    empty.write_bytes(b"")
+    nul.write_bytes(b"\x00" * 40)
+    fine.write_bytes(b"some text")
+    assert module._torn_transcription(empty, 12) and module._torn_transcription(nul, 40)
+    assert not module._torn_transcription(empty, 0)  # a reply of the end token alone: a real empty text
+    assert not module._torn_transcription(fine, 9) and not module._torn_transcription(tmp_path / "missing.txt", 5)
+
+
 def test_the_script_without_a_run_folder_exits_1(tmp_path):
     sweep_path = _write_sweep(tmp_path)
     result = _analyze(sweep_path, tmp_path / "runs", tmp_path / "tables")
@@ -486,6 +518,9 @@ def test_the_new_descriptive_tables_wer_pages_and_density(analysis):
     for r in density:
         assert float(r["glyphs_per_line"]) > 0
         assert math.isclose(float(r["glyphs_per_line"]), float(r["glyphs_per_page"]) / float(r["lines_per_page"]))
+        assert "glyphs_per_full_line" in r  # empty when every page fits on one line
+        if r["glyphs_per_full_line"]:
+            assert float(r["glyphs_per_full_line"]) > 0
     checks = _rows(analysis.out_dir / "checks.csv")[0]
     shared_complete = sum(1 for r in pages if r["pagination"] == "shared" and r["complete"] == "True")
     assert int(checks["determinism_expected"]) == shared_complete == int(checks["determinism_pairs"])
@@ -514,8 +549,8 @@ def test_a_block_with_no_variation_within_any_page_is_written_as_undefined(analy
     flat.loc[is_h, "cer"] = flat.loc[is_h, "page_id"].map(lambda p: 0.003 if p.endswith("1") else 0.0)
     rows = module.harmonics_table(flat, folders)
     h = [r for r in rows if r["block"] == "H"]
-    assert h and all(r["note"].startswith("undefined") and math.isnan(r["F"]) and math.isnan(r["p"])
-                     and r["q"] == 0 and math.isnan(r["mde_rms"]) for r in h)
+    assert h and all(r["note"] == "undefined: no variation within any page" and math.isnan(r["F"])
+                     and math.isnan(r["p"]) and r["q"] == 0 and math.isnan(r["mde_rms"]) for r in h)
     assert any(not math.isnan(r["F"]) for r in rows if r["block"] == "V")  # the other blocks are unaffected
 
 

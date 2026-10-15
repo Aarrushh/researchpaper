@@ -47,11 +47,20 @@ __all__ = [
     "pages_needed",
     "paired_mde",
     "WITHIN_SS_FLOOR",
+    "UndefinedTest",
 ]
 
 # group_f_test: a within-page sum of squares at or below this fraction of y·y is rounding error, not variation.
 # One row of a page off by one character in 500 gives about 4e-6 of a CER-squared, far above it.
 WITHIN_SS_FLOOR = 1e-12
+
+
+class UndefinedTest(ValueError):
+    """An F-test that cannot be formed; ``cause`` names why in words that do not depend on the arithmetic."""
+
+    def __init__(self, cause: str, detail: str):
+        super().__init__(f"F-test undefined, {cause}: {detail}")
+        self.cause = cause
 
 
 # --------------------------------------------------------------------------- Holm
@@ -172,8 +181,11 @@ def group_f_test(y, page_ids, X_harm, names: Sequence[str], group_cols: Sequence
     within = rss(D)  # the within-page sum of squares: zero when no page varies across phases
     p1, p0 = np.linalg.matrix_rank(X1), np.linalg.matrix_rank(X0)
     q, dfd = int(p1 - p0), int(len(y) - p1)
-    if q <= 0 or dfd <= 0 or rss1 <= 0 or within <= WITHIN_SS_FLOOR * max(1.0, float(y @ y)):
-        raise ValueError(f"F-test undefined: q={q}, dfd={dfd}, rss1={rss1}, within-page SS={within}")
+    floor = within <= WITHIN_SS_FLOOR * max(1.0, float(y @ y))
+    if q <= 0 or dfd <= 0 or rss1 <= 0 or floor:
+        cause = ("the group adds no column" if q <= 0 else "no residual degree of freedom" if dfd <= 0
+                 else "no variation within any page" if floor else "no residual variation")
+        raise UndefinedTest(cause, f"q={q}, dfd={dfd}, rss1={rss1}, within-page SS={within}")
     F = (max(rss0 - rss1, 0.0) / q) / (rss1 / dfd)  # rss0 >= rss1 in exact arithmetic
     return {"F": float(F), "df1": q, "df2": dfd, "p": float(sps.f.sf(F, q, dfd))}
 

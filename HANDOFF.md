@@ -22,7 +22,7 @@ W3.3: the full run (D26), started 15:23 Thursday from the run worktree `.claude/
 
 - `prereg-v1`: 3223ba9, approved 15 October 15:20
 - `data-freeze-v1`: Saturday 17 October, after `make analyze`
-- `spec-v1`: after H2 (R09 to R11 wait for the freeze)
+- `spec-v1`: after the freeze (R09 to R11 from the frozen tables), before H2
 - `submission`: not yet
 
 ## What is broken
@@ -31,7 +31,7 @@ Nothing known. The CUDA sysmem fallback is still on (owner action 2); Qwen fits 
 
 ## Next step
 
-Saturday about 14:00: `scripts/20_analyze.py --config configs/sweeps/full.yaml`, `scripts/30_make_figures.py`, `scripts/50_summary.py`, `scripts/40_freeze.py` and its check, the tag `data-freeze-v1`, then the interpretations (`research-paper-notes/build_plan/INTERPRETATION_KEY.md`). H2 only after that: the specification's R09 to R11 from the frozen results, `spec-v1`, then the Z.ai key, dummy calls and three attempts, each with the owner's go-ahead (D26 note).
+Saturday about 14:00, after `schedule done` and no runner left (`SATURDAY_RUNBOOK.md`): copy the run folders, then `make analyze`, `make figures`, `scripts/50_summary.py --tables reports/tables/full`, `make freeze`, `make freeze-check` (must log "the tables regenerate byte for byte"), the tag `data-freeze-v1`, the interpretations (`INTERPRETATION_KEY.md`). Then R09 to R11 from the frozen tables and `spec-v1`; H2 last (D26 note).
 
 ## Top three open decisions
 

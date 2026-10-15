@@ -212,9 +212,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     else:
         lines += ["(none)"]
     lines += ["", "## Density of the shared layouts (`density.csv`)", ""]
-    lines += table(["reader", "text", "mode", "line pitch", "pages", "glyphs/page", "lines/page", "glyphs/line"],
+    lines += table(["reader", "text", "mode", "line pitch", "pages", "glyphs/page", "lines/page", "glyphs/line",
+                    "glyphs/full line (density cost)"],
                    [[r["reader"], r["text_type"], r["render_mode"], r["line_pitch_mode"], r["n_pages"],
-                     fmt(r["glyphs_per_page"], 1), fmt(r["lines_per_page"], 2), fmt(r["glyphs_per_line"], 2)]
+                     fmt(r["glyphs_per_page"], 1), fmt(r["lines_per_page"], 2), fmt(r["glyphs_per_line"], 2),
+                     fmt(r.get("glyphs_per_full_line", ""), 2)]
                     for r in density]) if density else ["(none)"]
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")

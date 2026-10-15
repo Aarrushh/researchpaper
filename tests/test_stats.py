@@ -360,3 +360,17 @@ def test_a_group_f_test_with_no_variation_within_any_page_is_undefined_not_a_rat
     y2[3] += 1 / 500  # one row of one page off by one character in 500: real variation, a defined test
     test = stats.group_f_test(y2, pages, X, names, cols)
     assert test["F"] >= 0 and 0 <= test["p"] <= 1 and test["df2"] > 0
+
+
+def test_an_undefined_f_test_names_its_cause():
+    # The table writes the cause (review of 15 October, stats-2): one page that varies is not a reader at its floor.
+    levels = np.arange(0.0, 28.0, 2.0)
+    groups = stats.bin_groups(28, [14, 28], levels.size)
+    with pytest.raises(stats.UndefinedTest) as one_page:
+        stats.harmonic_fit(np.linspace(0.3, 0.6, levels.size), np.zeros(levels.size, dtype=int), levels, 28, groups,
+                           levels)
+    assert one_page.value.cause == "no residual degree of freedom"
+    pages = np.repeat(np.arange(4), levels.size)
+    with pytest.raises(stats.UndefinedTest) as flat:
+        stats.harmonic_fit(np.zeros(pages.size), pages, np.tile(levels, 4), 28, groups, levels)
+    assert flat.value.cause == "no variation within any page" and isinstance(flat.value, ValueError)
