@@ -122,10 +122,10 @@ W3.6 to W3.8 are stretch work and the first to go under the cut order: tick each
   - Files: `LAB_NOTEBOOK.md`, `requirements.txt` (uncomment triton)
   - Done when: both tutorials ran on one laptop and notes are logged.
 - [ ] **W4.3** Give GLM-5.3 only the spec via `h2/prompts/`; save its output verbatim in `h2/kernels/`.
-  - Files: `h2/prompts/prompt_vNN.md`, `h2/kernels/kernel_<prompt-version>_<attempt>.py`, `h2/README.md`
+  - Files: `h2/call_model.py` (one call, its files, the code block), `h2/build_prompt.py` (the prompt from the spec), `tests/test_call_model.py`, `.gitattributes` (`h2/kernels/**` and `h2/prompts/**` byte for byte); `h2/dummy/` (the dummy calls); `h2/prompts/prompt_v01.md`, `h2/kernels/kernel_v01_<n>.*`, `h2/README.md`
   - Done when: prompt and output are committed unedited, with model string, date and settings recorded.
 - [ ] **W4.4** Run `h2/judge/compare.py` against the reference renderer.
-  - Files: `h2/judge/compare.py`, `reports/tables/`
+  - Files: `h2/judge/compare.py`, `judge.py` (`build`, `run`, `summary`), `run_kernel.py`, `judge.yaml`, `judge_pages.csv` (the hashes of the 186 pages; rebuilt from the full runs' render configs after the freeze, before attempt 1), `reviews.csv` (D23); `tests/test_h2_judge.py`, `tests/fixtures/h2/` (`fake_runner.py`, `good_torch.py`, `good_kernel.py`); `reports/tables/h2/judge_v01_<n>.csv`, `summary.csv`
   - Done when: a judge table exists for every kernel attempt.
 
 > **GATE G3 (Sat 24 Oct)**
