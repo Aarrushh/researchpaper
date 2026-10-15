@@ -913,3 +913,15 @@ Broke:
 - Nothing.
 Next:
 - `python -m pytest -m model tests/test_h2_judge.py -v` on the GPU (both good kernels 186 of 186, the eight faulty kernels), at a time the full run leaves the card to the SmolVLM readers (6.1 GiB), not during a Qwen phase.
+
+## 2026-10-15, Claude (D22): W4.4, the judge's model-marked tests on the GPU
+Did:
+- `python -m pytest -m model tests/test_h2_judge.py -v` in the `build/h2` worktree at 21511b7 (the code merged into `build/p4` at a4c704a), with triton-windows 3.8.0.post29 (W4.2), the 186 stand-in judge pages of `data/interim/h2/judge_v01` (16 px, W4.4), and the process at below-normal priority while the SmolVLM-500M ladder run shared the GPU: 10 passed in 1,943 s (32 min).
+Found:
+- `test_good_kernels_pass_every_page[good_torch.py]` and `[good_kernel.py]` pass: each kernel matches the reference on 186 of 186 pages within the tolerances of `judge.yaml`. `good_kernel.py`, the Triton kernel, had never run before (no Triton until W4.2); its float32 emulation had predicted the pass.
+- The eight faulty kernels (`ndarray`, `inplace`, `exit`, `float`, `syntax`, `sleep`, `sleep_second`, `flip`) each fail with the message of guide 4.4.
+- About 10 s per judge page with the GPU shared: each page is a fresh process that imports torch.
+Broke:
+- Nothing.
+Next:
+- After the freeze: rebuild the judge pages from the full runs, commit `judge_pages.csv`, build the prompt from the finished spec; then the dummy calls and the three attempts, each with the owner's go-ahead.
