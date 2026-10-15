@@ -974,3 +974,16 @@ Broke:
 - Nothing.
 Next:
 - The launch.
+
+## 2026-10-15, Claude (D22): W3.3, the full run launched at `prereg-v1` (D26)
+Did:
+- 15:23:02 CEST: `scripts/11_run_schedule.py --config configs/sweeps/full.yaml --schedule configs/schedules/full.yaml` in the run worktree at `prereg-v1` (3223ba9), `PYTHONPATH=src`, `HF_HUB_OFFLINE=1`. Phase 0, Qwen until 23:00 CEST. Run folder `20261015-1323_full_qwen_3223ba9`: manifest at 3223ba9, `git_dirty: false`, 30,120 rows planned (the ceiling), 720 pages (600 shared, 120 block Z). First page (`pg105_p0000`, 50 rows) in 2.7 min.
+- 15:26:53: driver and runner stopped by me after page 4 (53 rows), on purpose: started from the chat session's shell, they would die with the session. Relaunched outside it through WMI (`Win32_Process.Create` of `logs/launch_driver.cmd`). That first detached launch (15:27:24) died within seconds of the runner planning its pages, with no traceback and no exit line from `cmd.exe`, so its whole process tree was killed from outside; the cause is not known. Relaunched the same way at 15:38:46: alive after the launching call returned, resumed at 54 of 30,120 rows, page 8 at 15:40. The driver logs each start, exit and restart in `logs/schedule.log`.
+- A keep-awake helper (`logs/keep_awake.ps1`, also through WMI) calls `SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED)` every minute until Saturday 17 October 16:00 or until `logs/stop_keep_awake` exists. It changes no setting; a closed lid or a manual sleep still sleeps.
+Found:
+- Two interruptions at the start, both at page boundaries or inside a page that the resume completes: the runner's resume keeps every row on disk and redoes only the missing conditions, so neither loses or repeats a row. Time lost: about 12 minutes of phase 0.
+- `*.log` is in `.gitignore`, so a run folder's `progress.log` is not committed (the ladder's three were not); the freeze copies it but git will not keep it. The timings it holds are also in `results.csv` (`latency_s`, `timestamp_utc`).
+Broke:
+- Nothing.
+Next:
+- Watch the phases (`logs/schedule.log`); a pipeline-only look at the first finished pages (checks, determinism, `hit_limit`), never a test of H1.
