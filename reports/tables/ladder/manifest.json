@@ -1,0 +1,29 @@
+{
+  "config": {
+    "incomplete": [],
+    "rows": 216,
+    "runs": [
+      "20261015-1116_ladder_smolvlm500m_8f6b578",
+      "20261015-1116_ladder_smolvlm_8f6b578",
+      "20261015-1235_ladder_qwen_8f6b578"
+    ],
+    "sweep": "configs/sweeps/ladder.yaml",
+    "target_cer_random62": 0.15
+  },
+  "git_commit": "b86a5dc0b1f9f88b33cf2f9f1066169fcd05a8cc",
+  "git_dirty": false,
+  "gpu_name": "NVIDIA GeForce RTX 5060 Laptop GPU",
+  "packages": {
+    "freetype-py": "2.5.1",
+    "jiwer": "4.0.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0",
+    "scipy": "1.17.1",
+    "torch": "2.14.1+cu130",
+    "transformers": "5.19.0"
+  },
+  "platform": "Windows-10-10.0.26300-SP0",
+  "python_version": "3.11.15",
+  "run_id": "20261015-1317_ladder_choice_b86a5dc",
+  "timestamp_utc": "2026-10-15T13:17:46Z"
+}

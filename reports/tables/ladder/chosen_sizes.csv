@@ -1,0 +1,4 @@
+reader,target_cer_random62,chosen_size_px,cer_random62_at_choice,distance_to_target,t_median_latency_s,t_mean_latency_s,rows_at_choice
+qwen,0.150000,24,0.098604,0.051396,8.600028,9.903807,12
+smolvlm,0.150000,24,0.424300,0.274300,7.955222,9.206356,12
+smolvlm500m,0.150000,20,0.958108,0.808108,43.845059,42.298575,12

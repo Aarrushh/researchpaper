@@ -179,11 +179,11 @@ DO NOT: Delete or rewrite old entries. Supersede them with a new entry that refe
 
 ### D18. Where Qwen's weights live
 - ID: D18
-- Status: open
-- Date: 2026-10-12 (opened; to be decided at W1.7)
+- Status: decided
+- Date: 2026-10-12 (opened); 2026-10-15 (decided: rung 1, with the owner's yes to the Gate 1 batch and the ladder's measurement)
 - Decision: One of: the whole model on the GPU in bfloat16; accelerate's offload with `max_memory={0: "6GiB", "cpu": "24GiB"}`; or the official AWQ build as a separate reader, `qwen_awq`. The first placement whose peak memory fits is chosen.
 - Options considered: the three placements above.
-- Evidence: The peak-memory measurement on one page, recorded in `LAB_NOTEBOOK.md`.
+- Evidence: The peak-memory measurement on one page, recorded in `LAB_NOTEBOOK.md`. W1.7: 7.07 GiB allocated, 7,423 MiB on `nvidia-smi`. The ladder (15 October, 72 pages up to 1.5 times the longest reference in new tokens): 7,544 MiB (7.37 GiB) at most, under the 7.5 GiB of build guide 1B.8, with steady latencies. Rung 1, the whole model on the GPU in bfloat16, holds. The sysmem fallback was still on during both measurements; `make check-env` confirms the setting when the owner changes it (owner action 2).
 - Consequences: The placement goes in every run manifest. A 4-bit language model is a different reader and is named as one.
 
 ### D19. The results schema has 33 columns
