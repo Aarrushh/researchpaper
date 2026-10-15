@@ -1019,3 +1019,13 @@ Broke:
 - Nothing in the run. The first test pass of these changes took 80 minutes of wall clock, the sleeps included.
 Next:
 - Commit after the tests; an adversarial review of these changes; then a `--checks-only` look at the first phase's pages.
+
+## 2026-10-15, Claude (D22): W3.3, the first pipeline look at the full run (section 7: checks only)
+Did:
+- 18:50: a copy of `20261015-1323_full_qwen_3223ba9` (without `images/`) analysed with `scripts/20_analyze.py --checks-only` at 9cff510 into a scratch folder: `checks.csv` and its manifest only; no test of H1 was computed or read.
+Found:
+- 484 rows on 92 pages (8 shared, 84 block Z), none excluded; no missing or empty transcription file; `hit_limit` 5 rows (1.0%), every one on a block Z page at a small size; 8 determinism rows for the 8 complete shared pages, all identical; no malformed coherence row; median latency 6.8 s, median output 163 tokens.
+Broke:
+- Nothing.
+Next:
+- The phase switch at 23:00 CEST (SmolVLM-2.2B and SmolVLM-500M side by side).
