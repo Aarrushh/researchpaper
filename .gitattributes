@@ -7,3 +7,8 @@ h2/prompts/** -text
 # The runner identifies a sweep by the SHA-1 of its file bytes (manifest sweep_sha1). Every run so far was made from a
 # CRLF checkout (core.autocrlf=true on the laptop), so every checkout must give those bytes, on any platform.
 configs/sweeps/*.yaml text eol=crlf
+# Results and tables are records: the freeze lists the SHA-256 of every file under results/final/ and its check
+# regenerates reports/tables/ byte for byte, so git must never change their line endings (D26 notebook entry).
+results/** -text
+reports/tables/** -text
+h2/judge/*.csv -text
