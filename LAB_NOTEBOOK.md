@@ -963,3 +963,14 @@ Broke:
 - Nothing.
 Next:
 - Launch `scripts/11_run_schedule.py --config configs/sweeps/full.yaml --schedule configs/schedules/full.yaml` in the run worktree at `prereg-v1`, with `PYTHONPATH=src` and `HF_HUB_OFFLINE=1`; watch `progress.log` and `logs/schedule.log`; the first finished pages get a pipeline check only (`checks.csv`, determinism, `hit_limit`), never a test of H1 (section 7).
+
+## 2026-10-15, Claude (D22): the ladder's run folders committed byte for byte; `prereg-v1` moved before any use
+Did:
+- The runner writes `manifest.json`, `references/` and `transcriptions/` in text mode, so on Windows their line breaks are CRLF, while its CSVs are LF. b86a5dc committed the three ladder folders before `results/** -text` existed (8a1b22b), and `core.autocrlf` stored the 42 files with more than one line normalised to LF. The run worktree still held the originals: copied back over the committed ones (`diff -rq` clean) and committed raw. `reports/tables/ladder/` is unchanged: it reads `results.csv`, which was LF all along.
+- `prereg-v1` had been created at 2f99eaf a few minutes earlier, not pushed, and nothing had run from it. It is moved to this commit, which differs from 2f99eaf only in these 42 data files and this entry; the preregistration, the configs, the runner and the driver are the same bytes.
+Found:
+- Every file under `results/` and `reports/tables/` is now stored and checked out byte for byte, so the freeze's SHA-256 list and the byte-for-byte table check hold on any checkout.
+Broke:
+- Nothing.
+Next:
+- The launch.
