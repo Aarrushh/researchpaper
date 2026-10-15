@@ -31,10 +31,10 @@ Nothing known. The CUDA sysmem fallback is still on (owner action 2); Qwen fits 
 
 ## Next step
 
-Saturday about 14:00: `scripts/20_analyze.py --config configs/sweeps/full.yaml`, `scripts/30_make_figures.py`, `scripts/50_summary.py`, `scripts/40_freeze.py` and its check, the tag `data-freeze-v1`, then the interpretations (`research-paper-notes/build_plan/INTERPRETATION_KEY.md`). H2: Z.ai key in `.env`, dummy calls, three attempts with the owner's go-ahead each.
+Saturday about 14:00: `scripts/20_analyze.py --config configs/sweeps/full.yaml`, `scripts/30_make_figures.py`, `scripts/50_summary.py`, `scripts/40_freeze.py` and its check, the tag `data-freeze-v1`, then the interpretations (`research-paper-notes/build_plan/INTERPRETATION_KEY.md`). H2 only after that: the specification's R09 to R11 from the frozen results, `spec-v1`, then the Z.ai key, dummy calls and three attempts, each with the owner's go-ahead (D26 note).
 
 ## Top three open decisions
 
-1. The owner's go-ahead for H2's dummy calls and each of the three paid attempts (D23 reviews before each judge run).
-2. The freeze sign-off and D16 (Saturday).
+1. The freeze sign-off on Saturday, before the interpretations are written.
+2. After the spec: the go-ahead for H2's dummy calls and each paid attempt (D23 reviews before each judge run).
 3. Whether the paper keeps SmolVLM-500M's random-text tests as primary given its ceiling CER (kept by the rule; report its minimum detectable amplitudes).
