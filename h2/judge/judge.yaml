@@ -1,0 +1,35 @@
+# PURPOSE: The H2 judge: which pages every kernel attempt is judged on, the tolerance, and the run limits.
+# WHAT GOES HERE: Readers, layouts, modes, texts, phases, colour and edge cases, tolerance, timeouts, attempts.
+# FILLED IN AT STEP: W4.4, from the preregistration (W2.1). Frozen before attempt 1.
+# DO NOT: Edit after attempt 1 has run; a different page set or tolerance is a new judge version and an amendment.
+
+version: v01
+readers: [qwen, smolvlm, smolvlm500m]      # render config of each from the manifest of its full run
+layouts: [conventional, patch_aware]
+aa_modes: [binary, coverage_srgb, coverage_linear]
+texts:
+  natural: {book: pg105, marker: "CHAPTER I.", occurrence: 2}
+  random: {n_chars: 200000, seed: 20261022}
+phases_px: [[0, 0], [0.5, 0.25], [13.75, 7.5], max]    # max: the reader's largest allowance on both axes
+colour_cases:
+  wob: {text_rgb: [255, 255, 255], background_rgb: [0, 0, 0]}
+  red: {text_rgb: [200, 30, 60], background_rgb: [250, 245, 230]}
+colour_pages: {layout: conventional, phase_px: [0.5, 0.25], text: natural}
+edge_size_px: 16                           # edge pages: phase 0, black on white unless colours is given
+edge_cases:                                # page: [rows, columns]; glyphs: [character, first row, first column]
+  empty: {page: [64, 64], glyphs: []}
+  cut_tl: {page: [64, 64], glyphs: [["W", -5, -3]]}
+  cut_br: {page: [64, 64], glyphs: [["g", 60, 61]]}
+  outside: {page: [64, 64], glyphs: [["H", -100, 10], ["H", 69, 10], ["H", 10, 74]]}
+  overlap: {page: [64, 64], glyphs: [["o", 20, 20], ["o", 20, 20], ["o", 20, 20]], colours: red}
+  oblong: {page: [37, 100], glyphs: [["H", 5, 10], ["g", 5, 30], ["W", 5, 95], ["y", 30, 50]]}
+  zero: {page: [64, 64], glyphs: [["H", 10, 10], [" ", 10, 22], ["e", 10, 26], [" ", 10, 36]]}
+  # o moved so its first byte strictly between 0 and 255 is the pixel
+  tiny: {page: [1, 1], glyph_on_first_grey: "o"}
+tolerance:
+  binary: {max_abs_error: 0, frac_pixels_differing: 0.0}
+  coverage_srgb: {max_abs_error: 0, frac_pixels_differing: 0.0}
+  coverage_linear: {max_abs_error: 1, frac_pixels_differing: 0.001}
+page_timeout_s: 120
+max_hangs: 3
+attempts: 3

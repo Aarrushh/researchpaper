@@ -125,6 +125,64 @@ One row per reader of `configs/readers.yaml`, written on the GPU by `scripts/01_
 | `latency_s` | float | s | the first generate call after loading, warm-up included, to 3 decimals | `21.374` |
 | `peak_gib` | float | GiB | `torch.cuda.max_memory_allocated`, to 3 decimals | `5.012` |
 
+## h2/judge/judge_pages.csv (W4.4, the 186 pages every H2 attempt is judged on)
+
+One row per judge page, written by `python h2/judge/judge.py build --out data/interim/h2/judge_v01` with the pages themselves, which git ignores: `inputs/<page_id>.npz` (the six glyph arrays of the kernel interface under the names `bitmaps`, `offsets`, `heights`, `widths`, `rows`, `cols`), `inputs/<page_id>.json` (`height`, `width`, `text_rgb`, `background_rgb`, `aa_mode`), `reference/<page_id>.npy` (the reference renderer's page, uint8 H x W x 3) and `build.json` (where the render configs came from). The pages are defined by `h2/judge/judge.yaml`; the hashes fix them before attempt 1, and `judge.py run` refuses to start when any page's files hash differently. Page ids: `n_<reader>_<layout>_<aa_mode>_ph<k>_<text_type>` (k from 0 to 3 in the order of `phases_px`), `c_<reader>_<aa_mode>_<colour_case>`, `e_<edge_case>_<aa_mode>`.
+
+| Column | Type | Unit | Allowed values | Example |
+|---|---|---|---|---|
+| `page_id` | string | none | as above | `n_qwen_patch_aware_coverage_linear_ph2_random` |
+| `reader` | string | none | `qwen`, `smolvlm`, `smolvlm500m`; empty for an edge page | `qwen` |
+| `layout` | string | none | `conventional`, `patch_aware`; empty for an edge page | `patch_aware` |
+| `aa_mode` | string | none | `binary`, `coverage_srgb`, `coverage_linear` | `coverage_linear` |
+| `text_type` | string | none | `natural`, `random`; empty for an edge page | `random` |
+| `colour_case` | string | none | `wob`, `red`; empty for black on white | `red` |
+| `edge_case` | string | none | `empty`, `cut_tl`, `cut_br`, `outside`, `overlap`, `oblong`, `zero`, `tiny`; empty for a laid-out page | `` |
+| `phase_x_px`, `phase_y_px` | float | px | 0, 0.5 and 0.25, 13.75 and 7.5, or the reader's largest allowance (111, 41, 63); 0 for an edge page | `13.75` |
+| `height`, `width` | int | px | the reader's native page, or the edge case's page | `448` |
+| `n_glyphs` | int | glyphs | G, the length of `offsets`; spaces are not placed on a laid-out page, but count on `e_zero` | `225` |
+| `inputs_sha256` | string | none | SHA-256 of the `.npz` bytes followed by the `.json` bytes | 64 hex digits |
+| `reference_sha256` | string | none | SHA-256 of the `.npy` bytes | 64 hex digits |
+
+## h2/judge/reviews.csv (W4.4 and P4.5, the reviews before the judge runs, D23)
+
+Written by hand, before `judge.py run`, three rows per attempt: `A` (Claude Opus 5.5), `B` (a fresh Claude Sonnet 5.5 agent, blind to A) and `owner` (the final go). `judge.py run` refuses an attempt without all three rows, and records every page as `not run: safety` when any row says `safe_to_run` no; `summary` writes `pixel_work_in_triton` yes only when all three rows say yes.
+
+| Column | Type | Unit | Allowed values | Example |
+|---|---|---|---|---|
+| `attempt` | int | none | 1, 2, 3 | `1` |
+| `reviewer` | string | none | `A`, `B`, `owner` | `B` |
+| `safe_to_run` | string | none | `yes`, `no` | `yes` |
+| `pixel_work_in_triton` | string | none | `yes`, `no` | `yes` |
+| `note` | string | none | free text | `flags explained: none` |
+| `date` | string | none | ISO date | `2026-10-23` |
+
+## reports/tables/h2/judge_v01_<n>.csv and summary.csv (W4.4, the judge's tables)
+
+`judge_v01_<n>.csv`, one per attempt, written by `judge.py run --kernel h2/kernels/kernel_v01_<n>.py --attempt <n>`: the columns of `judge_pages.csv` from `page_id` to `n_glyphs`, then the six below, one row per page. `summary.csv`, written by `judge.py summary` after the folder's `manifest.json`, has one row per judged attempt, with the columns of the second table.
+
+| Column | Type | Unit | Allowed values | Example |
+|---|---|---|---|---|
+| `max_abs_error` | int or empty | levels | 0 to 255, equation (3) of the spec; empty when the page failed before a comparison | `1` |
+| `frac_pixels_differing` | float or empty | none | 0 to 1, equation (4) | `6.8e-05` |
+| `passed` | bool | none | True when both are within the tolerance of the page's `aa_mode` | `True` |
+| `kernel_ms` | float or empty | ms | `triton.testing.do_bench` after the first call; empty when timing failed, which never fails a page | `0.412` |
+| `repeat_identical` | bool or empty | none | a later call gave the same bytes as the judged first call | `True` |
+| `error` | string | none | empty on a page that ran and compared; otherwise the last line of the error, `exit code <c>: ...`, `result file unreadable`, `output on <device>, not on the GPU`, or `not run: <reason>` (safety, syntax error, no code block, no top-level render, `<k> earlier pages hung`) | `not run: safety` |
+
+| Column (summary.csv) | Type | Unit | Allowed values | Example |
+|---|---|---|---|---|
+| `attempt` | int | none | 1, 2, 3 | `2` |
+| `kernel_file` | string | none | the kernel's path from the repository root | `h2/kernels/kernel_v01_2.py` |
+| `kernel_sha256` | string | none | SHA-256 of the kernel's bytes; empty when the answer had no code block | 64 hex digits |
+| `static_flags` | string | none | `static_check`'s flags joined by `; `, empty when none | `line 3: import os` |
+| `ran` | string | none | `yes` when any page ran, `no` when every page is `not run: ...` | `yes` |
+| `pixel_work_in_triton` | string | none | `yes` only when all three review rows say yes | `yes` |
+| `pages_passed` | int | pages | 0 to 186 | `186` |
+| `passed_all` | string | none | `yes` when every page of `judge_pages.csv` passed | `yes` |
+| `worst_max_abs_error` | int or empty | levels | the largest `max_abs_error` of the attempt | `1` |
+| `median_kernel_ms` | float or empty | ms | the median `kernel_ms` of the attempt | `0.397` |
+
 ## Run ID format
 
 `YYYYMMDD-HHMM_<sweep>_<reader>_<short-git-sha>`
