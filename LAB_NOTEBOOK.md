@@ -987,3 +987,14 @@ Broke:
 - Nothing.
 Next:
 - Watch the phases (`logs/schedule.log`); a pipeline-only look at the first finished pages (checks, determinism, `hit_limit`), never a test of H1.
+
+## 2026-10-15, Claude (D22): W3.3, the WMI-launched driver died twice; the run is driven from the session shell
+Did:
+- The second WMI-launched tree died between 15:40:52 and 15:41:02 (page 12, 61 rows), like the first: no traceback, no exit line from `cmd.exe`. Relaunched at 15:42:35 from the chat session's background shell (as the ladder runs were, which ran for hours): resumed at 61 rows, page 14 (`rnd20261016_p0000`, the first random shared page, 50 rows at 11.1 s a row) at 15:52.
+Found:
+- [Flag, judgement] The likely cause: a process created through `Win32_Process.Create` belongs to the WMI provider host's job object, whose memory quota a runner holding Qwen exceeds, and the whole tree is ended with it; the keep-awake helper, launched the same way and small, is still alive. Not verified further; the session shell has no such limit. The cost: the run now depends on this chat session staying open (the owner is asked not to quit the app or archive the session before Saturday afternoon). A death is resumed by relaunching the same command; no row is lost or repeated.
+- Interruptions so far: three (15:26:53 by me, about 15:27:30 and 15:41:00 by the WMI job), about 16 minutes of phase 0 lost in all.
+Broke:
+- Nothing.
+Next:
+- Phase 1 at 23:00: the two SmolVLM readers, started by the driver.
