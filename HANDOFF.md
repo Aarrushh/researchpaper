@@ -8,32 +8,33 @@ DO NOT: Exceed 400 words. Do not paste results that are not in results/final/.
 # Handoff
 
 > Paste this at the start of any new AI chat session. Update at the end of every working session.
+> Last updated: Thursday 15 October 2026, 15:45 CEST, by Claude (D22).
 
 ## Thesis (one sentence)
 
-TODO[W1.1]: one-sentence thesis in your own words
+A vision-language model's character error rate on text whose glyphs share a phase against the encoder's patch grid varies periodically with that phase, at the patch or the token-cell period, and rendering glyphs on the grid lowers it (H1, `PREREGISTRATION.md` section 1).
 
 ## Current week and step
 
-TODO[W1.1]: e.g. W1, step W1.3
+W3.3: the full run (D26), started 15:23 Thursday from the run worktree `.claude/worktrees/run` at `prereg-v1`, by `scripts/11_run_schedule.py` outside the chat session (`logs/launch_driver.cmd`). Phases: Qwen to Thu 23:00, SmolVLM pair to Fri 09:00, Qwen to Fri 14:00, pair to Sat 00:00, Qwen to Sat 04:00, pair to Sat 13:00 (a page may overrun by up to an hour).
 
 ## What is frozen (tags)
 
-- `prereg-v1`: not yet
-- `data-freeze-v1`: not yet
-- `spec-v1`: not yet
+- `prereg-v1`: 3223ba9, approved 15 October 15:20
+- `data-freeze-v1`: Saturday 17 October, after `make analyze`
+- `spec-v1`: after H2 (R09 to R11 wait for the freeze)
 - `submission`: not yet
 
 ## What is broken
 
-TODO[W1.1]: known failures, with file and step ID
+Nothing known. The CUDA sysmem fallback is still on (owner action 2); Qwen fits at 7,544 MiB of 8,151, and `logs/nvsmi.csv` would show a spill.
 
 ## Next step
 
-TODO[W1.1]: the next step ID and what "done" looks like
+Saturday about 14:00: `scripts/20_analyze.py --config configs/sweeps/full.yaml`, `scripts/30_make_figures.py`, `scripts/50_summary.py`, `scripts/40_freeze.py` and its check, the tag `data-freeze-v1`, then the interpretations (`research-paper-notes/build_plan/INTERPRETATION_KEY.md`). H2: Z.ai key in `.env`, dummy calls, three attempts with the owner's go-ahead each.
 
 ## Top three open decisions
 
-1. TODO[W1.1]: open decision 1
-2. TODO[W1.1]: open decision 2
-3. TODO[W1.1]: open decision 3
+1. The owner's go-ahead for H2's dummy calls and each of the three paid attempts (D23 reviews before each judge run).
+2. The freeze sign-off and D16 (Saturday).
+3. Whether the paper keeps SmolVLM-500M's random-text tests as primary given its ceiling CER (kept by the rule; report its minimum detectable amplitudes).
