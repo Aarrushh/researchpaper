@@ -1046,3 +1046,15 @@ Broke:
 - Nothing in the analysis. Tests: 77 passed in the stats, analysis and freeze files; the whole CPU suite (`-m "not todo and not model"`, GPU hidden) passed on its second pass. The first pass failed once in `tests/test_run_schedule.py` (the side-by-side phase): the two fake runners of one phase read and appended `calls.jsonl` without a lock, so under load one could read the other's half-written line. A race in the test harness, not in the driver; the fake runner now takes a lock file (11 passed, five times in a row).
 Next:
 - The phase switch at 23:00 CEST.
+
+## 2026-10-16, Claude (D22): W3.3, an interruption of the full run (D26): stopped for the owner's travel, restarted at 13:12
+Did:
+- 2026-10-15 20:43 CEST: the owner asked to stop the run before travelling, and a side session ended the driver and its Qwen runner (`taskkill /T`). The last row was written at 20:43:36 CEST; the last complete page was 147 of 720 (1,480 Qwen rows). The page in progress was redone on restart.
+- 21:44 CEST: the original session took the exit (code 1, no traceback) for a crash and relaunched the driver without checking. It stopped the relaunch at 21:47, before any row was written, as soon as it found the owner's decision. The keep-awake helper was stopped at 21:48 so the laptop could sleep while travelling.
+- 2026-10-16 13:12 CEST, on the owner's word: keep-awake restarted, and the driver relaunched from the session shell with `PYTHONPATH=src` and `HF_HUB_OFFLINE=1`. It skipped phase 0 (Qwen to Thu 23:00) and phase 1 (the SmolVLM pair to Fri 09:00), which had ended, and resumed `20261015-1323_full_qwen_3223ba9` in phase 2 (Qwen to 14:00). The first new row came at 13:14:29, and the manifest has `git_dirty` false.
+Found:
+- [Flag] The lost time is not made up (D26). About 16.5 hours of the schedule are gone: the rest of phase 0 (2.3 h), all of phase 1 (10 h, SmolVLM-2.2B and SmolVLM-500M) and 4.2 h of phase 2. Both SmolVLM readers have no full-run row yet; they get phase 3 (Fri 14:00 to Sat 00:00) and phase 5 (Sat 04:00 to 13:00), about 19 hours. Qwen gets the end of phase 2 and phase 4 (Sat 00:00 to 04:00). Pages run in interleaved order, so the samples are smaller but not lopsided; the paper reports the pages obtained and their minimum detectable effects (section 5).
+Broke:
+- Nothing in the data.
+Next:
+- The switch to the SmolVLM pair at 14:00 CEST: check that both new run folders have clean manifests and rows.
