@@ -1058,3 +1058,15 @@ Broke:
 - Nothing in the data.
 Next:
 - The switch to the SmolVLM pair at 14:00 CEST: check that both new run folders have clean manifests and rows.
+
+## 2026-10-17, Claude (D22): W3.3, a second interruption of the full run (D26): stopped while the laptop was unplugged, restarted at 09:59
+Did:
+- Phases 3 and 4 ran as scheduled. Phase 3 (the SmolVLM pair) ended at its deadline on Sat 00:03 and 00:05 CEST with 11,652 and 5,304 rows. Phase 4 resumed `20261015-1323_full_qwen_3223ba9` at 00:05 and ended at its deadline on 04:04, at page 214 of 720 (4,820 Qwen rows). Phase 5 resumed both SmolVLM folders at 04:04.
+- 09:21:28 CEST, on the owner's word ("stop the run I am unplugging"): this session stopped the driver and both runners (`taskkill /PID 52548 /T /F`), stopped the watcher and the GPU logger, and created `logs/stop_keep_awake`. The last complete pages were 419 of 720 (SmolVLM-2.2B, 18,719 rows) and 275 of 720 (SmolVLM-500M, 8,531 rows).
+- 09:59:00 CEST, on the owner's word that the laptop was plugged in again: no run process alive; keep-awake restarted; the driver relaunched from the session shell as before. It skipped phase 4 and resumed both SmolVLM folders in phase 5 (to 13:00 CEST). The resume read "18719 of 37320 rows done" and "8531 of 32520 rows done", the same counts as at the stop, and the first new rows came at 10:00:08.
+Found:
+- [Flag] The lost time is not made up (D26): about 38 minutes of phase 5 for both SmolVLM readers, plus the pages in progress, which were redone.
+Broke:
+- Nothing in the data.
+Next:
+- "schedule done" at about 13:00 CEST, then the Saturday runbook: copy the run folders to p4, analyse, freeze.
