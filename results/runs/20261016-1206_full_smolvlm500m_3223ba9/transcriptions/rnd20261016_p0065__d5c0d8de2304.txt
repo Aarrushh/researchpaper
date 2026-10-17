@@ -1,0 +1,15 @@
+ \documentclass{article}
+\usepackage{amsmath}
+\usepackage{wasysym}
+\usepackage{amssymb}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{amssymb}
+\usepackage{amsbsy}
+\usepackage{mathrsfs}
+\usepackage{upgreek}
+\setlength{\oddsidemargin}{-69pt}}
+\begin{document}
+\begin{equation}
+\begin{aligned}
+&& \textbf{v}_{0} = \frac{1}{2} \rho v_{0}^{2} + \frac{1}{2} \rho v_{0}^{2} + \frac{1}{2} \rho v_{0}^{2} + \frac{1}{2} \rho v_{0}^{2} + \frac{1}{2} \rho v_{0}^{2} + \frac{1}{2} \rho v_{0}^{2} + \frac{1}{2} \rho v_{0}^{2} + \frac{1}{2} \rho v_{0}^{2} + \frac{1}{2} \rho v_{0}^{2} + \frac{1}{2} \rho v_{0}^{2} + \frac{1}{2} \rho v_{0}^{2} + \frac

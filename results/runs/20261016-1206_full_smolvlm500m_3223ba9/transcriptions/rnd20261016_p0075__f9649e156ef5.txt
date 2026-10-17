@@ -1,0 +1,2 @@
+ Q. How do you calculate the area of a trapezoid?
+A. The area of a trapezoid is calculated by adding the lengths of the two bases and then subtracting the height.

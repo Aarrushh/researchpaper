@@ -1,0 +1,30 @@
+ \documentclass{article}
+\usepackage{amsmath}
+\usepackage{wasysym}
+\usepackage{amssymb}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{amssymb2}
+\usepackage{amsbsy}
+\usepackage{mathrsfs}
+\usepackage{upgreek}
+\setlength{\oddsidemargin}{-69.0}
+\begin{document}
+\begin{equation}
+\begin{aligned}
+&& \textbf{v} = \begin{matrix}
+0.12 & 0.12 & 0.12 \\
+0.12 & 0.12 & 0.12 \\
+0.12 & 0.12 & 0.12 \\
+\end{matrix}
+\end{aligned}
+\end{equation}
+\end{document}
+\begin{document}
+\begin{equation}
+\begin{aligned}
+&& \textbf{v} = \begin{matrix}
+0.12 & 0.12 & 0.12 \\
+0.12 & 0.12 & 0.12 \\
+0.12 & 0.12 & 0.12 \\
+\end{matrix}

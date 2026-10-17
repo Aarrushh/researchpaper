@@ -1,0 +1,18 @@
+ \documentclass{article}
+\usepackage{amsmath}
+\usepackage{wasysym}
+\usepackage{amssymb}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{amssymb2}
+\usepackage{amsbsy}
+\usepackage{mathrsfs}
+\usepackage{upgreek}
+\setlength{\oddsidemargin}{-69pt}}
+\begin{document}
+\begin{equation}
+\begin{aligned}
+&& \textbf{v}_{0} = \left( 0.15 \right) \left( 0.0000000000000000 \right) + \left( 0.15 \right) \left( 0.0000000000000000 \right) \\
+&& + \left( 0.15 \right) \left( 0.0000000000000000 \right) \\
+&& + \left( 0.15 \right) \left( 0.0000000000000000 \right) \\
+&& + \left( 0.15 \right) \left( 0.
