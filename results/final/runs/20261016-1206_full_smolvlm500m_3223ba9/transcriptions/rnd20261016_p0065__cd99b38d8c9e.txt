@@ -1,0 +1,16 @@
+ \documentclass{article}
+\usepackage{amsmath}
+\usepackage{wasysym}
+\usepackage{amssymb}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{amssymb}
+\usepackage{amsbsy}
+\usepackage{mathrsfs}
+\usepackage{upgreek}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usepackage{xcolor}
+\usepackage{amsfonts,amssymb,amssymb2,amssymb2df,amssymb2dfb,amssymb2dfb,amsbsy,mathrsfs,amsfonts,amssymb,amssymb2,amssymb2df,amssymb,amsbsy,xcolor}
+
+\usepackage[utf8,xcolor,xcolor,xcolor,xcolor,xcolor,xcolor,xcolor,xcolor,xcolor,xcolor,xcolor,xcolor,xcolor,xcolor,xcolor,xcolor,xcolor,xcolor,xcolor,xcolor,xcolor,xcolor,xcolor,xcolor,xcolor,xcolor,xcolor,xcolor,xcolor,xcolor,xcolor,xcolor,xcolor,xcolor,xcolor,xcolor,xcolor,

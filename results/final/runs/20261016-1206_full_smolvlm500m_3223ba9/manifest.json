@@ -1,0 +1,207 @@
+{
+  "config": {
+    "conditions": 66,
+    "deadline": "2026-10-16T22:00:00+00:00",
+    "generation": {
+      "do_sample": false,
+      "max_new_tokens": "ceil(1.5 x the reference's length in the reader's tokens), per page (sections 1B.9 and 2.8)",
+      "num_beams": 1,
+      "repetition_penalty": 1.0
+    },
+    "pages": 720,
+    "placement": {
+      "decision": "D18",
+      "device_map": "cuda",
+      "dtype": "bfloat16"
+    },
+    "reader": {
+      "aligned_pitch_px": 64,
+      "device_map": "cuda",
+      "dtype": "bfloat16",
+      "hf_id": "HuggingFaceTB/SmolVLM-500M-Instruct",
+      "image_token": "<image>",
+      "max_new_tokens": 1157,
+      "merge_size": 4,
+      "name": "smolvlm500m",
+      "page_px": [
+        512,
+        512
+      ],
+      "patch_size": 16,
+      "position_id_fix": "pre_hook",
+      "prompt": "Transcribe all text in the image exactly. Output only the text.",
+      "revision": "a7da5b986cb59b408707209984f360a5f4ad7e47",
+      "token_cell_px": 64
+    },
+    "render": {
+      "aa_mode": "coverage_srgb",
+      "background_color": [
+        255,
+        255,
+        255
+      ],
+      "blind_strip_px": 0,
+      "font_file": "SourceSans3-Regular.ttf",
+      "font_size_px": [
+        10,
+        12,
+        14,
+        16,
+        20,
+        24
+      ],
+      "line_pitch_px": 20,
+      "margin_px": 16,
+      "max_phase_x_px": 60,
+      "max_phase_y_px": 60,
+      "page_height_px": 512,
+      "page_width_px": 512,
+      "patch_aware_slot_px": 16,
+      "phase_x_px": 0,
+      "phase_y_px": 0,
+      "render_mode": "conventional",
+      "text_color": [
+        0,
+        0,
+        0
+      ]
+    },
+    "repeats": 1,
+    "rows_planned": 32520,
+    "save_images": "first",
+    "sweep": {
+      "aa_mode": "coverage_srgb",
+      "blocks": {
+        "A": {
+          "aa_mode": [
+            "binary",
+            "coverage_linear"
+          ],
+          "axis": "x",
+          "line_pitch_mode": "unaligned",
+          "phases_px": [
+            0.0
+          ],
+          "render_mode": "conventional"
+        },
+        "C": {
+          "axis": "x",
+          "line_pitch_mode": "unaligned",
+          "range": "sweep",
+          "render_mode": "conventional",
+          "step_px": {
+            "qwen": 7,
+            "smolvlm": 2,
+            "smolvlm500m": 4
+          }
+        },
+        "H": {
+          "axis": "x",
+          "line_pitch_mode": "unaligned",
+          "range": "patch",
+          "render_mode": "patch_aware",
+          "step_px": 1
+        },
+        "S": {
+          "axis": "x",
+          "line_pitch_mode": "unaligned",
+          "phases_px": [
+            0.0,
+            0.25,
+            0.5,
+            0.75
+          ],
+          "render_mode": "patch_aware"
+        },
+        "V": {
+          "axis": "y",
+          "line_pitch_mode": "aligned",
+          "range": "cell",
+          "render_mode": "conventional",
+          "step_px": {
+            "qwen": 2,
+            "smolvlm": 2,
+            "smolvlm500m": 4
+          }
+        },
+        "Z": {
+          "font_size_px": [
+            10,
+            12,
+            14,
+            16,
+            20,
+            24
+          ],
+          "line_pitch_mode": "unaligned",
+          "paginate": "per_condition",
+          "phases_px": [
+            0.0
+          ],
+          "render_mode": [
+            "conventional",
+            "patch_aware"
+          ]
+        }
+      },
+      "font_file": "data/external/fonts/source-sans-3/SourceSans3-Regular.ttf",
+      "font_size_px": {
+        "qwen": 24,
+        "smolvlm": 24,
+        "smolvlm500m": 20
+      },
+      "output_root": "results/runs",
+      "pages": {
+        "natural": {
+          "books": [
+            "pg105",
+            "pg84",
+            "pg1661"
+          ],
+          "per_text_type": {
+            "qwen": 300,
+            "smolvlm": 300,
+            "smolvlm500m": 300
+          },
+          "start_after": [
+            "configs/sweeps/ladder.yaml"
+          ]
+        },
+        "random62": {
+          "per_text_type": {
+            "qwen": 300,
+            "smolvlm": 300,
+            "smolvlm500m": 300
+          }
+        },
+        "z_per_text_type": 5
+      },
+      "readers": [
+        "qwen",
+        "smolvlm",
+        "smolvlm500m"
+      ],
+      "repeats": 1,
+      "seed": 20261016
+    },
+    "sweep_file": "configs\\sweeps\\full.yaml",
+    "sweep_name": "full",
+    "sweep_sha1": "9663b4d450111274d2de488d067c0decb5eedc2d"
+  },
+  "git_commit": "3223ba9156a260cb418418dd5c0bb7fd2e5ec21a",
+  "git_dirty": false,
+  "gpu_name": "NVIDIA GeForce RTX 5060 Laptop GPU",
+  "packages": {
+    "freetype-py": "2.5.1",
+    "jiwer": "4.0.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0",
+    "scipy": "1.17.1",
+    "torch": "2.14.1+cu130",
+    "transformers": "5.19.0"
+  },
+  "platform": "Windows-10-10.0.26300-SP0",
+  "python_version": "3.11.15",
+  "run_id": "20261016-1206_full_smolvlm500m_3223ba9",
+  "timestamp_utc": "2026-10-16T12:06:13Z"
+}

@@ -1,0 +1,112 @@
+{
+  "config": {
+    "m0_angles_deg": [
+      0.0,
+      45.0
+    ],
+    "n_rings": 32,
+    "nfft": 128,
+    "readers": {
+      "qwen": {
+        "bytes": 3010560,
+        "csv": "layer0_qwen.csv",
+        "dtype": "BF16",
+        "fetched_utc": "2026-10-14T21:08:33Z",
+        "filters": 1280,
+        "hf_id": "Qwen/Qwen2.5-VL-3B-Instruct",
+        "hub": "https://huggingface.co",
+        "image_std": [
+          0.26862954,
+          0.26130258,
+          0.27577711
+        ],
+        "patch_px": 14,
+        "reader": "qwen",
+        "revision": "66285546d2b821cf421d4f5eb2576359d3770cd3",
+        "sha256": "a68f46dbc6a020725893197404a0872db63771130d7191c46a7bb343051f757f",
+        "shape": [
+          1280,
+          3,
+          2,
+          14,
+          14
+        ],
+        "shard": "model-00001-of-00002.safetensors",
+        "source": "fetched",
+        "tensor": "visual.patch_embed.proj.weight"
+      },
+      "smolvlm": {
+        "bytes": 1354752,
+        "csv": "layer0_smolvlm.csv",
+        "dtype": "BF16",
+        "fetched_utc": "2026-10-14T21:08:42Z",
+        "filters": 1152,
+        "hf_id": "HuggingFaceTB/SmolVLM-Instruct",
+        "hub": "https://huggingface.co",
+        "image_std": [
+          0.5,
+          0.5,
+          0.5
+        ],
+        "patch_px": 14,
+        "reader": "smolvlm",
+        "revision": "81cd9a775a4d644f2faf4e7becff4559b46b14c7",
+        "sha256": "0470f18987a02b0fd9f7e3159a6bfdb8142a5f88ff407afb13a29b3ec8336a6f",
+        "shape": [
+          1152,
+          3,
+          14,
+          14
+        ],
+        "shard": "model.safetensors",
+        "source": "fetched",
+        "tensor": "model.vision_model.embeddings.patch_embedding.weight"
+      },
+      "smolvlm500m": {
+        "bytes": 1179648,
+        "csv": "layer0_smolvlm500m.csv",
+        "dtype": "BF16",
+        "fetched_utc": "2026-10-14T21:09:03Z",
+        "filters": 768,
+        "hf_id": "HuggingFaceTB/SmolVLM-500M-Instruct",
+        "hub": "https://huggingface.co",
+        "image_std": [
+          0.5,
+          0.5,
+          0.5
+        ],
+        "patch_px": 16,
+        "reader": "smolvlm500m",
+        "revision": "a7da5b986cb59b408707209984f360a5f4ad7e47",
+        "sha256": "ebf6acf8afb0ddbea26f6178d999bbf35ab5a5dde0c01de1670ff54e96caaab6",
+        "shape": [
+          768,
+          3,
+          16,
+          16
+        ],
+        "shard": "model.safetensors",
+        "source": "fetched",
+        "tensor": "model.vision_model.embeddings.patch_embedding.weight"
+      }
+    },
+    "readers_config": "configs\\readers.yaml",
+    "weights_dir": "data\\external\\weights"
+  },
+  "git_commit": "0c52814e87cd358c2dd0347234f0dcbe362db370",
+  "git_dirty": false,
+  "gpu_name": "NVIDIA GeForce RTX 5060 Laptop GPU",
+  "packages": {
+    "freetype-py": "2.5.1",
+    "jiwer": "4.0.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0",
+    "scipy": "1.17.1",
+    "torch": "2.14.1+cu130",
+    "transformers": "5.19.0"
+  },
+  "platform": "Windows-10-10.0.26300-SP0",
+  "python_version": "3.11.15",
+  "run_id": "20261014-2109_mtf_layer0_0c52814",
+  "timestamp_utc": "2026-10-14T21:09:07Z"
+}
