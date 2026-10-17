@@ -8,33 +8,33 @@ DO NOT: Exceed 400 words. Do not paste results that are not in results/final/.
 # Handoff
 
 > Paste this at the start of any new AI chat session. Update at the end of every working session.
-> Last updated: Thursday 15 October 2026, 15:45 CEST, by Claude (D22).
+> Last updated: Saturday 17 October 2026, 20:40 CEST, by Claude (D22).
 
 ## Thesis (one sentence)
 
-A vision-language model's character error rate on text whose glyphs share a phase against the encoder's patch grid varies periodically with that phase, at the patch or the token-cell period, and rendering glyphs on the grid lowers it (H1, `PREREGISTRATION.md` section 1).
+A vision-language model's character error rate on text whose glyphs share a phase against the encoder's patch grid varies periodically with that phase, at the patch or the token-cell period, and rendering glyphs on the grid lowers it (H1, `PREREGISTRATION.md` section 1). Frozen result: clauses (a) and (b) supported for all three readers, mostly at the patch period; clause (c) reversed, for Qwen and SmolVLM-2.2B mostly through spaces inserted beside two-slot characters (exploratory).
 
 ## Current week and step
 
-W3.3: the full run (D26), started 15:23 Thursday from the run worktree `.claude/worktrees/run` at `prereg-v1`, by `scripts/11_run_schedule.py` outside the chat session (`logs/launch_driver.cmd`). Phases: Qwen to Thu 23:00, SmolVLM pair to Fri 09:00, Qwen to Fri 14:00, pair to Sat 00:00, Qwen to Sat 04:00, pair to Sat 13:00 (a page may overrun by up to an hour).
+W4.1: the rendering specification. R09 to R11 of `spec/RENDERING_SPEC.md` were revised after an independent review: the conventional layout at the unaligned pitch with φ_y = 0 (R09), critical sizes measured on full pages, where size and text amount are confounded (R10), anti-aliasing per reader and kind of text (R11). The exploratory per-level table behind them is `reports/tables/exploratory/levels.csv`. Waiting for the owner's sign-off.
 
 ## What is frozen (tags)
 
 - `prereg-v1`: 3223ba9, approved 15 October 15:20
-- `data-freeze-v1`: Saturday 17 October, after `make analyze`
-- `spec-v1`: after the freeze (R09 to R11 from the frozen tables), before H2
+- `data-freeze-v1`: d25bf9b1, Saturday 17 October, signed off by the owner
+- `spec-v1`: after the owner signs off the revised specification, before H2
 - `submission`: not yet
 
 ## What is broken
 
-Nothing known. The CUDA sysmem fallback is still on (owner action 2); Qwen fits at 7,544 MiB of 8,151, and `logs/nvsmi.csv` would show a spill.
+Nothing known. The CUDA sysmem fallback is still on (owner action 2).
 
 ## Next step
 
-Saturday about 14:00, after `schedule done` and no runner left (`SATURDAY_RUNBOOK.md`): copy the run folders, then `make analyze`, `make figures`, `scripts/50_summary.py --tables reports/tables/full`, `make freeze`, `make freeze-check` (must log "the tables regenerate byte for byte"), the tag `data-freeze-v1`, the interpretations (`INTERPRETATION_KEY.md`). Then R09 to R11 from the frozen tables and `spec-v1`; H2 last (D26 note).
+After the sign-off: `make contract` on the committed tree, then tag `spec-v1` and push it. Then H2 (`h2/README.md`): the owner types the Z.ai key into `.env` (never into a chat), `h2/build_prompt.py` freezes the prompt, then the judge pages, the dummy calls and each paid attempt with the owner's go-ahead (D23).
 
 ## Top three open decisions
 
-1. The freeze sign-off on Saturday, before the interpretations are written.
-2. After the spec: the go-ahead for H2's dummy calls and each paid attempt (D23 reviews before each judge run).
-3. Whether the paper keeps SmolVLM-500M's random-text tests as primary given its ceiling CER (kept by the rule; report its minimum detectable amplitudes).
+1. The `spec-v1` sign-off of R09 to R11 as revised.
+2. The go-ahead for H2's dummy calls and each paid attempt (D23 reviews before each judge run).
+3. How the paper words clause (c): reversed under the preregistered CER, with the inserted spaces as an exploratory explanation; SmolVLM-500M's random-text tests reported with their detectable amplitudes.
