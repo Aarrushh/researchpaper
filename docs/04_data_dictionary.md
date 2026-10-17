@@ -148,6 +148,9 @@ One row per reader, text type, block and level of a sweep, written by `scripts/2
 | `deletion_rate` | float | ratio | D / N | `0.001` |
 | `insertion_rate` | float | ratio | I / N; the three rates add up to `cer` | `0.181` |
 | `added_spaces_per_char` | float | spaces per reference character | (spaces in the normalised transcriptions − spaces in the references) / N; negative when more spaces were dropped than added | `0.180` |
+| `spaces_inserted_in_words_per_char` | float | spaces per reference character | the spaces jiwer's alignment inserts between two characters of one word of the reference (a word is a run between spaces), divided by N | `0.178` |
+| `inserted_beside_wide_share` | float | ratio | the share of those spaces next to a wide character, one whose linear advance at the level's font size exceeds the reader's patch (it takes two slots in the patch-aware layout); empty when no space was inserted | `0.94` |
+| `gaps_beside_wide_share` | float | ratio | the share of the gaps between two characters of one word that are next to a wide character: the share the inserted spaces would have if they fell anywhere in a word | `0.36` |
 | `cer_without_spaces` | float | ratio | the pooled CER of the same strings with every space removed | `0.017` |
 | `hit_limit_share` | float | ratio | the share of rows whose output stopped at `max_new_tokens` | `0.000` |
 | `status` | string | none | `exploratory` | `exploratory` |

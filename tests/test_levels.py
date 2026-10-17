@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import math
 import re
 import sys
 
@@ -31,10 +32,14 @@ def _record(reference: str, transcription: str, page_id: str = "rnd1_p0000", pha
     return {
         "reader": "qwen", "text_type": "random62", "block": "H", "render_mode": "patch_aware",
         "line_pitch_mode": "unaligned", "aa_mode": "coverage_srgb", "font_size_px": 24.0, "phase_x_px": phase_x,
-        "phase_y_px": 0.0, "page_id": page_id, "hits": counts.hits, "substitutions": counts.substitutions,
-        "deletions": counts.deletions, "insertions": counts.insertions, "hit_limit": hit_limit,
-        "reference": reference, "transcription": transcription, **stored,
+        "phase_y_px": 0.0, "page_id": page_id, "patch_px": 14, "hits": counts.hits,
+        "substitutions": counts.substitutions, "deletions": counts.deletions, "insertions": counts.insertions,
+        "hit_limit": hit_limit, "reference": reference, "transcription": transcription, **stored,
     }
+
+
+def _wide(char: str, size: float, patch: int) -> bool:
+    return char in "MW"
 
 
 def test_an_inserted_space_is_an_insertion_and_an_added_space_and_no_error_without_spaces():
@@ -69,6 +74,34 @@ def test_levels_are_kept_apart_sorted_and_carry_their_hit_limit_share():
     ])
     assert [r["phase_x_px"] for r in rows] == [1.0, 3.0]
     assert [r["hit_limit_share"] for r in rows] == [0.0, 0.5]
+
+
+def test_spaces_inserted_inside_a_word_are_counted_with_those_beside_a_wide_character():
+    (row,) = levels.level_rows([_record("aW bc", "a W b c")], wide=_wide)
+    assert row["spaces_inserted_in_words_per_char"] == pytest.approx(2 / 5)
+    assert row["inserted_beside_wide_share"] == pytest.approx(1 / 2)  # a|W is beside W, b|c is not
+    assert row["gaps_beside_wide_share"] == pytest.approx(1 / 2)  # the gaps inside words: a-W and b-c
+
+
+def test_a_space_inserted_beside_a_word_space_or_at_the_end_is_not_inside_a_word():
+    (row,) = levels.level_rows([_record("aW bc", "aW x bc x")], wide=_wide)
+    assert row["insertion_rate"] == pytest.approx(4 / 5)
+    assert row["spaces_inserted_in_words_per_char"] == 0
+
+
+def test_without_a_font_the_wide_shares_are_empty():
+    (row,) = levels.level_rows([_record("aW bc", "a W bc")])
+    assert math.isnan(row["inserted_beside_wide_share"]) and math.isnan(row["gaps_beside_wide_share"])
+
+
+def test_the_wide_characters_of_the_font_are_those_the_preregistration_amendment_names():
+    font = REPO_ROOT / "data" / "external" / "fonts" / "source-sans-3" / "SourceSans3-Regular.ttf"
+    if not font.exists():
+        pytest.skip("the font is not downloaded (data/external/fonts/README.md)")
+    wide = levels.font_wide(str(font))
+    random62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+    assert {c for c in random62 if wide(c, 24.0, 14)} == set("BDGHMNOQUWmw")  # amendment of 15 October, item 1
+    assert {c for c in random62 if wide(c, 20.0, 16)} == {"m"}
 
 
 def test_counts_that_differ_from_the_texts_stop_the_table():
