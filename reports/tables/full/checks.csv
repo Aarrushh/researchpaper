@@ -1,0 +1,4 @@
+run_dir,reader,rows_done,rows_planned,repeated_keys,missing_transcriptions,empty_transcriptions,hit_limit_count,hit_limit_share,median_output_tokens,determinism_pairs,determinism_expected,determinism_mismatches,coherence_malformed,pages_seen,pages_excluded,excluded_page_ids,median_latency_s,status,family
+20261015-1323_full_qwen_3223ba9,qwen,4820,30120,0,0,0,9,0.00186721991701,150.0,94,94,0,0,214,0,,5.42817805,preregistered,checks
+20261016-1206_full_smolvlm500m_3223ba9,smolvlm500m,9732,32520,0,0,0,2804,0.288121660501,76.0,178,178,0,0,298,0,,3.47886795001,preregistered,checks
+20261016-1206_full_smolvlm_3223ba9,smolvlm,21200,37320,0,0,0,260,0.0122641509434,96.5,340,340,0,0,460,0,,3.46458265002,preregistered,checks
