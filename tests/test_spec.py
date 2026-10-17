@@ -81,13 +81,11 @@ def test_kernel_interface_states_the_tolerances():
         assert re.search(rf"^\| `{mode}` \| {e_max} \| {f_diff} \|", table, flags=re.MULTILINE), mode
 
 
-@pytest.mark.todo  # W4.1 done when: the full run has written reports/tables/full/ and the GPU the reader facts
 @pytest.mark.parametrize("rule", RULES)
 def test_every_cited_file_exists(rule):
     for path in _evidence(_sections()[rule]):
         assert (REPO_ROOT / path).exists(), path
 
 
-@pytest.mark.todo  # W4.1 done when: R09 to R11 hold the full run's numbers
 def test_no_w41_todo_remains():
     assert "TODO[W4.1]" not in TEXT

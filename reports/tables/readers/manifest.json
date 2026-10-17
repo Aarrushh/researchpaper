@@ -1,0 +1,135 @@
+{
+  "config": {
+    "columns": [
+      "reader",
+      "hf_id",
+      "revision",
+      "dtype",
+      "placement",
+      "patch_px",
+      "merge",
+      "token_cell_px",
+      "window_px",
+      "page_height_px",
+      "page_width_px",
+      "encoder_input",
+      "encoder_input_px",
+      "vision_tokens",
+      "grid_token_count",
+      "native_frame",
+      "blind_from_px",
+      "blind_strip_px",
+      "blind_strip_invisible",
+      "control_column_visible",
+      "max_new_tokens",
+      "transcription_tokens",
+      "hit_limit",
+      "latency_s",
+      "peak_gib"
+    ],
+    "noise_seed": 2,
+    "readers": [
+      {
+        "aligned_pitch_px": 28,
+        "device_map": "cuda",
+        "dtype": "bfloat16",
+        "hf_id": "Qwen/Qwen2.5-VL-3B-Instruct",
+        "image_token": "<|image_pad|>",
+        "max_new_tokens": 591,
+        "max_pixels": 12845056,
+        "merge_size": 2,
+        "min_pixels": 3136,
+        "name": "qwen",
+        "page_px": [
+          448,
+          448
+        ],
+        "patch_size": 14,
+        "prompt": "Transcribe all text in the image exactly. Output only the text.",
+        "revision": "66285546d2b821cf421d4f5eb2576359d3770cd3",
+        "token_cell_px": 28,
+        "window_px": 112
+      },
+      {
+        "aligned_pitch_px": 42,
+        "blind_from_px": 378,
+        "device_map": "cuda",
+        "dtype": "bfloat16",
+        "hf_id": "HuggingFaceTB/SmolVLM-Instruct",
+        "image_token": "<image>",
+        "max_new_tokens": 629,
+        "merge_size": 3,
+        "name": "smolvlm",
+        "page_px": [
+          384,
+          384
+        ],
+        "patch_size": 14,
+        "position_id_fix": "pre_hook",
+        "prompt": "Transcribe all text in the image exactly. Output only the text.",
+        "revision": "81cd9a775a4d644f2faf4e7becff4559b46b14c7",
+        "token_cell_px": 42
+      },
+      {
+        "aligned_pitch_px": 64,
+        "device_map": "cuda",
+        "dtype": "bfloat16",
+        "hf_id": "HuggingFaceTB/SmolVLM-500M-Instruct",
+        "image_token": "<image>",
+        "max_new_tokens": 1157,
+        "merge_size": 4,
+        "name": "smolvlm500m",
+        "page_px": [
+          512,
+          512
+        ],
+        "patch_size": 16,
+        "position_id_fix": "pre_hook",
+        "prompt": "Transcribe all text in the image exactly. Output only the text.",
+        "revision": "a7da5b986cb59b408707209984f360a5f4ad7e47",
+        "token_cell_px": 64
+      }
+    ],
+    "render_defaults": {
+      "aa_mode": "coverage_srgb",
+      "background_color": [
+        255,
+        255,
+        255
+      ],
+      "font_file": "data/external/fonts/source-sans-3/SourceSans3-Regular.ttf",
+      "font_size_px": 16,
+      "line_pitch_px": 20,
+      "margin_px": 14,
+      "max_phase_x_px": null,
+      "max_phase_y_px": null,
+      "page_height_px": 448,
+      "page_width_px": 448,
+      "patch_aware_slot_px": null,
+      "phase_x_px": 0,
+      "phase_y_px": 0,
+      "render_mode": "conventional",
+      "text_color": [
+        0,
+        0,
+        0
+      ]
+    }
+  },
+  "git_commit": "68e2d511207f62e48dc64f919057f3a1aeb9eea3",
+  "git_dirty": true,
+  "gpu_name": "NVIDIA GeForce RTX 5060 Laptop GPU",
+  "packages": {
+    "freetype-py": "2.5.1",
+    "jiwer": "4.0.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0",
+    "scipy": "1.17.1",
+    "torch": "2.14.1+cu130",
+    "transformers": "5.19.0"
+  },
+  "platform": "Windows-10-10.0.26300-SP0",
+  "python_version": "3.11.15",
+  "run_id": "20261017-1715_readerfacts_all_68e2d51",
+  "timestamp_utc": "2026-10-17T17:15:16Z"
+}
