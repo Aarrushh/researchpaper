@@ -1070,3 +1070,23 @@ Broke:
 - Nothing in the data.
 Next:
 - "schedule done" at about 13:00 CEST, then the Saturday runbook: copy the run folders to p4, analyse, freeze.
+
+## 2026-10-17, Claude (D22): W3.5, the end of the full run, the freeze (D16) and the interpretation
+Did:
+- The schedule ended at 13:01:22 CEST ("schedule done", driver exit 0); phase 5 stopped at its deadline (smolvlm 13:00:17, smolvlm500m 13:01:22). Final rows: Qwen 4,820 (214 pages), SmolVLM-2.2B 21,200 (460), SmolVLM-500M 9,732 (298).
+- Runbook step 1: the three `*_full_*` folders copied without `images/`, `diff -rq` clean, committed (c3a4c83b). Step 2: `20_analyze.py`, `30_make_figures.py`, `50_summary.py`, committed (b57f233e); the first analysis start wrote its log into the tree and was stopped and rerun with the log outside it, so the manifest records a clean tree. Step 3: `40_freeze.py` (38,390 files hashed, d25bf9b1); `--check` exit 0, "the freeze checks out and the tables regenerate byte for byte". The owner signed the freeze off; tag `data-freeze-v1` on d25bf9b1.
+- Interpretation in `EXPLAINED.md` #39, following `INTERPRETATION_KEY.md`; per-phase pooled CER and hit_limit share by level computed from `results/final/runs` (not stored in a table).
+Found:
+- Checks: no page excluded, no missing transcription, 0 determinism mismatches (94, 340, 178 pairs). hit_limit share 0.002, 0.012, 0.288. N per text type 47, 170, 89, all at least 10.
+- Clause (a) SUPPORTED for all three readers on random62. Qwen H 14 px F 4.79, Holm p < 0.001, RMS 0.017; V 14 px Holm p 0.034, RMS 0.0015. SmolVLM-2.2B H F 5.03, Holm p < 0.001, RMS 0.026; V 14 px Holm p 0.032, RMS 0.006. SmolVLM-500M H null (Holm p 0.80, s_g 0.020, at ceiling); V 16 px and V 64 px significant (RMS 0.027, 0.038).
+- [Flag] SmolVLM-500M's V signal rests on one level: 48 px has CER 0.977 against 0.847 pooled and the highest hit_limit share (0.39). Loop-driven (K7), reported as reader-specific.
+- [Flag] Exploratory: in block H the aligned phase is among the worst. CER at phase 0 against best: Qwen 0.194 vs 0.140 (10 px), SmolVLM-2.2B 0.350 vs 0.281 (9 px), SmolVLM-500M 0.997 vs 0.950 (8 px).
+- Clause (b): patch for Qwen and SmolVLM-2.2B (cell groups null, s_g 0.0016 and 0.0069); patch and cell for SmolVLM-500M (see flag).
+- Control C: no significant group for any reader or text type; coherence R at the patch period 0.03 to 0.11 in C against 0.58 to 0.95 in H. No contradiction of D10 (PRE:160).
+- [Flag] Clause (c) NOT SUPPORTED, reversed: median b - a on random62 +0.162 (Qwen, exact), +0.114 (SmolVLM-2.2B), +0.046 (SmolVLM-500M), all Holm p < 0.001. Patch-aware reads worse. Qwen's H pooled CER is 0.173 (0.140 at its best phase) against 0.020 for C: a layout effect, not alignment (K11; density 15 against 21 to 24 glyphs per full line).
+- Block A: binary worse on random62 (Qwen +0.004, SmolVLM-2.2B +0.018), better on natural (SmolVLM-2.2B -0.005, SmolVLM-500M -0.074); coverage_linear indistinguishable. Qwen natural coverage_linear: all 47 pairs zero, test undefined (the scipy RuntimeWarning in the analysis log).
+- Block S: all six tests null (p 0.09 to 0.93). Block Z: patch-aware worse for Qwen random62 at 12 to 16 px, better for SmolVLM-2.2B on prose at small sizes; SmolVLM-500M at ceiling on random62 at every size.
+Broke:
+- Nothing.
+Next:
+- R09 to R11 of the rendering specification from the frozen tables, `make contract`, `spec-v1`; then H2.
