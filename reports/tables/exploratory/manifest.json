@@ -1,0 +1,39 @@
+{
+  "config": {
+    "font_file": "data/external/fonts/source-sans-3/SourceSans3-Regular.ttf",
+    "levels": 404,
+    "pages_excluded": {},
+    "patch_px": {
+      "qwen": 14,
+      "smolvlm": 14,
+      "smolvlm500m": 16
+    },
+    "rows_analysed": 35752,
+    "rows_loaded": 35752,
+    "run_dirs": [
+      "20261015-1323_full_qwen_3223ba9",
+      "20261016-1206_full_smolvlm500m_3223ba9",
+      "20261016-1206_full_smolvlm_3223ba9"
+    ],
+    "runs_root": "results/final/runs",
+    "status": "exploratory",
+    "sweep_file": "configs/sweeps/full.yaml",
+    "sweep_name": "full"
+  },
+  "git_commit": "0cf9285bfd7bc08c4bf1af8866cfac4327790097",
+  "git_dirty": false,
+  "gpu_name": "NVIDIA GeForce RTX 5060 Laptop GPU",
+  "packages": {
+    "freetype-py": "2.5.1",
+    "jiwer": "4.0.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0",
+    "scipy": "1.17.1",
+    "torch": "2.14.1+cu130",
+    "transformers": "5.19.0"
+  },
+  "platform": "Windows-10-10.0.26300-SP0",
+  "python_version": "3.11.15",
+  "run_id": "20261017-1809_full_levels_0cf9285",
+  "timestamp_utc": "2026-10-17T18:09:33Z"
+}
