@@ -160,13 +160,14 @@ DO NOT: Delete or rewrite old entries. Supersede them with a new entry that refe
 
 ### D16. H2 runs only if the data are frozen by 21 October
 - ID: D16
-- Status: open
-- Date: 2026-10-12 (opened; to be decided on 2026-10-21, or a day later under D21's slip rule)
+- Status: decided (go)
+- Date: 2026-10-12 (opened; to be decided on 2026-10-21, or a day later under D21's slip rule); 2026-10-17 (decided by its own condition: `data-freeze-v1` tagged, after the owner signed the freeze off)
 - Decision: If `data-freeze-v1` is tagged by Wednesday 21 October, run H2 in full. Otherwise write the specification (W4.1), which states the paper's rendering rules, skip W4.2 to W4.4, and report H2 as not run.
 - Options considered: run H2 whatever the date; run it only if the data are frozen by 21 October; drop it.
 - Evidence: The guide of 6 October set this cut; H2 costs about three days.
 - Consequences: Gate 3 tags `spec-v1` either way.
 - Note (2026-10-14): the slip rule fired (D25), so the day later applies: the cut-off is Thursday 22 October.
+- Note (2026-10-17): `data-freeze-v1` was tagged on Saturday 17 October on commit d25bf9b1, after `40_freeze.py --check` regenerated every table byte for byte and the owner signed the freeze off; that is before the cut-off, so H2 runs in full (W4.2 to W4.4). Every paid call still needs the owner's go-ahead (D23).
 
 ### D17. Tests that need models are marked and kept out of CI
 - ID: D17

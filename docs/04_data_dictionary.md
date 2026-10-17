@@ -125,6 +125,34 @@ One row per reader of `configs/readers.yaml`, written on the GPU by `scripts/01_
 | `latency_s` | float | s | the first generate call after loading, warm-up included, to 3 decimals | `21.374` |
 | `peak_gib` | float | GiB | `torch.cuda.max_memory_allocated`, to 3 decimals | `5.012` |
 
+## reports/tables/exploratory/levels.csv (W4.1, exploratory, the per-level numbers behind R09 to R11)
+
+One row per reader, text type, block and level of a sweep, written by `scripts/21_levels.py` (`make levels`) from the frozen run folders (`results/final/runs`) beside the folder's `manifest.json` (written first). The rows are those `scripts/20_analyze.py` analyses. Every count is pooled over the level's rows (D13), with N = hits + substitutions + deletions; each row's counts are recomputed from its reference and transcription first, and a difference stops the script. Every row is `exploratory`: the table describes the frozen rows and tests nothing. The column list is `COLUMNS` in that script; `tests/test_levels.py` checks that it and this table agree.
+
+| Column | Type | Unit | Allowed values | Example |
+|---|---|---|---|---|
+| `reader` | string | none | `qwen`, `smolvlm`, `smolvlm500m` | `qwen` |
+| `text_type` | string | none | `natural`, `random62` | `random62` |
+| `block` | string | none | `V`, `H`, `C`, `S`, `A`, `Z` | `H` |
+| `render_mode` | string | none | `conventional`, `patch_aware` | `patch_aware` |
+| `line_pitch_mode` | string | none | `aligned`, `unaligned` | `unaligned` |
+| `aa_mode` | string | none | `binary`, `coverage_srgb`, `coverage_linear` | `coverage_srgb` |
+| `font_size_px` | float | pixels | the sizes of the sweep | `24.0` |
+| `phase_x_px` | float | pixels | the level's horizontal phase | `0.0` |
+| `phase_y_px` | float | pixels | the level's vertical phase | `0.0` |
+| `rows` | int | rows | 1 or more | `47` |
+| `pages` | int | pages | 1 or more | `47` |
+| `ref_chars_per_row` | float | characters | N divided by `rows`: how much text a page of the level holds | `228.4` |
+| `cer` | float | ratio | (S + D + I) / N, 0 or more | `0.194` |
+| `substitution_rate` | float | ratio | S / N | `0.013` |
+| `deletion_rate` | float | ratio | D / N | `0.001` |
+| `insertion_rate` | float | ratio | I / N; the three rates add up to `cer` | `0.181` |
+| `added_spaces_per_char` | float | spaces per reference character | (spaces in the normalised transcriptions − spaces in the references) / N; negative when more spaces were dropped than added | `0.180` |
+| `cer_without_spaces` | float | ratio | the pooled CER of the same strings with every space removed | `0.017` |
+| `hit_limit_share` | float | ratio | the share of rows whose output stopped at `max_new_tokens` | `0.000` |
+| `status` | string | none | `exploratory` | `exploratory` |
+| `family` | string | none | `description` | `description` |
+
 ## h2/judge/judge_pages.csv (W4.4, the 186 pages every H2 attempt is judged on)
 
 One row per judge page, written by `python h2/judge/judge.py build --out data/interim/h2/judge_v01` with the pages themselves, which git ignores: `inputs/<page_id>.npz` (the six glyph arrays of the kernel interface under the names `bitmaps`, `offsets`, `heights`, `widths`, `rows`, `cols`), `inputs/<page_id>.json` (`height`, `width`, `text_rgb`, `background_rgb`, `aa_mode`), `reference/<page_id>.npy` (the reference renderer's page, uint8 H x W x 3) and `build.json` (where the render configs came from). The pages are defined by `h2/judge/judge.yaml`; the hashes fix them before attempt 1, and `judge.py run` refuses to start when any page's files hash differently. Page ids: `n_<reader>_<layout>_<aa_mode>_ph<k>_<text_type>` (k from 0 to 3 in the order of `phases_px`), `c_<reader>_<aa_mode>_<colour_case>`, `e_<edge_case>_<aa_mode>`.

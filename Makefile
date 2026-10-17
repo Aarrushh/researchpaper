@@ -11,7 +11,7 @@ RESUME ?=                         # e.g. RESUME=results/runs/<run_id> continues 
 
 .DEFAULT_GOAL := help
 .PHONY: help env check-env test test-models test-all readers render-check equivariance coherence
-.PHONY: contract reader-facts ladder pilot sweep analyze figures mtf freeze freeze-check clean-interim
+.PHONY: contract reader-facts ladder pilot sweep analyze levels figures mtf freeze freeze-check clean-interim
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -61,6 +61,9 @@ sweep: ## Run the full sweep (W3.3); READERS=..., DEADLINE=... and RESUME=... to
 
 analyze: ## Run statistics and write reports/tables (W2.4, W3.4); SWEEP=... to pick config
 	$(PYTHON) scripts/20_analyze.py --config "$(SWEEP)"
+
+levels: ## Exploratory per-level CER and its parts from the frozen runs, into reports/tables/exploratory (W4.1); SWEEP=... to pick config
+	$(PYTHON) scripts/21_levels.py --config "$(SWEEP)"
 
 figures: ## Generate Figures 1, 2 and 3a into reports/figures (W2.5, W3.4, W3.6); SWEEP=... to pick config
 	$(PYTHON) scripts/30_make_figures.py --config "$(SWEEP)"
