@@ -11,7 +11,7 @@ import dataclasses
 import jiwer
 import pytest
 
-from mrr.score import CharCounts, cer, char_counts, pooled_cer, wer
+from mrr.score import CharCounts, cer, char_counts, char_counts_letters_only, pooled_cer, spaces_inserted, wer
 
 
 def test_cer_transposition():
@@ -90,3 +90,35 @@ def test_char_counts_is_frozen():
     counts = char_counts("abc", "abc")
     with pytest.raises(dataclasses.FrozenInstanceError):
         counts.hits = 0  # type: ignore[misc]
+
+
+# Study 2 (PREREGISTRATION_2.md section 4): letters-only counts and inserted spaces.
+
+
+@pytest.mark.parametrize(
+    ("reference", "hypothesis", "expected"),
+    [
+        ("abcde", "ab cde", 1),  # one false word gap
+        ("abcde", "a b c d e", 4),
+        ("ab cd", "ab cd", 0),
+        ("ab cd", "abcd", 0),  # a lost space is a deletion, not an insertion
+        ("abcde", "ab\ncde", 1),  # a line break is a space after normalisation
+    ],
+)
+def test_spaces_inserted_counts_the_spaces_in_insert_chunks(reference, hypothesis, expected):
+    assert spaces_inserted(reference, hypothesis) == expected
+
+
+def test_letters_only_counts_ignore_every_space():
+    assert char_counts_letters_only("ab cd", "a bcd") == CharCounts(4, 0, 0, 0)
+    assert char_counts_letters_only("ab cd", "abcd") == CharCounts(4, 0, 0, 0)
+
+
+def test_letters_only_counts_keep_letter_errors():
+    counts = char_counts_letters_only("ab cd", "ab cx")
+    assert (counts.hits, counts.substitutions + counts.deletions + counts.insertions) == (3, 1)
+
+
+def test_letters_only_refuses_an_empty_reference():
+    with pytest.raises(ValueError, match="empty"):
+        char_counts_letters_only("", "abc")

@@ -49,6 +49,35 @@ def char_counts(reference: str, hypothesis: str) -> CharCounts:
     return CharCounts(out.hits, out.substitutions, out.deletions, out.insertions)
 
 
+def char_counts_letters_only(reference: str, hypothesis: str) -> CharCounts:
+    """Return jiwer's four counts with every space removed from both normalised strings (Study 2's letters-only CER).
+
+    PREREGISTRATION_2.md section 4; the same strings as ``cer_without_spaces`` of scripts/21_levels.py.
+
+    Args:
+        reference: ground-truth page text.
+        hypothesis: model transcription.
+    """
+    ref, hyp = _normalised(reference, hypothesis)
+    out = jiwer.process_characters(ref.replace(" ", ""), hyp.replace(" ", ""))
+    return CharCounts(out.hits, out.substitutions, out.deletions, out.insertions)
+
+
+def spaces_inserted(reference: str, hypothesis: str) -> int:
+    """Return the number of spaces in the insert chunks of jiwer's character alignment, both strings normalised first.
+
+    Study 2's gap response (PREREGISTRATION_2.md section 4, H3): divided by the reference length it is the inserted
+    spaces per reference character. A space that replaces a character (a substitute chunk) is not counted.
+
+    Args:
+        reference: ground-truth page text.
+        hypothesis: model transcription.
+    """
+    ref, hyp = _normalised(reference, hypothesis)
+    chunks = jiwer.process_characters(ref, hyp).alignments[0]
+    return sum(hyp[c.hyp_start_idx:c.hyp_end_idx].count(" ") for c in chunks if c.type == "insert")
+
+
 def pooled_cer(counts: Iterable[CharCounts]) -> float:
     """Return (S + D + I) / (H + S + D) over every row in ``counts`` (D13): never the mean of per-page CERs."""
     hits = substitutions = deletions = insertions = 0
