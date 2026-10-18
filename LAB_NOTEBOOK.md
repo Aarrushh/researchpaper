@@ -1111,3 +1111,17 @@ Broke:
 - Nothing.
 Next:
 - Tests and contract checks on the revised specification, commit, `HANDOFF.md`; then the owner's sign-off for `spec-v1`, and only after it the tag and H2.
+
+## 2026-10-18, Claude (D22): spec-v1 signed off and tagged locally; an exploratory search of the frozen run for positive rendering effects
+Did:
+- The owner signed off `spec-v1` (21:12 CEST, 17 October); tag `spec-v1` on 1d633f69 (contract checks 70 of 70 on 1811cdc4). The push of `spec-v1`, `data-freeze-v1` and `prereg-v1` was refused by GitHub (the `gh` token lacks the `workflow` scope, because 1d46c8db touches `.github/workflows/tests.yml`); the owner then asked that nothing be pushed yet. All three tags are local only.
+- At the owner's request, an exploratory pass over `results/final/runs` for effects larger than R07 to R11, with split-half checks where a best level is chosen (best on half the pages, measured on the other half), plus a reading of the 2025–26 visual-text-compression papers. Scripts, outputs and the write-up are outside the repo: `research-paper-notes/research/exploratory_2026-10-18/` and `research-paper-notes/research/R5_next_hypotheses.md`. Nothing tested, nothing added to `reports/`.
+Found (all exploratory):
+- Block V, SmolVLM-500M: the aligned pitch at its best vertical phase (60, chosen on half the pages) reads the other half at 0.755 and 0.763 against 0.933 and 0.946 for unaligned conventional text at φ0 on random62 (differences −0.178 [−0.248, −0.115] and −0.183 [−0.248, −0.118]); natural −0.059 [−0.097, −0.020] and −0.103 [−0.175, −0.034]. Qwen and SmolVLM-2.2B: within ±0.02, SmolVLM-2.2B natural worse. In block C, SmolVLM-500M's third line (x-height band in rows 12–21 of its cell) is more than half wrong on 22% of pages against 4% for the other lines.
+- Block H without spaces: at the best phase chosen on half the pages, patch-aware beats conventional (pooled over phases) on the other half by −0.0074 [−0.0112, −0.0036] and −0.0087 [−0.0128, −0.0046] for Qwen random62 (0.015 against 0.023), −0.0269 [−0.0416, −0.0114] and −0.0131 [−0.0282, +0.0071] for SmolVLM-2.2B. Inserted spaces per word-interior gap beside the character scale with the white in its slots: 0.81 (B D G H M N O Q U w), 0.37 (W m), 0.20 (i j), 0.19 (I f l r t), 0.15 (the rest), against 0.00 in conventional text (Qwen); SmolVLM-2.2B 0.56, 0.37, 0.22, 0.19, 0.18.
+- Residual errors: Qwen random62 conventional, I→l 910 and l→I 538 of 2,938 substitutions (49%); SmolVLM-2.2B mostly case pairs (j/J, z/Z, w/W, v/V, c/C, q/Q, k/K, t/T, m/M) and O→0 985. SmolVLM prose errors are skipped stretches: 80% (2.2B) and 60% (500M) of deleted characters lie in runs of 15 or more; Qwen none. SmolVLM-2.2B drops the orphan clause at the top of a page: line 0 at 0.117 against 0.025–0.035, its first tenth 0.291; 18% of its prose error. Binary (block A) cut SmolVLM-2.2B's deletions 941 → 300 and insertions 1,061 → 605, substitutions unchanged.
+- The size ladder's per-page spread marks an instability band for the SmolVLMs (2.2B natural 20 px: 0.62, 0.03, 0.28, 0.04, 0.62); our phase sweeps ran above it. arXiv 2602.02539 (Feb 2026) reports that in that band a shift of a few pixels against the patch grid recovers near-zero error.
+Broke:
+- Nothing. No repository file changed except this entry.
+Next:
+- The owner decides whether a second, preregistered sweep follows (R5 section 3); otherwise H2 after the tags are pushed.
