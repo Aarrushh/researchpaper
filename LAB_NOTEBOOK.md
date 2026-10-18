@@ -1125,3 +1125,17 @@ Broke:
 - Nothing. No repository file changed except this entry.
 Next:
 - The owner decides whether a second, preregistered sweep follows (R5 section 3); otherwise H2 after the tags are pushed.
+
+## 2026-10-18, Claude (D22): the mechanism behind clause (c), a probe of the towers, and a pilot of a fitted layout (all exploratory)
+Did:
+- At the owner's request, an investigation of why the slot layout helps the encoder and hurts word segmentation, written up in `research-paper-notes/research/R6_mechanism.md`; scripts and outputs in `research-paper-notes/research/exploratory_2026-10-18/` (explore4 to explore8). Nothing in the repository changed except this entry; the GPU work used fresh pages (seed 20261018) that belong to no sweep.
+- explore4: every pair of neighbouring glyphs in blocks H (all phases) and C on random62, with its ink gap in px and its place on the patch grid, against the inserted spaces (1.84 M pairs). explore5: a ridge probe reading the character out of each tower's per-patch hidden states (24 pages per condition, half train, half test), conventional against the slot layout at phases 0, 3, 7, 10. explore6: gap distributions, coherence and expected false spaces of candidate layouts from the font alone. explore7: Qwen reads 16 pages of random62 at 24 px under six layouts (the re-implemented renderer equals `render_page` byte for byte at scale 1). explore8: per-letter errors of the pilot.
+Found:
+- Decoder: P(space inserted | ink gap) for Qwen in the slot layout is σ(−6.93 + 0.81·gap), 50% at 8.5 px (SmolVLM-2.2B 50% at 10.3 px, floor 0.10); a patch edge inside the gap is worth 0.2 logits (a quarter pixel); a 6 px gap is a word gap in conventional text (read as one 99.6%) and a letter gap in the slot layout (split 8%), so the threshold adapts to the page; in prose 0.04% of 8–12 px gaps became spaces. The two-slot letters' insertion rates follow their gaps (B 0.91 at 10.9 px, W 0.37 at 7.2 px).
+- Encoder: the probe reads the character from Qwen's layer-0 patch vector at 0.12 (conventional) against 0.82–0.88 (slot layout), and at the output 0.86 against 0.98; SmolVLM-2.2B 0.84 against 0.92–0.93. At phase 7 (every glyph cut by a patch edge) the slot layout falls back to 0.86–0.90: the condition is one whole glyph per patch, not coherence alone.
+- Pilot (Qwen, 16 pages): conventional CER 0.0148 (letters only 0.0177); slot layout 0.1808 (0.0138; 0.17 inserted spaces per character); wide glyphs condensed into one cell 0.0231 (0.0269; insertions 0.0014); plus narrow glyphs stretched 0.0225; plus two-cell spaces 0.0209; every glyph scaled to the cell 0.0313 (0.0361). The letter cost of scaling is O↔0 (2 → 18 → 40 cases) and I→1; ordinary letters read better in every slot layout (0.6%) than conventional (0.8%).
+- Design: a face whose glyphs are 8 to P−2 px wide in P px cells meets both sides (letter gaps ≤ 6 px, word gaps ≈ 19 px, no glyph cut, coherence 0.98); that is a monospace face at advance P. Its density is 27% below conventional text at the same glyph size.
+Broke:
+- Nothing.
+Next:
+- A real monospace face (Source Code Pro, OFL) at advance P against conventional text at the same size and at matched characters per token, preregistered; the pilot on SmolVLM-2.2B and on prose. The owner decides.
