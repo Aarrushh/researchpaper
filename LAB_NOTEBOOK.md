@@ -1152,3 +1152,14 @@ Broke:
 - Nothing in the repository; the tags are still local only.
 Next:
 - If the owner wants it as a result: a preregistered block with a monospace face whose O and 0 differ in shape, about 60 pages per reader, random62 and prose, plus a validation reader outside the three (Qwen2.5-VL-7B). Otherwise H2 after the tags are pushed.
+
+## 2026-10-18, Claude (D22): W5.1, the draft preregistration of Study 2
+Did:
+- `PREREGISTRATION_2.md`, a draft (status: not approved) on the owner's instruction, mirroring `PREREGISTRATION.md`'s sections: H3 (the gap mechanism: inserted spaces, contained monospace against Study 1's slot layout and not above conventional by 0.005 per character), H4 (containment: letters-only CER, contained against cut, the same font and gaps), H5 (CER at equal x-height, two-sided, sign reported), H6 (prose non-inferiority, δ = 0.01), H7 (H3 and H4 replicate on validation readers). Conditions per page: sans conventional at three phases, Study 1's slot layout at phase 0, mono at phases 0, 3 and P/2, sans at the density-matched size. Pages: 60 random and 60 prose for Qwen and each validation reader, 90 and 90 for SmolVLM-2.2B, 60 prose for SmolVLM-500M; seed 20261020; prose after the ladder and the full run. Paired Wilcoxon, Holm across readers within each family, page bootstrap with seed 20261021. Three pre-run steps before the tag: a font chosen by measured criteria and a declared 10-page pre-test on Qwen (seed 20261022, pages excluded); validation-reader feasibility; pipeline changes (study2 sweep and schedule files, reader blocks, 4-bit loading, letters-only and inserted-space columns, `22_analyze_study2.py`, Figures 3 and 4).
+- Facts checked for it: per-block `font_file` and `font_size_px` are already supported by `sweep.expand_conditions` and `_font_paths`; the GPU holds 8,151 MiB and Qwen2.5-VL-7B-Instruct (revision cc594898, 16.58 GB of safetensors) fits only 4-bit quantised; bitsandbytes is not installed (0.50.2 on PyPI); accelerate is. Alternates recorded with revisions: InternVL2.5-2B (573169ee, 4.41 GB, a different family) and Qwen2-VL-2B (895c3a49, 4.42 GB).
+Found:
+- Nothing new; no data. The budget is about 14 GPU hours (two nights) with both validation readers.
+Broke:
+- Nothing. Tags still local only.
+Next:
+- The owner's choice of validation reader(s) and approval of the draft; then the three pre-run steps, then `prereg-v2`.
