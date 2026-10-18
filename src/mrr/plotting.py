@@ -390,3 +390,142 @@ def plot_mtf(curves: Mapping[str, Mapping[str, Sequence[float]]], out_path: str 
             top.set_xlabel(f"cycles per degree at ρ = {scale:g} px per degree (assumed)")
         ax.legend(frameon=False, fontsize=6, loc="lower right")  # every curve rises from the left; the right stays free
         _save(fig, out_path)
+
+
+# --------------------------------------------------------------------------- Study 2, Figures 3 and 4 (PREREGISTRATION_2.md section 7)
+
+GROUP_COLOURS = {  # Study 2's comparison groups (mrr.study2.GROUPS), the same in both figures
+    "conventional": "#7f7f7f", "slot": "#9467bd", "contained": "#2ca02c", "cut": "#ff7f0e", "density": "#8c564b",
+}
+_STUDY2_TEXT_ORDER = ("random62", "natural")
+
+
+def _study2_grid(rows: Sequence[Mapping[str, Any]]) -> tuple[list[str], list[str]]:
+    """The text types (random first) and readers (Study 1's, then the validation readers) that ``rows`` hold."""
+    from mrr.study2 import VALIDATION_READERS
+
+    text_types = sorted({str(r["text_type"]) for r in rows},
+                        key=lambda t: (_STUDY2_TEXT_ORDER.index(t) if t in _STUDY2_TEXT_ORDER else 99, t))
+    readers = sorted({str(r["reader"]) for r in rows}, key=lambda r: (r in VALIDATION_READERS, r))
+    return text_types, readers
+
+
+def plot_study2_conditions(bands: Sequence[Mapping[str, Any]], out_path: str | Path) -> None:
+    """Study 2's Figure 3: pooled CER by condition, one panel per text type (rows) and reader (columns).
+
+    Each condition is a point at its pooled CER (D13) with its page-bootstrap interval (``study2.condition_bands``:
+    one draw of pages serves every condition of a panel), coloured by its group, so the conventional, contained and
+    cut conditions section 7 names are marked. A reader that reads no page of a text type (smolvlm500m, random) has
+    its panel left blank with a note.
+
+    Args:
+        bands: rows of ``study2.condition_bands(df, "cer", ...)``: reader, text_type, condition, group, value, low
+            and high.
+        out_path: the PDF to write, under reports/figures/.
+
+    Raises:
+        ValueError: when ``bands`` is empty.
+    """
+    import matplotlib
+    from matplotlib.figure import Figure
+    from matplotlib.lines import Line2D
+
+    from mrr.study2 import GROUPS, condition_order, role
+
+    if not bands:
+        raise ValueError("no condition rows to draw: Study 2's Figure 3 needs complete pages")
+    text_types, readers = _study2_grid(bands)
+    cell: dict[tuple[str, str], list[Mapping[str, Any]]] = {}
+    for r in bands:
+        cell.setdefault((str(r["reader"]), str(r["text_type"])), []).append(r)
+    with matplotlib.rc_context(_RC):
+        fig = Figure(figsize=(6.75, 1.5 + 1.35 * len(text_types)))
+        axes = fig.subplots(len(text_types), len(readers), squeeze=False)
+        for i, text_type in enumerate(text_types):
+            for j, reader in enumerate(readers):
+                ax = axes[i][j]
+                rows = cell.get((reader, text_type))
+                ax.set_title(f"{reader} ({role(reader)}), {text_type}")
+                if not rows:
+                    ax.text(0.5, 0.5, f"no {text_type} pages", ha="center", va="center", transform=ax.transAxes,
+                            fontsize=6, color="0.5")
+                    ax.set_xticks([])
+                    ax.set_yticks([])
+                    continue
+                by_code = {str(r["condition"]): r for r in rows}
+                codes = condition_order(by_code)
+                for x, code in enumerate(codes):
+                    r = by_code[code]
+                    value, low, high = float(r["value"]), float(r["low"]), float(r["high"])
+                    ax.errorbar([x], [value], yerr=[[value - low], [high - value]], fmt="o", markersize=3,
+                                color=GROUP_COLOURS.get(str(r["group"]), "black"), elinewidth=0.8, capsize=1.5)
+                ax.set_xticks(range(len(codes)))
+                ax.set_xticklabels(codes, rotation=90)
+                ax.set_xlim(-0.6, len(codes) - 0.4)
+                ax.set_ylim(bottom=0)
+                if j == 0:
+                    ax.set_ylabel("pooled CER")
+        present = {str(r["group"]) for r in bands}
+        handles = [Line2D([], [], marker="o", linestyle="", color=GROUP_COLOURS[g], markersize=3, label=g)
+                   for g in GROUPS if g in present]
+        fig.tight_layout(rect=(0, 0.07, 1, 1))
+        fig.legend(handles=handles, loc="lower center", ncol=len(handles), frameon=False, bbox_to_anchor=(0.5, 0.0))
+        _save(fig, out_path)
+
+
+def plot_study2_confusions(rates: Sequence[Mapping[str, Any]], out_path: str | Path) -> None:
+    """Study 2's Figure 4: the O/0 and I/l/1 letter confusions per 1,000 reference letters, by font and layout.
+
+    One panel per pair kind (columns) and text type (rows); in each, a group of bars per reader and one bar per
+    comparison group (conventional and density are Source Sans 3 laid out conventionally, slot is Source Sans 3 in
+    the patch-aware layout, contained and cut are Fira Mono in it), each labelled with its count of confusions.
+
+    Args:
+        rates: rows of ``study2.pair_rates``: reader, text_type, group, kind, count, letters and per_1000.
+        out_path: the PDF to write, under reports/figures/.
+
+    Raises:
+        ValueError: when ``rates`` holds no O/0 or I/l/1 row.
+    """
+    import matplotlib
+    from matplotlib.figure import Figure
+    from matplotlib.patches import Patch
+
+    from mrr.study2 import GROUPS
+
+    kinds = ("O/0", "I/l/1")
+    rows = [r for r in rates if str(r["kind"]) in kinds]
+    if not rows:
+        raise ValueError("no O/0 or I/l/1 rows to draw: Study 2's Figure 4 needs complete pages")
+    text_types, readers = _study2_grid(rows)
+    groups = [g for g in GROUPS if any(str(r["group"]) == g for r in rows)]
+    width = 0.8 / len(groups)
+    value = {(str(r["reader"]), str(r["text_type"]), str(r["group"]), str(r["kind"])): r for r in rows}
+    with matplotlib.rc_context(_RC):
+        fig = Figure(figsize=(6.75, 1.3 + 1.5 * len(text_types)))
+        axes = fig.subplots(len(text_types), len(kinds), squeeze=False)
+        for i, text_type in enumerate(text_types):
+            for j, kind in enumerate(kinds):
+                ax = axes[i][j]
+                for k, group in enumerate(groups):
+                    xs, ys, counts = [], [], []
+                    for x, reader in enumerate(readers):
+                        r = value.get((reader, text_type, group, kind))
+                        if r is None:
+                            continue
+                        xs.append(x - 0.4 + width * (k + 0.5))
+                        ys.append(float(r["per_1000"]))
+                        counts.append(int(r["count"]))
+                    ax.bar(xs, ys, width=width * 0.95, color=GROUP_COLOURS[group])
+                    for x, y, n in zip(xs, ys, counts):
+                        ax.annotate(f"{n}", (x, y), textcoords="offset points", xytext=(0, 1), ha="center", fontsize=4)
+                ax.set_xticks(range(len(readers)))
+                ax.set_xticklabels(readers, rotation=30, ha="right")
+                ax.set_ylim(bottom=0)
+                ax.set_title(f"{kind}, {text_type}")
+                if j == 0:
+                    ax.set_ylabel("confusions per 1,000 letters")
+        handles = [Patch(color=GROUP_COLOURS[g], label=g) for g in groups]
+        fig.tight_layout(rect=(0, 0.08, 1, 1))
+        fig.legend(handles=handles, loc="lower center", ncol=len(handles), frameon=False, bbox_to_anchor=(0.5, 0.0))
+        _save(fig, out_path)

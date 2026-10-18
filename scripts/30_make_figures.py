@@ -1,6 +1,6 @@
 # PURPOSE: Generate the paper's figures from results/.
-# WHAT GOES HERE: Load results and call mrr.plotting for Figures 1, 2 and 3a.
-# FILLED IN AT STEP: W2.5 (Figure 1), W3.4 (Figure 2), W3.6 (Figure 3a).
+# WHAT GOES HERE: Load results and call mrr.plotting for Figures 1, 2 and 3a, and Study 2's Figures 3 and 4.
+# FILLED IN AT STEP: W2.5 (Figure 1), W3.4 (Figure 2), W3.6 (Figure 3a), W5.1 (Study 2's Figures 3 and 4).
 # DO NOT: Hand-edit figures. Do not read data from anywhere but results/.
 """Steps W2.5, W3.4 and W3.6: make figures.
 
@@ -17,6 +17,11 @@ Whenever --mtf-dir holds ``layer0_<reader>.csv`` files (scripts/04_mtf.py), writ
 (Figure 3a): each reader's ring profile against cycles per pixel, beside the Mannos-Sakrison contrast sensitivity
 placed on the same axis at an assumed 40 pixels per degree (a 96 dpi screen seen from 60 cm gives 39.6; notes A8),
 the assumption written in the axis label. Nothing to draw, neither a sweep nor MTF files, is an error.
+
+A sweep with ``results_schema: study2`` (configs/sweeps/study2.yaml) draws Study 2's figures instead of Figures 1 and
+2 (PREREGISTRATION_2.md section 7): ``fig3_conditions_<sweep_name>.pdf``, the pooled CER of every condition with its
+page-bootstrap interval, and ``fig4_confusions_<sweep_name>.pdf``, the O/0 and I/l/1 confusions per 1,000 letters by
+font and layout, from the same rows and with Study 2's seed, 20261021 (section 6).
 """
 
 from __future__ import annotations
@@ -36,12 +41,13 @@ for _var in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
 import numpy as np  # noqa: E402
 import yaml  # noqa: E402
 
-from mrr import plotting
+from mrr import plotting, study2
 from mrr.mtf import csf_mannos_sakrison
 from mrr.sweep import RunFolder, complete_rows, load_results, sweep_run_dirs
 
 RESAMPLES = 2000  # PREREGISTRATION.md section 9
 SEED = 20261014
+STUDY2_SEED = 20261021  # PREREGISTRATION_2.md section 6
 PX_PER_DEGREE = 40.0  # pixels per degree of visual angle: 96 dpi at 60 cm gives 39.6 (notes A8, equation (8)); an assumption
 
 _log = logging.getLogger("figures")
@@ -85,6 +91,22 @@ def draw_figure_3a(curves: dict[str, dict[str, np.ndarray]], out_dir: Path) -> P
     return out
 
 
+def draw_study2(df, folders: Sequence[RunFolder], out_dir: Path, sweep_name: str) -> int:
+    """Study 2's Figures 3 and 4 from the complete rows of its run folders (PREREGISTRATION_2.md section 7)."""
+    if df.empty:
+        _log.info("no complete page in %s yet: no Study 2 figures", sweep_name)
+        return 0
+    coded = study2.with_codes(df, {f.reader: int(f.reader_cfg["patch_size"]) for f in folders})
+    fig3 = out_dir / f"fig3_conditions_{sweep_name}.pdf"
+    plotting.plot_study2_conditions(study2.condition_bands(coded, "cer", RESAMPLES, STUDY2_SEED, 0.05), fig3)
+    _log.info("Study 2, Figure 3: %s", fig3)
+    fig4 = out_dir / f"fig4_confusions_{sweep_name}.pdf"
+    cells = study2.run_confusions(coded, {str(f.run_dir): f for f in folders})
+    plotting.plot_study2_confusions(study2.pair_rates(cells), fig4)
+    _log.info("Study 2, Figure 4: %s", fig4)
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     logging.getLogger("fontTools").setLevel(logging.WARNING)  # the PDF backend's font subsetting logs every glyph at INFO
@@ -120,6 +142,8 @@ def main(argv: Sequence[str] | None = None) -> int:
               sweep_name, len(df_all), len(folders), sum(len(p) for p in excluded.values()), len(df))
 
     out_dir.mkdir(parents=True, exist_ok=True)
+    if sweep_cfg.get("results_schema") == "study2":
+        return draw_study2(df, folders, out_dir, sweep_name)
     if df["block"].isin(("V", "H", "C")).any():
         fig1 = out_dir / f"fig1_phase_{sweep_name}.pdf"
         plotting.plot_phase_curve(df, fig1, n_resamples=RESAMPLES, seed=SEED, reader_cfgs=reader_cfgs)

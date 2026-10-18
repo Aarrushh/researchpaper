@@ -120,6 +120,41 @@ A block of a Study 2 sweep may carry `text_types: [random62]` (or `[natural]`): 
 
 `feasibility_run1_tower_in_4bit/` keeps the first run, which failed with the vision tower in 4-bit; `feasibility/manifest.json` and `stdout.txt` belong to the passing run.
 
+## reports/tables/study2/ (Study 2, PREREGISTRATION_2.md section 9)
+
+Written by `scripts/22_analyze_study2.py` from the complete rows of the run folders of `configs/sweeps/study2.yaml` (section 8), with `manifest.json` (seed 20261021, 2,000 page resamples, the bounds 0.005 and 0.01, the readers analysed and planned, the pages excluded). Every table carries `status` and `family`. The condition codes are those of section 3: `S0`, `S5`, `S10` (block S), `Q0` (block Q), `M0`, `M3` and `M7`, or `M8` at P = 16 (block M), and block D by its size (`S18`, or the size section 11 records). The groups are `conventional` (S), `slot` (Q0), `contained` (M0 and M3), `cut` (M at P / 2) and `density` (block D); a page's value for a group pools the counts of the group's rows on that page (D13). `role` is `validation` for `qwen7b` and `internvl3_2b` and `development` for Study 1's readers. `checks.csv` has the columns of Study 1's (above).
+
+`paired.csv`: one row per family, reader, text type and contrast that the reader has rows for (smolvlm500m reads no random page).
+
+| Column | Type | Unit | Meaning |
+|---|---|---|---|
+| `family` | string | none | `gap` (H3), `containment` (H4), `advantage` (H5), `prose` (H6), `secondary`, or `wer` (exploratory) |
+| `hypothesis` | string | none | H3 to H6; empty for secondary and WER rows. H7 is read from the `validation` rows of `gap` and `containment` |
+| `contrast` | string | none | `<treatment>_vs_<baseline>`; the treatment is `contained` except for `M3_vs_M0` |
+| `baseline`, `treatment` | string | none | a group or a condition code |
+| `measure` | string | none | `cer` (spaces counted), `letters` (letters-only CER), `spaces` (inserted spaces per reference character) or `wer` (the mean row WER) |
+| `n` | int | pages | pages with a value on both sides |
+| `n_zero` | int | pages | pages whose difference is zero, dropped by the test |
+| `statistic`, `p`, `method` | float, float, string | none | `stats.paired_wilcoxon` (two-sided); `method` is `undefined: ...` when no page holds both sides or every difference is zero (SciPy would give p = 1 up to 13 pages and NaN above 50), and `p` is then empty |
+| `p_holm` | float | none | Holm across the readers of the family, for `gap` (Q0 against contained only), `containment`, `advantage` and `prose`; an undefined test counts as p = 1 in its family and keeps an empty `p_holm`; empty for rows outside a family |
+| `median_diff` | float | the measure | the median over pages of treatment minus baseline; negative means the treatment has the lower error |
+| `ci_low`, `ci_high` | float | the measure | the 95% page-bootstrap interval of `median_diff` |
+| `sd_diff`, `mde` | float | the measure | the standard deviation of the differences, and the smallest detectable median difference (`stats.paired_mde`, 80% power) |
+| `predicted_sign` | int | none | -1 where section 1 predicts the treatment lower (H3's test, H4, H5); empty otherwise |
+| `significant` | bool | none | `p_holm` below 0.05; empty without `p_holm` |
+| `supported` | bool | none | significant and `median_diff` of the predicted sign; empty without a predicted sign |
+| `bound`, `passes` | float, bool | the measure | the non-inferiority bound (0.005 for H3's parity with conventional, 0.01 for H6) and whether `ci_high` is below it |
+
+`letters.csv`: one row per reader, text type and condition: `group`, `block`, `phase_x_px`, `font_file`, `font_size_px`, `render_mode`, `n_pages`, `n_rows`; `cer` (pooled, spaces counted) with `cer_low` and `cer_high`, and `letters_cer` (pooled letters-only CER) with `letters_low` and `letters_high`, the 95% page-bootstrap intervals (one draw of pages serves every condition of a reader and text type, as `stats.pooled_cer_by_level`); `wer_mean`, the mean row WER.
+
+`spaces.csv`: one row per reader, text type and condition: `group`, `n_pages`, `n_rows`, `spaces_inserted` (the sum of the rows' `spaces_inserted`), `reference_chars` (the sum of H + S + D), `spaces_per_char` (their ratio) with `low` and `high` as above.
+
+`confusions.csv`: per reader, text type and condition (with `group`, `font_file`, `render_mode`, `letters`, the reference letters over its rows, and `n_rows`), one row per `kind`: `O/0`, `I/l/1` and `case_pair` (`count` = the substitutions between O and 0, between two of I, l and 1, and between the two cases of one letter), then `substitution` with `ref_char` and `hyp_char`, and `deletion` with `ref_char`. The counts come from jiwer's character alignment of the normalised strings with every space removed (`study2.letter_confusions`), so a misread space is never a letter confusion and a swap of two neighbouring letters aligns as a deletion and an insertion, not as two substitutions.
+
+`capacity.csv`: per reader, text type and shared layout (`layout`, `render_mode`, `font_file`, `font_size_px`, `line_pitch_px`): the run's own planned pages of that type joined in plan order and paginated under that layout alone, at phase 0 with the run's allowances, for up to 20 pages, a last page the text ran out on dropped (`n_pages`). `chars_per_page`, `glyphs_per_page` (placed characters, spaces not) and `lines_per_page` are means over those pages; `glyphs_per_line` is glyphs over lines; `vision_tokens` is `grid.token_count` for the page; `chars_per_token` is `chars_per_page` over it; `shared_chars_per_page` is the mean length of the shared pages the run read.
+
+Figures (`scripts/30_make_figures.py --config configs/sweeps/study2.yaml`, the same complete rows, seed 20261021): `reports/figures/fig3_conditions_study2.pdf`, the pooled CER of every condition with its page-bootstrap interval, one panel per text type and reader, coloured by group; `reports/figures/fig4_confusions_study2.pdf`, the O/0 and I/l/1 confusions per 1,000 reference letters (`study2.pair_rates`), one bar per reader and group, labelled with the count.
+
 ## results/mtf/ (W3.6, the layer-0 MTF from the weights)
 
 ```
