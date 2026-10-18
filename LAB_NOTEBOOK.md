@@ -1163,3 +1163,20 @@ Broke:
 - Nothing. Tags still local only.
 Next:
 - The owner's choice of validation reader(s) and approval of the draft; then the three pre-run steps, then `prereg-v2`.
+
+## 2026-10-19, Claude (D22): W5.1, Study 2's three pre-run steps done and recorded; S18 waits on the owner
+Did:
+- On the owner's approval of the draft's design (18 October, quoted in `PREREGISTRATION_2.md` section 11): the font choice (section 7.1), the validation-reader feasibility (7.2) and the pipeline changes (7.3), each committed locally with tests (808a8cbe, 992d1148, 734868ff, 920143f0, c7f2b254, 05555539, 998329a6, 303fb68e). Nothing pushed.
+- Font: eight faces screened, five pass, DejaVu Sans Mono set aside on its licence, four pre-tested on Qwen over ten random pages; Fira Mono 3.206 has the fewest O/0 plus I/l/1 confusions (10, against 15, 18 and 26). Sizes measured: mono 23.333 px (P = 14) and 26.651 px (P = 16); sans baseline 25 and 29 px by the x-height rule.
+- Readers: Qwen2.5-VL-7B in NF4 (peak 6.658 GiB) and InternVL3-2B-hf in bfloat16 (4.140 GiB) both pass, 256 tokens each. InternVL3-2B-hf replaced InternVL2.5-2B on the owner's choice, since the latter loads only through the hub's own code.
+- Pipeline: `configs/sweeps/study2.yaml` (blocks S, Q, M, D for five readers; per-reader block values; Study 1's allowances fixed by `phase_allowances_px`), `configs/schedules/study2.yaml` (phases fixed, times set at the go), `results_schema: study2` (D27), and `scripts/22_analyze_study2.py` with `src/mrr/study2.py` and Figures 3 and 4 (D28). `tests/test_study2.py` runs a reduced Study 2 sweep with planted errors and every family gives its known answer. `make test` 761 passed; `make contract` 70 of 70; Study 1's freeze check still regenerates every table byte for byte.
+Found:
+- The draft's S18 (18 px) rests on a slip in R6 §3: glyphs per line fall as the size grows. The written rule (same glyphs per line as the mono, 15.00) gives 34 px, which would shorten every random page by about a fifth; matching what a full page holds gives 28 px. The owner decides; block D's size is a placeholder until then.
+- InternVL3-2B-hf's decoder is a Qwen2-architecture model (28 layers, hidden size 1536), so the second validation reader differs from Qwen2.5-VL in its vision encoder and connector, not in its decoder family. Section 2 now says so, and H7's reach is stated accordingly.
+- Shared pages are fitted to the tightest layout of each text type: Q0 on random text (about 201 characters for Qwen's geometry, 151 for SmolVLM-2.2B), the mono on prose (about 259, 198 and 288), not the draft's "about 230".
+- Under transformers 5.19 the 4-bit configuration quantised Qwen's vision tower too; the first feasibility run failed on that check and 920143f0 keeps the tower in bfloat16.
+- In the confusion counts a swap of two neighbouring letters aligns as a deletion and an insertion, not as two substitutions (D28).
+Broke:
+- Nothing. Tags still local only.
+Next:
+- The owner's decision on S18, then the final text of `PREREGISTRATION_2.md`, `make test` and `make contract` on that commit, and `prereg-v2` locally; then the run's start time and the schedule's deadlines with the owner's go.
