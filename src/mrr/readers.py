@@ -28,6 +28,10 @@ MODEL_CLASSES = {
 }
 # A reader block may ask for 4-bit weights with quantization: nf4 (Study 2, the 7B validation reader on an 8 GiB card).
 QUANTIZATIONS = ("nf4",)
+# Kept in the block's dtype under quantization: the vision towers (Qwen, SmolVLM, InternVL), bare and under model.,
+# and the output head (_quantization_config).
+UNQUANTISED_MODULES = ("model.visual", "visual", "model.vision_model", "vision_model", "model.vision_tower",
+                       "vision_tower", "lm_head")
 # Passed on every call: the Hub generation settings differ by reader, and Qwen's sample.
 GREEDY = {"do_sample": False, "num_beams": 1, "repetition_penalty": 1.0}
 # The vision towers' depth and patch-embedding weight shape [Verified in the notes, weights record]; build guide 2.1.
@@ -133,7 +137,10 @@ def _quantization_config(cfg: Mapping[str, Any], dtype: Any) -> Any:
 
     ``nf4``: 4-bit NF4 weights with double quantisation for the language model, computed in the block's dtype;
     the vision tower and the output head stay in that dtype (``llm_int8_skip_modules``), so the encoder the
-    paper measures is the released one. Any other value is refused.
+    paper measures is the released one. Any other value is refused. transformers 5.19 matches a skip pattern
+    from the start of a module's full name (``quantizers_utils.should_convert_module``), and the towers sit
+    under ``model.``, so the patterns name both forms; the bare names alone left Qwen's tower in 4-bit
+    (feasibility, 18 Oct 2026: 162 of its 358 4-bit layers).
     """
     name = cfg.get("quantization")
     if name is None:
@@ -147,7 +154,7 @@ def _quantization_config(cfg: Mapping[str, Any], dtype: Any) -> Any:
         bnb_4bit_quant_type="nf4",
         bnb_4bit_use_double_quant=True,
         bnb_4bit_compute_dtype=dtype,
-        llm_int8_skip_modules=["visual", "vision_model", "vision_tower", "lm_head"],
+        llm_int8_skip_modules=list(UNQUANTISED_MODULES),
     )
 
 

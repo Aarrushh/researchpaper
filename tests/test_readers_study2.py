@@ -78,6 +78,24 @@ def test_nf4_config_keeps_the_vision_tower_and_head_unquantised():
     assert {"visual", "lm_head"} <= set(q.llm_int8_skip_modules)
 
 
+@pytest.mark.model
+@pytest.mark.parametrize(
+    "module, converted",
+    [
+        ("model.visual.blocks.0.attn.qkv", False),  # Qwen2.5-VL's tower under transformers 5.19
+        ("model.visual.merger.mlp.0", False),
+        ("model.vision_tower.encoder.layer.0.attention.q_proj", False),  # InternVL
+        ("model.vision_model.encoder.layers.0.mlp.fc1", False),  # SmolVLM
+        ("lm_head", False),
+        ("model.language_model.layers.0.self_attn.q_proj", True),
+        ("model.language_model.layers.27.mlp.down_proj", True),
+    ],
+)
+def test_transformers_matcher_keeps_the_towers_and_head_out_of_4bit(module, converted):
+    utils = pytest.importorskip("transformers.quantizers.quantizers_utils")
+    assert utils.should_convert_module(module, list(readers.UNQUANTISED_MODULES)) is converted
+
+
 def _internvl_inputs(tiles=1, tokens=256):
     ids = np.concatenate([np.full(tokens, INTERNVL_IMAGE_TOKEN), np.arange(5)])[None, :]
     return {"pixel_values": np.zeros((tiles, 3, 448, 448), np.float32), "input_ids": ids}
