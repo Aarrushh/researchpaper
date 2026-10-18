@@ -1,0 +1,57 @@
+{
+  "config": {
+    "criteria": {
+      "min_ink_px": 7,
+      "shape_diff": 0.15,
+      "x_rows": [
+        11,
+        13
+      ]
+    },
+    "fonts": [
+      {
+        "file": "Inconsolata-Regular.ttf",
+        "path": "C:/Users/User/AppData/Local/Temp/claude/C--Users-User-Desktop-research-paper-notes/52719b83-79a5-4903-bb9d-46dc63ed9871/scratchpad/fonts_candidates/inconsolata/Inconsolata-Regular.ttf",
+        "version": "Version 3.100; ttfautohint (v1.8.4.7-5d5b)"
+      },
+      {
+        "file": "RobotoMono-Regular.ttf",
+        "path": "C:/Users/User/AppData/Local/Temp/claude/C--Users-User-Desktop-research-paper-notes/52719b83-79a5-4903-bb9d-46dc63ed9871/scratchpad/fonts_candidates/robotomono/RobotoMono-Regular.ttf",
+        "version": "Version 3.001; ttfautohint (v1.8.4.7-5d5b)"
+      },
+      {
+        "file": "FiraMono-Regular.ttf",
+        "path": "C:/Users/User/AppData/Local/Temp/claude/C--Users-User-Desktop-research-paper-notes/52719b83-79a5-4903-bb9d-46dc63ed9871/scratchpad/fonts_candidates/firamono/FiraMono-Regular.ttf",
+        "version": "Version 3.206"
+      },
+      {
+        "file": "SourceCodePro-Regular.ttf",
+        "path": "C:/Users/User/AppData/Local/Temp/claude/C--Users-User-Desktop-research-paper-notes/52719b83-79a5-4903-bb9d-46dc63ed9871/scratchpad/download_source_code_pro/SourceCodePro-Regular.ttf",
+        "version": "Version 2.042;hotconv 1.1.0;makeotfexe 2.6.0"
+      }
+    ],
+    "patch_px": 14,
+    "pretest": {
+      "pages": 10,
+      "reader": "qwen",
+      "seed": 20261022
+    },
+    "status": "pre-run step 7.1"
+  },
+  "git_commit": "992d114824a7de24a324a0890581e3622212803d",
+  "git_dirty": true,
+  "gpu_name": "NVIDIA GeForce RTX 5060 Laptop GPU",
+  "packages": {
+    "freetype-py": "2.5.1",
+    "jiwer": "4.0.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0",
+    "scipy": "1.17.1",
+    "torch": "2.14.1+cu130",
+    "transformers": "5.19.0"
+  },
+  "platform": "Windows-10-10.0.26300-SP0",
+  "python_version": "3.11.15",
+  "run_id": "20261018-2120_study2_font_pretest_992d114",
+  "timestamp_utc": "2026-10-18T21:20:34Z"
+}

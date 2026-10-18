@@ -1,0 +1,9 @@
+font,file,version,advance_per_em,size_px,advance_px,x_rows,cap_rows,min_ink,max_overhang,not_contained,o0_diff,zero_marked,il1_min_diff,pass_a,pass_b,pass_c,pass_d,passes
+Inconsolata-Regular,Inconsolata-Regular.ttf,Version 3.100; ttfautohint (v1.8.4.7-5d5b),0.5,27.9844,13.9922,13,18,7,0,,0.495495,True,0.362319,True,True,True,True,True
+RobotoMono-Regular,RobotoMono-Regular.ttf,Version 3.001; ttfautohint (v1.8.4.7-5d5b),0.600098,23.3295,13.9992,13,17,7,0,,0.371429,True,0.45,True,True,True,True,True
+AnonymousPro-Regular,AnonymousPro-Regular.ttf,Version 1.003,0.545898,25.6458,13.9972,12,17,8,1,ACGJOQVWXYadegosvwxy0689,0.202381,True,0.047619,False,True,True,False,False
+IBMPlexMono-Regular,IBMPlexMono-Regular.ttf,Version 2.3,0.599999,23.3334,13.9968,13,17,9,0,,0.0641026,True,0.333333,True,True,False,True,False
+JetBrainsMono-Regular,JetBrainsMono-Regular.ttf,Version 2.305; ttfautohint (v1.8.4.7-5d5b),0.599999,23.3334,13.9968,13,18,10,0,,0.0777778,True,0.347826,True,True,False,True,False
+FiraMono-Regular,FiraMono-Regular.ttf,Version 3.206,0.599999,23.3334,13.9968,13,17,9,0,,0.361702,True,0.477612,True,True,True,True,True
+DejaVuSansMono,DejaVuSansMono.ttf,Version 2.35,0.602051,23.2539,13.9977,13,17,7,0,,0.223301,True,0.388889,True,True,True,True,True
+SourceCodePro-Regular,SourceCodePro-Regular.ttf,Version 2.042;hotconv 1.1.0;makeotfexe 2.6.0,0.599999,23.3334,13.9968,12,16,8,0,,0.395349,True,0.461538,True,True,True,True,True
