@@ -1,0 +1,91 @@
+# PURPOSE: Configuration for each VLM reader of Study 2 (PREREGISTRATION_2.md section 2).
+# WHAT GOES HERE: The three readers of Study 1, copied unchanged from configs/readers.yaml, and the two validation readers.
+# FILLED IN AT STEP: W5.1 (validation readers; owner's choice of 18 Oct 2026: Qwen2.5-VL-7B in 4-bit NF4, and
+#   InternVL3-2B-hf in bfloat16 in place of InternVL2.5-2B, whose Hub code needs trust_remote_code and transformers 4.37).
+# DO NOT: Change the first three blocks; tests/test_readers_study2.py holds them equal to configs/readers.yaml, which
+#   stays Study 1's (08_contract_checks.py checks every reader there). Do not use a model without a pinned revision.
+#   Do not change the prompt.
+
+readers:
+  - name: qwen
+    hf_id: Qwen/Qwen2.5-VL-3B-Instruct
+    revision: 66285546d2b821cf421d4f5eb2576359d3770cd3
+    patch_size: 14
+    merge_size: 2            # spatial merge
+    token_cell_px: 28
+    window_px: 112           # window attention in 28 of 32 blocks; full attention in 7, 15, 23, 31
+    page_px: [448, 448]
+    # min_pixels and max_pixels are read by grid.page_size_px, which checks that smart_resize keeps the page.
+    # They are never passed to the processor (deprecated per call): pages are native, do_resize=False.
+    min_pixels: 3136
+    max_pixels: 12845056
+    aligned_pitch_px: 28
+    image_token: "<|image_pad|>"   # id 151655
+    dtype: bfloat16
+    device_map: cuda         # fallback in section 1B.8
+    max_new_tokens: 591      # ceil(1.5 x 394), the longest reference in this reader's tokens at 16 px, default allowances (W1.7)
+    prompt: "Transcribe all text in the image exactly. Output only the text."
+
+  - name: smolvlm
+    hf_id: HuggingFaceTB/SmolVLM-Instruct
+    revision: 81cd9a775a4d644f2faf4e7becff4559b46b14c7
+    patch_size: 14
+    merge_size: 3            # pixel-shuffle factor (scale_factor in the Hub config)
+    token_cell_px: 42
+    page_px: [384, 384]
+    blind_from_px: 378       # 27 x 14: columns and rows 378 to 383 never reach the encoder
+    aligned_pitch_px: 42
+    image_token: "<image>"   # id 49153
+    dtype: bfloat16
+    device_map: cuda
+    position_id_fix: pre_hook
+    max_new_tokens: 629      # ceil(1.5 x 419), the longest reference in this reader's tokens at 16 px, default allowances (W1.7)
+    prompt: "Transcribe all text in the image exactly. Output only the text."
+
+  - name: smolvlm500m
+    hf_id: HuggingFaceTB/SmolVLM-500M-Instruct
+    revision: a7da5b986cb59b408707209984f360a5f4ad7e47
+    patch_size: 16
+    merge_size: 4
+    token_cell_px: 64
+    page_px: [512, 512]
+    aligned_pitch_px: 64
+    image_token: "<image>"   # id 49190
+    dtype: bfloat16
+    device_map: cuda
+    position_id_fix: pre_hook
+    max_new_tokens: 1157     # ceil(1.5 x 771), the longest reference in this reader's tokens at 16 px, default allowances (W1.7)
+    prompt: "Transcribe all text in the image exactly. Output only the text."
+
+  # Validation readers (PREREGISTRATION_2.md section 2): never read in this project before Study 2.
+  - name: qwen7b
+    hf_id: Qwen/Qwen2.5-VL-7B-Instruct
+    revision: cc594898137f460bfe9f0759e9844b3ce807cfb5
+    patch_size: 14
+    merge_size: 2            # the 3B's vision tower: depth 32, window 112, full attention in 7, 15, 23, 31 (Hub config)
+    token_cell_px: 28
+    window_px: 112
+    page_px: [448, 448]
+    min_pixels: 3136         # read by grid.page_size_px only, as for qwen
+    max_pixels: 12845056
+    aligned_pitch_px: 28
+    image_token: "<|image_pad|>"   # id 151655
+    dtype: bfloat16          # the compute dtype; the vision tower and lm_head stay in it
+    quantization: nf4        # 16.6 GB of weights on an 8 GiB card: the language model's linear layers in 4-bit NF4
+    device_map: cuda
+    max_new_tokens: 591      # the 3B's tokenizer and page, so the 3B's limit (W1.7); the sweep sets a per-page limit
+    prompt: "Transcribe all text in the image exactly. Output only the text."
+
+  - name: internvl3_2b
+    hf_id: OpenGVLab/InternVL3-2B-hf
+    revision: cb57a075cb75a2e6d1b668b128d48bb00ae321d2
+    patch_size: 14           # InternViT-300M-448px-V2_5, 24 layers, absolute position embeddings
+    merge_size: 2            # pixel shuffle, downsample_ratio 0.5: 32 x 32 patches to 16 x 16 tokens
+    token_cell_px: 28
+    page_px: [448, 448]      # one tile; crop_to_patches is false at this revision, and do_resize=False keeps the page
+    aligned_pitch_px: 28
+    image_token: "<IMG_CONTEXT>"   # id 151667; the processor writes image_seq_length = 256 per tile
+    dtype: bfloat16
+    device_map: cuda
+    max_new_tokens: 591      # Qwen2.5 tokenizer (language model Qwen2.5-1.5B) and the 448 px page, so qwen's limit
+    prompt: "Transcribe all text in the image exactly. Output only the text."

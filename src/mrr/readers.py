@@ -24,7 +24,10 @@ from mrr import grid
 MODEL_CLASSES = {
     "Qwen2_5_VLProcessor": "Qwen2_5_VLForConditionalGeneration",
     "Idefics3Processor": "Idefics3ForConditionalGeneration",
+    "InternVLProcessor": "InternVLForConditionalGeneration",  # Study 2's validation reader (PREREGISTRATION_2.md section 2)
 }
+# A reader block may ask for 4-bit weights with quantization: nf4 (Study 2, the 7B validation reader on an 8 GiB card).
+QUANTIZATIONS = ("nf4",)
 # Passed on every call: the Hub generation settings differ by reader, and Qwen's sample.
 GREEDY = {"do_sample": False, "num_beams": 1, "repetition_penalty": 1.0}
 # The vision towers' depth and patch-embedding weight shape [Verified in the notes, weights record]; build guide 2.1.
@@ -97,6 +100,9 @@ def load_reader(cfg: Mapping[str, Any]) -> Reader:
     if type(processor).__name__ == "Idefics3Processor" and "position_id_fix" not in cfg:
         raise ValueError(f"{cfg['name']}: a SmolVLM block needs position_id_fix: pre_hook, or null to read without it")
     placement = {"max_memory": cfg["max_memory"]} if "max_memory" in cfg else {}  # the fallback of 1B.8 (D18)
+    quantization = _quantization_config(cfg, dtype)
+    if quantization is not None:
+        placement["quantization_config"] = quantization
     model = getattr(transformers, model_class).from_pretrained(
         cfg["hf_id"],
         revision=cfg["revision"],
@@ -120,6 +126,29 @@ def load_reader(cfg: Mapping[str, Any]) -> Reader:
             f"but the processor expands {processor.image_token_id}"
         )
     return Reader(name=cfg["name"], model=model, processor=processor, cfg=cfg, image_token_id=image_token_id)
+
+
+def _quantization_config(cfg: Mapping[str, Any], dtype: Any) -> Any:
+    """The BitsAndBytesConfig a reader block asks for with ``quantization``, or None (Study 2, section 2).
+
+    ``nf4``: 4-bit NF4 weights with double quantisation for the language model, computed in the block's dtype;
+    the vision tower and the output head stay in that dtype (``llm_int8_skip_modules``), so the encoder the
+    paper measures is the released one. Any other value is refused.
+    """
+    name = cfg.get("quantization")
+    if name is None:
+        return None
+    if name not in QUANTIZATIONS:
+        raise ValueError(f"{cfg['name']}: unknown quantization {name!r}; one of {QUANTIZATIONS} or absent")
+    import transformers
+
+    return transformers.BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_use_double_quant=True,
+        bnb_4bit_compute_dtype=dtype,
+        llm_int8_skip_modules=["visual", "vision_model", "vision_tower", "lm_head"],
+    )
 
 
 def install_position_id_fix(model: Any) -> None:
@@ -277,12 +306,16 @@ def _check_vision_input(reader: Reader, inputs: Mapping[str, Any], height: int, 
         want, got = [[1, height // patch, width // patch]], inputs["image_grid_thw"].tolist()
         if got != want:
             raise RuntimeError(f"{reader.name}: image_grid_thw {got} for a {height}x{width} page; want {want}")
-    else:
+    elif "pixel_attention_mask" in inputs:  # SmolVLM: frames with a mask
         want, got = (1, 1, 3, height, width), tuple(inputs["pixel_values"].shape)
         if got != want or not bool(inputs["pixel_attention_mask"].all()):
             raise RuntimeError(
                 f"{reader.name}: pixel_values {got} for a {height}x{width} page; want {want}, unpadded"
             )
+    else:  # InternVL: tiles without a mask; one tile is the page itself (crop_to_patches off)
+        want, got = (1, 3, height, width), tuple(inputs["pixel_values"].shape)
+        if got != want:
+            raise RuntimeError(f"{reader.name}: pixel_values {got} for a {height}x{width} page; want {want}, one tile")
     tokens = int((inputs["input_ids"] == reader.image_token_id).sum())
     expected = grid.token_count(reader.cfg, height, width)
     if tokens != expected:
