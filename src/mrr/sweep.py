@@ -177,7 +177,8 @@ def expand_conditions(sweep: Mapping[str, Any], reader_cfg: Mapping[str, Any]) -
     """Return the conditions of every block of ``sweep`` for one reader, blocks in file order (section 2.3).
 
     Each block starts from the sweep's top-level ``font_file``, this reader's ``font_size_px`` and ``aa_mode``, and
-    its own keys override them. Its phase levels come from ``grid.phase_levels`` on its axis (the other axis is 0),
+    its own keys override them; a block's value may itself be a map from reader name to value (Study 2's sizes differ
+    between P = 14 and P = 16). Its phase levels come from ``grid.phase_levels`` on its axis (the other axis is 0),
     crossed with every list-valued key in the order of ``CROSSED_KEYS``, phases innermost. ``line_pitch_px`` follows
     section 1A.4: floor(1.25 * size + 0.5) unaligned, the reader's ``aligned_pitch_px`` aligned.
 
@@ -200,7 +201,7 @@ def expand_conditions(sweep: Mapping[str, Any], reader_cfg: Mapping[str, Any]) -
         settings = {key: _per_reader(sweep.get(key), reader, key) for key in INHERITED_KEYS}
         for key in INHERITED_KEYS + ("render_mode", "line_pitch_mode"):
             if key in block:
-                settings[key] = block[key]
+                settings[key] = _per_reader(block[key], reader, f"{label}: {key}")
         for key in ("render_mode", "line_pitch_mode", "font_file", "font_size_px", "aa_mode"):
             if settings.get(key) is None:
                 raise ValueError(f"{label}: {key} is missing; set it in the block or at the top of the sweep")
@@ -310,6 +311,28 @@ def phase_allowances(conditions: Iterable[Condition]) -> tuple[int, int]:
     return (math.ceil(max(c.phase_x_px for c in shared)), math.ceil(max(c.phase_y_px for c in shared)))
 
 
+def shared_allowances(sweep: Mapping[str, Any], reader: str, conditions: Iterable[Condition]) -> tuple[int, int]:
+    """Return the phase allowances of one reader's shared pages: the sweep's ``phase_allowances_px``, else computed.
+
+    Without the key, ``phase_allowances`` of the conditions. With it, a map from reader name to [x, y] whole pixels,
+    which must be at least the computed allowance on each axis, or a phase would move text out of the block. Study 2
+    fixes Study 1's allowances (PREREGISTRATION_2.md section 3), so its pages have Study 1's text block although its
+    own phases reach only 10 px.
+    """
+    computed = phase_allowances(conditions)
+    if "phase_allowances_px" not in sweep:
+        return computed
+    value = _per_reader(sweep["phase_allowances_px"], reader, "phase_allowances_px")
+    if (not isinstance(value, (list, tuple)) or len(value) != 2
+            or any(isinstance(v, bool) or not isinstance(v, numbers.Integral) for v in value)):
+        raise ValueError(f"phase_allowances_px for {reader} must be two whole numbers [x, y], not {value!r}")
+    x, y = int(value[0]), int(value[1])
+    if x < computed[0] or y < computed[1]:
+        raise ValueError(f"phase_allowances_px for {reader} is {[x, y]}, below the largest phases {list(computed)} of "
+                         "its shared conditions")
+    return (x, y)
+
+
 def pagination_key(condition: Condition) -> str:
     """Return the key under which ``plan_pages`` lists the pages this condition reads.
 
@@ -329,7 +352,9 @@ def _layout_id(condition: Condition) -> tuple[str, int, float, str]:
 def _font_paths(sweep: Mapping[str, Any], root: Path) -> dict[str, str]:
     """Map each font file name of the sweep to its path, a str for freetype-py; relative paths start at root."""
     blocks = sweep.get("blocks") if isinstance(sweep.get("blocks"), Mapping) else {}
-    candidates = [sweep.get("font_file")] + [b.get("font_file") for b in blocks.values() if isinstance(b, Mapping)]
+    candidates = []
+    for value in [sweep.get("font_file")] + [b.get("font_file") for b in blocks.values() if isinstance(b, Mapping)]:
+        candidates.extend(value.values() if isinstance(value, Mapping) else [value])  # a map by reader, or one path
     out: dict[str, str] = {}
     for path in candidates:
         if isinstance(path, str):
@@ -528,7 +553,7 @@ def plan_pages(
 
     plan: dict[str, list[Page]] = {}
     if shared:
-        allowances = phase_allowances(shared)
+        allowances = shared_allowances(sweep, reader, shared)
         layouts: dict[tuple, dict[str, Any]] = {}
         read_by: dict[str, dict[tuple, dict[str, Any]]] = {kind: {} for kind in TEXT_TYPES}  # the layouts of each type
         for c in shared:
@@ -1091,7 +1116,7 @@ def run_sweep(
     run_dirs: list[Path] = []
     for name in selected:
         conditions, plan = planned[name]
-        allowances = phase_allowances(conditions)
+        allowances = shared_allowances(sweep, name, conditions)
         if name == resume_reader:
             run_dir = resume
             _check_resume(run_dir, name, sweep_sha1, require_clean, root)

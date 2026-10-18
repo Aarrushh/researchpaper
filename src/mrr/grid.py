@@ -290,8 +290,9 @@ def _is_whole(x: float) -> bool:
 def phase_levels(spec: Mapping[str, Any], reader_cfg: Mapping[str, Any], block: str | None = None) -> list[float]:
     """Return the phase levels of one block for one reader, in pixels (build guide section 2.3, D10).
 
-    ``spec`` is the block's mapping from the sweep config. It holds either an explicit ``phases_px`` list, returned
-    as floats after a check that every value lies in [0, P), or a ``range`` and a ``step_px``: the range is ``patch``
+    ``spec`` is the block's mapping from the sweep config. It holds either an explicit ``phases_px`` list (or a map
+    from reader name to list, for a phase such as P / 2 that differs by reader), returned as floats after a check that
+    every value lies in [0, P), or a ``range`` and a ``step_px``: the range is ``patch``
     (P), ``cell`` (the token cell) or ``sweep`` (the sweep period), and the step a number or a map from reader name
     to number. The levels are then k * step for k in range(range // step), as floats.
 
@@ -311,6 +312,10 @@ def phase_levels(spec: Mapping[str, Any], reader_cfg: Mapping[str, Any], block: 
         raise ValueError(f"{label}, reader {reader}: give phases_px, or range and step_px, not both")
     if has_list:
         phases = spec["phases_px"]
+        if isinstance(phases, Mapping):
+            if reader not in phases:
+                raise ValueError(f"{label}: phases_px has no entry for reader {reader}")
+            phases = phases[reader]
         if isinstance(phases, (str, bytes)) or not isinstance(phases, Sequence) or len(phases) == 0:
             raise ValueError(f"{label}: phases_px must be a non-empty list of numbers, not {phases!r}")
         levels = []

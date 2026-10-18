@@ -555,7 +555,7 @@ def density_table(df, folders: Sequence[RunFolder], plans: Mapping[str, dict[str
         if plan is None or sweep_mod.SHARED not in plan:
             continue
         shared = [c for c in folder.conditions if c.paginate == sweep_mod.SHARED]
-        allowances = sweep_mod.phase_allowances(shared)
+        allowances = sweep_mod.shared_allowances(folder.sweep, folder.reader, shared)
         font_paths = sweep_mod._font_paths(folder.sweep, root)
         layouts: dict[tuple, tuple[str, str, dict]] = {}
         for c in shared:

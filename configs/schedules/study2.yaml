@@ -1,0 +1,21 @@
+# PURPOSE: The clock that stops the Study 2 run (D26, PREREGISTRATION_2.md section 5): which readers run in which phase, and until when.
+# WHAT GOES HERE: Phases in order, each with its readers (run side by side) and its end as ISO 8601 with the UTC offset; max_restarts per reader.
+# FILLED IN AT STEP: W5.1 (18 October 2026). The phases are fixed; the times are set with the owner's go, on the commit tagged prereg-v2, and scripts/11_run_schedule.py refuses to start until they are.
+# DO NOT: Edit after the run has started. A crash is resumed by the driver, and the lost time is not made up.
+#
+# As Study 1: the Qwen-sized readers run alone and the two SmolVLM readers together. Expected hours at the ceilings
+# of configs/sweeps/study2.yaml, from the pilots' and the feasibility step's latencies (rows x seconds a row):
+#   qwen          480 random x 9 s + 360 prose x 4.5 s   about 1.7 h
+#   smolvlm       720 x 4.3 s + 540 x 1.8 s               about 1.1 h, beside
+#   smolvlm500m   360 prose x 20 s                        about 2 h
+#   internvl3_2b  480 x 3.9 s + 360 x 1.6 s               about 0.7 h
+#   qwen7b        480 x 7.4 s + 360 x 2.6 s               about 1.3 h
+# Each phase gets about twice its expected time, so the ceilings are reached unless a reader loops; the deadline is
+# then the stopping rule, checked between pages.
+
+phases:
+  - {readers: [qwen], until: "TODO[start + 3.5 h, set with the owner's go]"}
+  - {readers: [smolvlm, smolvlm500m], until: "TODO[previous + 4 h]"}
+  - {readers: [internvl3_2b], until: "TODO[previous + 1.5 h]"}
+  - {readers: [qwen7b], until: "TODO[previous + 3 h]"}
+max_restarts: 5

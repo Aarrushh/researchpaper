@@ -966,3 +966,58 @@ def test_an_unknown_results_schema_is_refused_before_any_folder(tmp_path):
     with pytest.raises(ValueError, match="results_schema"):
         _run(sweep_path, FakeBackend(), tmp_path / "runs")
     assert not (tmp_path / "runs").exists()
+
+
+# Per-reader block values and fixed phase allowances (Study 2: M7 at P / 2, sizes by P, Study 1's text block).
+
+
+def test_a_block_may_give_its_size_and_phases_per_reader():
+    sweep = copy.deepcopy(RUNNER_SWEEP)
+    sweep["readers"] = ["qwen", "smolvlm500m"]
+    sweep["blocks"] = {"M": {"render_mode": "patch_aware", "line_pitch_mode": "unaligned", "axis": "x",
+                             "font_size_px": {"qwen": 23.333, "smolvlm500m": 26.651},
+                             "phases_px": {"qwen": [7], "smolvlm500m": [8]}}}
+    (qwen,) = expand_conditions(sweep, READERS["qwen"])
+    (small,) = expand_conditions(sweep, READERS["smolvlm500m"])
+    assert (qwen.font_size_px, qwen.phase_x_px, qwen.line_pitch_px) == (23.333, 7.0, 29)
+    assert (small.font_size_px, small.phase_x_px, small.line_pitch_px) == (26.651, 8.0, 33)
+    del sweep["blocks"]["M"]["phases_px"]["smolvlm500m"]
+    with pytest.raises(ValueError, match="phases_px has no entry for reader smolvlm500m"):
+        expand_conditions(sweep, READERS["smolvlm500m"])
+    sweep["blocks"]["M"]["phases_px"]["smolvlm500m"] = [16]
+    with pytest.raises(ValueError, match=r"outside \[0, 16\)"):
+        expand_conditions(sweep, READERS["smolvlm500m"])
+
+
+def test_a_per_reader_block_value_without_this_reader_is_refused_naming_the_block():
+    sweep = copy.deepcopy(RUNNER_SWEEP)
+    sweep["blocks"]["S"]["font_size_px"] = {"smolvlm": 20}
+    with pytest.raises(ValueError, match="block S: font_size_px has no entry for reader qwen"):
+        expand_conditions(sweep, READERS["qwen"])
+
+
+def test_shared_allowances_are_computed_unless_the_sweep_fixes_them():
+    conditions = expand_conditions(RUNNER_SWEEP, READERS["qwen"])
+    assert sweep_module.shared_allowances(RUNNER_SWEEP, "qwen", conditions) == (2, 0)
+    fixed = {**RUNNER_SWEEP, "phase_allowances_px": {"qwen": [105, 26]}}
+    assert sweep_module.shared_allowances(fixed, "qwen", conditions) == (105, 26)
+    for bad, match in (({"qwen": [1, 0]}, "below the largest phases"), ({"qwen": [105]}, "two whole numbers"),
+                       ({"qwen": [105.5, 26]}, "two whole numbers"), ({"smolvlm": [40, 40]}, "no entry for reader qwen")):
+        with pytest.raises(ValueError, match=match):
+            sweep_module.shared_allowances({**RUNNER_SWEEP, "phase_allowances_px": bad}, "qwen", conditions)
+
+
+@needs_data
+def test_fixed_allowances_set_the_text_block_of_the_shared_pages(tmp_path):
+    fixed = {**RUNNER_SWEEP, "phase_allowances_px": {"qwen": [105, 26]}}
+    page = _plan(fixed, "qwen")["shared"][0]
+    loose = _plan(RUNNER_SWEEP, "qwen")["shared"][0]
+    assert loose.text.startswith(page.text) and len(page.text) < len(loose.text)
+    cfg = resolve_render_cfg(DEFAULTS, READERS["qwen"], font_file=str(FONT), font_size_px=16, line_pitch_px=20,
+                             render_mode="patch_aware", max_phase_x_px=105, max_phase_y_px=26)
+    assert fits_page(page.text, cfg)
+    (run_dir,) = _run(_write_sweep(tmp_path, phase_allowances_px={"qwen": [105, 26]}), FakeBackend(), tmp_path / "runs")
+    manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert (run_dir / "references" / f"{page.page_id}.txt").read_text(encoding="utf-8") == page.text
+    assert "105" in json.dumps(manifest["config"])
+

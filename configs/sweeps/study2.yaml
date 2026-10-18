@@ -1,0 +1,49 @@
+# PURPOSE: Study 2 sweep (PREREGISTRATION_2.md): conventional sans, Study 1's slot layout, and a monospace face at an advance of one patch at three phases, on shared pages.
+# WHAT GOES HERE: Readers (Study 1's three and the two validation readers), pages, seed, fonts and sizes per reader, Study 1's phase allowances, blocks, the results schema and the reader file.
+# FILLED IN AT STEP: W5.1 (18 October 2026). Frozen at prereg-v2.
+# DO NOT: Edit after prereg-v2 or after the sweep has started; resume instead. Never reuse a seed or a page of Study 1, the ladder, the pilots, the font pre-test or the feasibility step.
+#
+# The conditions of PREREGISTRATION_2.md section 3 as blocks: S = S0, S5, S10 (sans, conventional); Q = Q0 (sans,
+# patch_aware, random text only); M = M0, M3, M7 (mono, patch_aware; M7 at P / 2, 7 px at P = 14 and 8 px at P = 16);
+# D = S18, the density comparison (sans, conventional, random text only).
+# Renders per page: random 8 (S x 3, Q, M x 3, D), prose 6 (S x 3, M x 3). smolvlm500m reads prose only, so Q and D
+# give it no rows.
+# Rows per reader = 8 x N_random + 6 x N_prose:
+#   qwen 8 x 60 + 6 x 60 = 840; smolvlm 8 x 90 + 6 x 90 = 1260; smolvlm500m 6 x 60 = 360;
+#   qwen7b 8 x 60 + 6 x 60 = 840; internvl3_2b 840; total runs = 4140
+# The counts are ceilings and the clock stops each reader at its phase's deadline (D26, configs/schedules/study2.yaml).
+#
+# Sizes (section 3; measured on 18 October, recorded in section 11): mono = Fira Mono 3.206 at the largest size, in
+# 1/64 px steps, whose advance is at most P: 23.333 px at P = 14 and 26.651 px at P = 16 (13 and 15 x-height rows).
+# Sans baseline = Source Sans 3 at the whole size whose x-height rows equal the mono's: 25 px at P = 14 (13 rows, and
+# 17 cap rows like the mono's) and 29 px at P = 16 (15 rows); the unrounded x-height matches are 25.3 and 28.9 px.
+# Phase allowances: Study 1's (section 3), so the text block is Study 1's although these phases reach only 10 px.
+# Pages: a shared page fits every layout that reads its text type (D27). On random text Q is the tightest layout
+# (about 207 characters a page for qwen, 155 for smolvlm); on prose M is (about 257 and 197).
+
+readers: [qwen, smolvlm, smolvlm500m, qwen7b, internvl3_2b]
+readers_config: configs/readers_study2.yaml     # Study 1's three blocks unchanged, and the validation readers (D27)
+results_schema: study2                          # the 33 columns and hits_ns ... spaces_inserted (D27)
+seed: 20261020                                  # new: Study 1 used 20261012, 13 and 16; the pilots 18 and 19; 21 and 22 are the bootstrap and the font pre-test
+pages:
+  natural: {books: [pg105, pg84, pg1661],
+            per_text_type: {qwen: 60, smolvlm: 90, smolvlm500m: 60, qwen7b: 60, internvl3_2b: 60},
+            start_after: [configs/sweeps/ladder.yaml, configs/sweeps/full.yaml]}
+  random62: {per_text_type: {qwen: 60, smolvlm: 90, smolvlm500m: 0, qwen7b: 60, internvl3_2b: 60}}
+repeats: 1
+phase_allowances_px: {qwen: [105, 26], smolvlm: [40, 40], smolvlm500m: [60, 60], qwen7b: [105, 26],
+                      internvl3_2b: [105, 26]}
+font_file: data/external/fonts/source-sans-3/SourceSans3-Regular.ttf
+font_size_px: {qwen: 25, smolvlm: 25, smolvlm500m: 29, qwen7b: 25, internvl3_2b: 25}   # the sans baseline
+aa_mode: coverage_srgb
+blocks:
+  S: {render_mode: conventional, line_pitch_mode: unaligned, axis: x, phases_px: [0.0, 5.0, 10.0]}
+  Q: {render_mode: patch_aware, line_pitch_mode: unaligned, axis: x, phases_px: [0.0], text_types: [random62]}
+  M: {render_mode: patch_aware, line_pitch_mode: unaligned, axis: x,
+      font_file: data/external/fonts/fira-mono/FiraMono-Regular.ttf,
+      font_size_px: {qwen: 23.333, smolvlm: 23.333, smolvlm500m: 26.651, qwen7b: 23.333, internvl3_2b: 23.333},
+      phases_px: {qwen: [0.0, 3.0, 7.0], smolvlm: [0.0, 3.0, 7.0], smolvlm500m: [0.0, 3.0, 8.0],
+                  qwen7b: [0.0, 3.0, 7.0], internvl3_2b: [0.0, 3.0, 7.0]}}
+  D: {render_mode: conventional, line_pitch_mode: unaligned, axis: x, phases_px: [0.0], text_types: [random62],
+      font_size_px: "TODO[owner: the size of S18, PREREGISTRATION_2.md section 11]"}
+output_root: results/runs

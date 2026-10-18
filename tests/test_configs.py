@@ -17,7 +17,7 @@ import yaml
 
 from mrr import grid
 from mrr.sweep import HASH_KEYS, Z_MODE_TAGS, expand_conditions, pagination_key, plan_pages, readers_config
-from mrr.text_source import BOOKS, TEXTS_DIR
+from mrr.text_source import BOOKS, TEXTS_DIR, book_text
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SWEEPS = sorted((ROOT / "configs" / "sweeps").glob("*.yaml"))
@@ -47,13 +47,16 @@ def _readers(sweep):
 
 
 def _concrete(sweep, size=16):
-    """Return a copy whose placeholder font sizes (strings such as "from the ladder") are replaced by ``size``."""
+    """Return a copy whose placeholder font sizes (strings such as "from the ladder"), at the top or in a block, are
+    replaced by ``size``."""
     sweep = copy.deepcopy(sweep)
-    sizes = sweep.get("font_size_px")
-    if isinstance(sizes, str):
-        sweep["font_size_px"] = size
-    elif isinstance(sizes, dict):
-        sweep["font_size_px"] = {name: size if isinstance(value, str) else value for name, value in sizes.items()}
+    holders = [sweep] + [block for block in sweep.get("blocks", {}).values() if isinstance(block, dict)]
+    for holder in holders:
+        sizes = holder.get("font_size_px")
+        if isinstance(sizes, str):
+            holder["font_size_px"] = size
+        elif isinstance(sizes, dict):
+            holder["font_size_px"] = {name: size if isinstance(value, str) else value for name, value in sizes.items()}
     return sweep
 
 
@@ -322,3 +325,108 @@ def test_page_i_of_every_block_z_layout_of_the_full_sweep_starts_with_the_same_w
         for i in range(2 * sweep["pages"]["z_per_text_type"]):
             starts = {(pages[i].book_id, pages[i].start_word, pages[i].text.split()[0]) for pages in z_plans}
             assert len(starts) == 1, (reader, i, starts)
+
+
+# Study 2 (PREREGISTRATION_2.md sections 2, 3 and 5).
+
+STUDY2 = ROOT / "configs" / "sweeps" / "study2.yaml"
+STUDY2_RANDOM = {"S": [0.0, 5.0, 10.0], "Q": [0.0], "M": [0.0, 3.0, 7.0], "D": [0.0]}  # P = 14; M7 is 8 px at P = 16
+STUDY1_ALLOWANCES = {"qwen": [105, 26], "smolvlm": [40, 40], "smolvlm500m": [60, 60]}
+PILOT_PERSUASION_OFFSET = 200_000  # the pilots' prose came from Persuasion's skipped text at this character onward
+
+
+def test_study2_names_its_readers_schema_and_a_new_seed():
+    sweep = _load(STUDY2)
+    assert sweep["readers"] == ["qwen", "smolvlm", "smolvlm500m", "qwen7b", "internvl3_2b"]
+    assert readers_config(sweep) == "configs/readers_study2.yaml" and sweep["results_schema"] == "study2"
+    used = {_load(path)["seed"] for path in SWEEPS if path != STUDY2}
+    assert sweep["seed"] == 20261020 and sweep["seed"] not in used | {20261018, 20261019, 20261021, 20261022}
+    assert sweep["pages"]["natural"]["start_after"] == ["configs/sweeps/ladder.yaml", "configs/sweeps/full.yaml"]
+    assert sweep["pages"]["random62"]["per_text_type"]["smolvlm500m"] == 0
+
+
+def test_study2_keeps_study1_allowances_and_gives_the_validation_readers_qwens():
+    allowances = _load(STUDY2)["phase_allowances_px"]
+    assert {name: allowances[name] for name in STUDY1_ALLOWANCES} == STUDY1_ALLOWANCES
+    assert allowances["qwen7b"] == allowances["internvl3_2b"] == STUDY1_ALLOWANCES["qwen"]
+
+
+@pytest.mark.parametrize("reader", _load(STUDY2)["readers"])
+def test_study2_conditions_are_the_eight_renders_of_section_3(reader):
+    sweep = _concrete(_load(STUDY2), size=18)
+    readers = _readers(sweep)
+    cfg = readers[reader]
+    conditions = expand_conditions(sweep, cfg)
+    by_block = {}
+    for c in conditions:
+        by_block.setdefault(c.block, []).append(c)
+    p = cfg["patch_size"]
+    expected = dict(STUDY2_RANDOM, M=[0.0, 3.0, p / 2])
+    assert {b: [c.phase_x_px for c in cs] for b, cs in by_block.items()} == expected
+    assert all(c.phase_y_px == 0.0 and c.aa_mode == "coverage_srgb" and c.line_pitch_mode == "unaligned"
+               for c in conditions)
+    mono, sans = by_block["M"][0], by_block["S"][0]
+    assert mono.font_file == "FiraMono-Regular.ttf" and mono.render_mode == "patch_aware"
+    assert mono.patch_aware_slot_px == p and mono.font_size_px == {14: 23.333, 16: 26.651}[p]
+    assert sans.font_file == "SourceSans3-Regular.ttf" and sans.font_size_px == {14: 25, 16: 29}[p]
+    assert by_block["Q"][0].font_size_px == sans.font_size_px and by_block["Q"][0].render_mode == "patch_aware"
+    assert {b: cs[0].text_types for b, cs in by_block.items()} == {
+        "S": ("natural", "random62"), "Q": ("random62",), "M": ("natural", "random62"), "D": ("random62",)}
+
+
+@needs_data
+def test_the_mono_size_puts_the_advance_at_most_one_patch_and_the_sans_matches_its_x_height():
+    from mrr.render import load_glyph
+
+    mono = str(ROOT / "data" / "external" / "fonts" / "fira-mono" / "FiraMono-Regular.ttf")
+    for p, size, sans_size in ((14, 23.333, 25), (16, 26.651, 29)):
+        advance = load_glyph(mono, size, "x").advance_px
+        assert p - 0.02 < advance <= p
+        assert load_glyph(mono, size + 1 / 64, "x").advance_px > p  # the largest such size, to 1/64 px
+        assert load_glyph(str(FONT), sans_size, "x").coverage.shape[0] == load_glyph(mono, size, "x").coverage.shape[0]
+
+
+@pytest.fixture(scope="module")
+def study2_plans():
+    if not HAVE_DATA:
+        pytest.skip("font or books not present (W1.4)")
+    sweep = _concrete(_load(STUDY2), size=18)
+    readers = _readers(sweep)
+    return sweep, {name: plan_pages(sweep, readers[name], DEFAULTS, root=ROOT, readers=readers)
+                   for name in sweep["readers"]}
+
+
+@needs_data
+def test_study2_pages_are_planned_per_reader_text_types_alternating(study2_plans):
+    sweep, plans = study2_plans
+    for reader, plan in plans.items():
+        assert set(plan) == {"shared"}
+        pages = plan["shared"]
+        counts = {kind: sweep["pages"][kind]["per_text_type"][reader] for kind in ("natural", "random62")}
+        assert [sum(p.text_type == kind for p in pages) for kind in counts] == list(counts.values())
+        if counts["random62"]:
+            assert [p.text_type for p in pages[:4]] == ["natural", "random62"] * 2
+        assert all(p.book_id == f"rnd{sweep['seed']}" for p in pages if p.text_type == "random62")
+
+
+@needs_data
+def test_study2_prose_starts_after_study1_and_stays_below_the_pilots_offset(study2_plans):
+    sweep, plans = study2_plans
+    used = {}
+    readers = _readers(sweep)
+    for entry in sweep["pages"]["natural"]["start_after"]:
+        earlier = _load(ROOT / entry)
+        for reader in earlier["readers"]:
+            for pages in plan_pages(earlier, readers[reader], DEFAULTS, root=ROOT, readers=readers).values():
+                for page in pages:
+                    if page.text_type == "natural":
+                        used[page.book_id] = max(used.get(page.book_id, 0), _end(page))
+    words = book_text("pg105", ROOT).split()
+    for reader, plan in plans.items():
+        for page in plan["shared"]:
+            if page.text_type != "natural":
+                continue
+            assert page.start_word >= used[page.book_id], (reader, page.page_id)
+            if page.book_id == "pg105":
+                assert len(" ".join(words[: _end(page)])) < PILOT_PERSUASION_OFFSET, (reader, page.page_id)
+
