@@ -1,5 +1,5 @@
 # PURPOSE: Tests for the pagination plan of a sweep (build guide section 2.4; the block Z pages of section 3.5), the condition hash (2.5) and the runner (2.8).
-# WHAT GOES HERE: CPU checks on the committed books and font: phase allowances, shared pages across layouts, text order and ids, block Z passages, placeholders, no reuse; the hash test vector; the runner on a fake backend: rows, resume, cut-off line, shuffle, deadline, refusals.
+# WHAT GOES HERE: CPU checks on the committed books and font: phase allowances, shared pages across layouts, text order and ids, block Z passages, placeholders, no reuse; the hash test vector; the runner on a fake backend: rows, resume, cut-off line, shuffle, deadline, refusals; Study 2's text_types and results_schema.
 # FILLED IN AT STEP: W2.2 (pages), W2.3 (hash, runner).
 # DO NOT: Load a model. Paginate by character count. Weaken the capacity numbers of section 2.4 to make a test pass.
 """Tests for mrr.sweep: plan_pages and its helpers, condition_hash and run_sweep."""
@@ -27,10 +27,10 @@ from conftest import REPO_ROOT
 from mrr import grid
 from mrr import sweep as sweep_module
 from mrr.grid import resolve_render_cfg
-from mrr.manifest import RESULTS_COLUMNS
+from mrr.manifest import RESULTS_COLUMNS, STUDY2_SCORE_COLUMNS
 from mrr.readers import Transcription
 from mrr.render import fits_page
-from mrr.score import cer, char_counts, wer
+from mrr.score import cer, char_counts, char_counts_letters_only, spaces_inserted, wer
 from mrr.sweep import (
     RANDOM_STREAM_CHARS,
     Condition,
@@ -194,9 +194,9 @@ def test_per_reader_page_counts_are_read_for_this_reader_and_may_differ_by_text_
 
 @pytest.mark.parametrize(
     ("kind", "value"),
-    [("natural", "TODO[W3.2]"), ("random62", "<N_Q>"), ("natural", 2.5), ("random62", 0), ("natural", True)],
+    [("natural", "TODO[W3.2]"), ("random62", "<N_Q>"), ("natural", 2.5), ("random62", -1), ("natural", True)],
 )
-def test_a_page_count_that_is_not_a_whole_positive_number_is_refused_naming_the_key(kind, value):
+def test_a_page_count_that_is_not_a_whole_number_is_refused_naming_the_key(kind, value):
     sweep = _pilot()
     sweep["pages"][kind]["per_text_type"] = value
     with pytest.raises(ValueError, match=f"pages.{kind}.per_text_type"):
@@ -858,3 +858,111 @@ def test_load_results_reads_the_run_folder_with_every_id_a_string(full_run):
 def test_load_results_without_a_run_folder_returns_an_empty_frame(tmp_path):
     df = load_results(_write_sweep(tmp_path), tmp_path / "no runs yet")
     assert len(df) == 0 and list(df.columns) == [*RESULTS_COLUMNS, "run_dir"]
+
+
+# Study 2 (PREREGISTRATION_2.md sections 2 to 4): a shared count of 0, blocks that read one text type, the 38 columns.
+
+
+@needs_data
+def test_one_shared_page_count_may_be_zero_but_not_both():
+    sweep = _pilot()
+    sweep["pages"]["random62"]["per_text_type"] = 0
+    pages = _plan(sweep, "qwen")["shared"]
+    assert [page.text_type for page in pages] == ["natural"] * 10
+    sweep["pages"]["natural"]["per_text_type"] = 0
+    with pytest.raises(ValueError, match="both 0"):
+        _plan(sweep, "qwen")
+
+
+@pytest.mark.parametrize("value", [[], ["random62", "random62"], ["prose"], "random62"])
+def test_a_bad_text_types_list_is_refused_naming_the_block(value):
+    sweep = copy.deepcopy(RUNNER_SWEEP)
+    sweep["blocks"]["S"]["text_types"] = value
+    with pytest.raises(ValueError, match="block S.*text_types|text_types.*block S|S.*text_types"):
+        expand_conditions(sweep, READERS["qwen"])
+
+
+def test_text_types_are_kept_in_their_fixed_order_and_left_out_of_the_hash():
+    sweep = copy.deepcopy(RUNNER_SWEEP)
+    before = {condition_hash(c) for c in expand_conditions(sweep, READERS["qwen"])}
+    sweep["blocks"]["S"]["text_types"] = ["random62", "natural"]
+    conditions = expand_conditions(sweep, READERS["qwen"])
+    assert {c.text_types for c in conditions} == {("natural", "random62")}
+    assert {condition_hash(c) for c in conditions} == before
+
+
+def test_text_types_on_a_per_condition_block_are_refused():
+    sweep = copy.deepcopy(LADDER)
+    sweep["blocks"]["Z"]["text_types"] = ["natural"]
+    with pytest.raises(ValueError, match="paginate: shared"):
+        expand_conditions(sweep, READERS["qwen"])
+
+
+@needs_data
+def test_pages_of_a_type_no_block_reads_are_refused():
+    sweep = copy.deepcopy(RUNNER_SWEEP)
+    for block in sweep["blocks"].values():
+        block["text_types"] = ["natural"]
+    with pytest.raises(ValueError, match="no shared block reads random62"):
+        _plan(sweep, "qwen")
+
+
+@needs_data
+def test_a_block_that_reads_one_text_type_gets_rows_on_that_types_pages_only(tmp_path):
+    sweep_path = _write_sweep(tmp_path, blocks={**RUNNER_SWEEP["blocks"],
+                                                "S": {**RUNNER_SWEEP["blocks"]["S"], "text_types": ["random62"]}})
+    backend = FakeBackend()
+    (run_dir,) = _run(sweep_path, backend, tmp_path / "runs")
+    _, rows = _csv_rows(run_dir / "results.csv")
+    assert len(rows) == 3 * 2 + 2 * 1 == backend.calls == len(set(_keys(rows)))
+    assert {r["page_id"] for r in rows if r["block"] == "S"} == {"rnd20261014_p0000"}
+    assert {r["page_id"] for r in rows if r["block"] == "H"} == set(RUNNER_PAGES)
+    manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["config"]["rows_planned"] == 8
+    folder = sweep_module.RunFolder(run_dir)
+    assert len(folder.planned_rows("pg105_p0000", "natural")) == 3
+    assert len(folder.planned_rows("rnd20261014_p0000", "random62")) == 5
+    df = load_results(sweep_path, tmp_path / "runs")
+    assert sweep_module.excluded_pages(df, [folder]) == {str(run_dir): set()}
+    assert _run(sweep_path, FakeBackend(), tmp_path / "runs", resume=run_dir) == [run_dir]  # nothing left to write
+    assert len(_csv_rows(run_dir / "results.csv")[1]) == 8
+
+
+@needs_data
+def test_a_study2_sweep_writes_the_letters_only_counts_and_the_inserted_spaces(tmp_path):
+    texts = ("the  same text", "Sir Walter Elliot, of Kellynch Hall")
+    sweep_path = _write_sweep(tmp_path, results_schema="study2")
+    (run_dir,) = _run(sweep_path, FakeBackend(texts=texts), tmp_path / "runs")
+    header, rows = _csv_rows(run_dir / "results.csv")
+    assert header == [*RESULTS_COLUMNS, *STUDY2_SCORE_COLUMNS] and len(header) == 38
+    assert len(rows) == RUNNER_ROWS
+    for row in rows:
+        reference = (run_dir / "references" / f"{row['page_id']}.txt").read_text(encoding="utf-8")
+        hypothesis = (run_dir / row["transcription_file"]).read_text(encoding="utf-8")
+        letters = char_counts_letters_only(reference, hypothesis)
+        assert [int(row[c]) for c in STUDY2_SCORE_COLUMNS] == [
+            letters.hits, letters.substitutions, letters.deletions, letters.insertions,
+            spaces_inserted(reference, hypothesis),
+        ]
+    df = load_results(sweep_path, tmp_path / "runs")
+    assert list(df.columns) == [*RESULTS_COLUMNS, *STUDY2_SCORE_COLUMNS, "run_dir"]
+    assert all(df[c].dtype == "int64" for c in STUDY2_SCORE_COLUMNS)
+    empty = load_results(sweep_path, tmp_path / "no runs yet")
+    assert list(empty.columns) == [*RESULTS_COLUMNS, *STUDY2_SCORE_COLUMNS, "run_dir"]
+
+
+@needs_data
+def test_a_resume_under_another_schema_is_refused(full_run, tmp_path):
+    run_dir, _ = full_run
+    copy_dir = tmp_path / run_dir.name
+    copy_dir.mkdir()
+    (copy_dir / "results.csv").write_bytes((run_dir / "results.csv").read_bytes())
+    with pytest.raises(RuntimeError, match="schema changed"):
+        sweep_module._done_keys(copy_dir / "results.csv", [*RESULTS_COLUMNS, *STUDY2_SCORE_COLUMNS])
+
+
+def test_an_unknown_results_schema_is_refused_before_any_folder(tmp_path):
+    sweep_path = _write_sweep(tmp_path, results_schema="study3")
+    with pytest.raises(ValueError, match="results_schema"):
+        _run(sweep_path, FakeBackend(), tmp_path / "runs")
+    assert not (tmp_path / "runs").exists()

@@ -215,7 +215,7 @@ def checks_table(df_all, folders: Sequence[RunFolder], excluded: Mapping[str, se
                 if folder.page_key(str(page_id)) != sweep_mod.SHARED:
                     continue
                 done = set(zip(group["condition_hash"].tolist(), (int(r) for r in group["repeat"].tolist())))
-                expected += int(not (folder.planned_rows(str(page_id)) - done))
+                expected += int(not (folder.planned_rows(str(page_id), str(group["text_type"].iloc[0])) - done))
         out.append({
             "run_dir": folder.run_dir.name, "reader": folder.reader, "rows_done": n, "rows_planned": folder.rows_planned,
             "repeated_keys": 0,  # load_results raises on a repeated key, so a table exists only when there is none
@@ -524,7 +524,7 @@ def pages_table(df_all, folders: Sequence[RunFolder], plans: Mapping[str, dict[s
                 if group is None:
                     continue  # never started: the clock stopped the run before it (D26)
                 done = set(zip(group["condition_hash"].tolist(), (int(r) for r in group["repeat"].tolist())))
-                planned = folder.planned_rows(page.page_id)
+                planned = folder.planned_rows(page.page_id, page.text_type)
                 ref_path = folder.run_dir / "references" / f"{page.page_id}.txt"
                 reference = ref_path.read_text(encoding="utf-8") if ref_path.exists() else None
                 tokens = int(group["vision_tokens"].iloc[0])

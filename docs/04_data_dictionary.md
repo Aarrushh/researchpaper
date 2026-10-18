@@ -65,6 +65,61 @@ results/runs/<run_id>/
 
 `<condition_hash>` is `mrr.sweep.condition_hash(cond)` (build guide section 2.5): a dictionary of exactly ten keys, `aa_mode`, `block`, `font_file` (the file name only), `font_size_px`, `line_pitch_mode`, `line_pitch_px`, `patch_aware_slot_px` (`null` for `conventional`, the reader's patch in pixels for `patch_aware`), `phase_x_px`, `phase_y_px` and `render_mode`, every number cast to float, serialised with `json.dumps(cond, sort_keys=True, separators=(",", ":"))` and hashed with SHA-1; the hash is the first 12 hexadecimal characters. Test vector: `{"aa_mode":"coverage_srgb","block":"C","font_file":"SourceSans3-Regular.ttf","font_size_px":16.0,"line_pitch_mode":"unaligned","line_pitch_px":20.0,"patch_aware_slot_px":null,"phase_x_px":7.0,"phase_y_px":0.0,"render_mode":"conventional"}` hashes to `9c811d1777d4`; with the integer 7 in place of 7.0 it would hash to `bc2ca5dcb62f`, which is why every number is cast first. The resume key of a row is (`reader`, `page_id`, `condition_hash`, `repeat`). The hash never includes a path or a page size, never uses Python's `hash()`, and its key set does not change after the pilot without an amendment.
 
+## results.csv under `results_schema: study2` (Study 2, D27)
+
+A sweep config with `results_schema: study2` (`configs/sweeps/study2.yaml`) writes the 33 columns above and then these five, 38 in all (`STUDY2_SCORE_COLUMNS` and `RESULTS_SCHEMAS` in `src/mrr/manifest.py`). Study 1's sweeps have no `results_schema` key and keep the 33. `load_results` and a resume both refuse a header that is not the sweep's own. All five are computed from the same normalised strings as `hits` to `insertions` (`score._normalised`).
+
+| Column | Type | Unit | Allowed values | Example |
+|---|---|---|---|---|
+| `hits_ns` | int | characters | 0 or more: jiwer's hits with every space removed from both strings (`score.char_counts_letters_only`), the letters-only CER of PREREGISTRATION_2.md section 4 | `228` |
+| `substitutions_ns` | int | characters | 0 or more (jiwer, spaces removed) | `3` |
+| `deletions_ns` | int | characters | 0 or more (jiwer, spaces removed) | `1` |
+| `insertions_ns` | int | characters | 0 or more (jiwer, spaces removed) | `0` |
+| `spaces_inserted` | int | characters | 0 or more: the spaces inside jiwer's insert chunks of the full alignment (`score.spaces_inserted`); a space that replaces a character is a substitution and is not counted. Divided by `reference_chars` it is H3's inserted spaces per reference character | `2` |
+
+A block of a Study 2 sweep may carry `text_types: [random62]` (or `[natural]`): its conditions then read only that type's shared pages. `text_types` is not one of the ten hash keys, so it never changes a `condition_hash`. One of `pages.natural.per_text_type` and `pages.random62.per_text_type` may be 0 for a reader (smolvlm500m reads prose only); both 0 is refused. A sweep's `readers_config` names its reader file: `configs/readers_study2.yaml` for Study 2, `configs/readers.yaml` by default.
+
+## reports/tables/study2_prerun/ (Study 2, PREREGISTRATION_2.md section 7, before the run)
+
+`font_screen.csv` (`scripts/23_font_pretest.py`, section 7.1, criteria (a) to (d)): one row per candidate monospace face at the size where its advance is the patch of Qwen2.5-VL-3B (P = 14).
+
+| Column | Type | Unit | Meaning |
+|---|---|---|---|
+| `font` | string | none | the font file's stem |
+| `file` | string | none | the font file under `data/external/fonts/` |
+| `version` | string | none | the face's version string (name table) |
+| `advance_per_em` | float | em | the advance width of `x` at 100 px divided by 100, which every glyph of a monospace face shares |
+| `size_px` | float | pixels | the largest size, in steps of 1/64 px down from P / `advance_per_em`, at which the advance is at most P |
+| `advance_px` | float | pixels | the advance at `size_px`, at most P |
+| `x_rows`, `cap_rows` | int | pixel rows | the bitmap heights of `x` and `H` at `size_px`; criterion (b) wants `x_rows` from 11 to 13 |
+| `min_ink` | int | pixel columns | the narrowest bitmap over the 62 symbols; criterion (a) wants at least 7 |
+| `max_overhang` | int | pixels | the largest distance any symbol's ink reaches outside its P-pixel cell, either side |
+| `not_contained` | string | none | the symbols whose ink leaves the cell, concatenated; empty to pass (a) |
+| `o0_diff` | float | share of pixels | of the union of the binarised `O` and `0` (coverage at least 0.5, centred), the share where only one has ink; criterion (c) wants at least 0.15 |
+| `zero_marked` | bool | none | whether `0` has ink in the middle 30% of its rows and columns (a dot or a slash); criterion (c) wants it |
+| `il1_min_diff` | float | share of pixels | the smallest such share over the pairs `I`/`l`, `I`/`1` and `l`/`1`; criterion (d) wants at least 0.15 |
+| `pass_a` to `pass_d`, `passes` | bool | none | criteria (a) to (d) of section 7.1, and all four |
+
+`font_pretest.csv`: one row per face that passed the screen, read by Qwen2.5-VL-3B on ten random-text pages (seed 20261022, paginated to the face with the largest line pitch so that every face reads the same pages) in patch-aware layout at `size_px`. On space-stripped strings: `pages`, `letters` (the reference's letters, H + S + D), `o0_confusions` and `il1_confusions` (substitutions between `O` and `0`, and among `I`, `l` and `1`), `letter_errors` (S + D + I), `letters_only_cer` (their ratio, pooled over the pages) and `page_hashes` (the first ten hexadecimal characters of each reference's SHA-1, space-separated). `pretest/<font>/NN.txt` holds the transcriptions; `screen_eight/` the screen of all eight candidates.
+
+`feasibility.csv` (`scripts/24_feasibility.py`, section 7.2): one row per validation reader and page (`random`, `prose`).
+
+| Column | Type | Unit | Meaning |
+|---|---|---|---|
+| `reader`, `hf_id`, `revision`, `quantization` | string | none | the block of `configs/readers_study2.yaml` (`quantization` is empty for bf16) |
+| `parameter_devices` | string | none | the device types the parameters sit on, space-separated; `cuda` alone to pass |
+| `linear4bit_layers` | int | layers | 4-bit linear layers in the whole model |
+| `vision_linear4bit_layers` | int | layers | 4-bit linear layers whose module name contains `visual`, `vision_tower` or `vision_model` (the vision tower; Qwen's merger sits under `visual`); 0 to pass |
+| `blank_tokens`, `grid_token_count` | int | tokens | the processor's image tokens for a blank 448 x 448 page, and `grid.token_count`; equal to pass |
+| `page`, `chars` | string, int | none, characters | which M0 page (Fira Mono at 23.333 px) and its reference length |
+| `max_new_tokens`, `new_tokens`, `hit_limit` | int, int, bool | tokens | the limit (ceil(1.5 x the reference's tokens)), the tokens written, and whether the limit stopped the output |
+| `latency_s` | float | seconds | the transcription's wall time |
+| `cer` | float | ratio | the page's CER |
+| `peak_gib` | float | GiB | `torch.cuda.max_memory_allocated` after the reader's pages |
+| `passes` | bool | none | every check above, and a transcription that is not empty |
+
+`feasibility_run1_tower_in_4bit/` keeps the first run, which failed with the vision tower in 4-bit; `feasibility/manifest.json` and `stdout.txt` belong to the passing run.
+
 ## results/mtf/ (W3.6, the layer-0 MTF from the weights)
 
 ```

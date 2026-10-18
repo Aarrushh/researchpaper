@@ -38,6 +38,8 @@ from mrr import grid, render, score, text_source
 from mrr.manifest import (
     CODE_PATHS,
     RESULTS_COLUMNS,
+    RESULTS_SCHEMAS,
+    STUDY2_SCORE_COLUMNS,
     code_changed_since,
     code_dirty,
     git_commit,
@@ -51,8 +53,12 @@ PAGINATION_MODES = ("shared", "per_condition")
 AXES = ("x", "y")
 # Every key a block may hold. Anything else is a typo, and a typo must not silently become a default.
 BLOCK_KEYS = frozenset(
-    {"render_mode", "line_pitch_mode", "axis", "range", "step_px", "phases_px", "aa_mode", "font_size_px", "font_file", "paginate"}
+    {"render_mode", "line_pitch_mode", "axis", "range", "step_px", "phases_px", "aa_mode", "font_size_px", "font_file", "paginate",
+     "text_types"}
 )
+# The two text types, the keys under pages: in a sweep config. A block reads both unless its text_types names one
+# (Study 2: Q0 and S18 read random characters only, PREREGISTRATION_2.md section 3). Not a hash key.
+TEXT_TYPES = ("natural", "random62")
 # The keys a block inherits from the top of the sweep when it does not set them itself (section 2.3, step 1).
 INHERITED_KEYS = ("font_file", "font_size_px", "aa_mode")
 # The keys that may hold a list. The lists are crossed in this order, with the phase levels innermost (step 3).
@@ -79,6 +85,8 @@ class Condition:
     ``font_file`` is the file name only, never a path, so that the hash does not depend on the machine.
     ``patch_aware_slot_px`` is the reader's patch for ``patch_aware`` and None for ``conventional``.
     ``paginate`` is ``shared`` (the reader's one pagination, section 2.4) or ``per_condition`` (block Z).
+    ``text_types`` are the text types whose pages the condition reads, both unless its block names one; like
+    ``paginate`` it is not hashed.
     """
 
     block: str
@@ -92,6 +100,7 @@ class Condition:
     phase_y_px: float
     patch_aware_slot_px: int | None
     paginate: str = "shared"
+    text_types: tuple[str, ...] = TEXT_TYPES
 
     def hash_keys(self) -> dict[str, Any]:
         """Return the ten keys of the condition hash, every number cast to float (section 2.5, step 2)."""
@@ -112,6 +121,18 @@ def _choice(value: Any, allowed: tuple[str, ...], key: str, label: str) -> str:
     if not isinstance(value, str) or value not in allowed:
         raise ValueError(f"{label}: {key} must be one of {', '.join(allowed)}, not {value!r}")
     return value
+
+
+def _text_types(value: Any, label: str) -> tuple[str, ...]:
+    """A block's text types: both when absent, else a non-empty list of them without repeats, in TEXT_TYPES order."""
+    if value is None:
+        return TEXT_TYPES
+    if not isinstance(value, (list, tuple)) or not value or len(set(map(str, value))) != len(value):
+        raise ValueError(f"{label}: text_types must be a non-empty list of {', '.join(TEXT_TYPES)} without repeats, "
+                         f"not {value!r}")
+    for v in value:
+        _choice(v, TEXT_TYPES, "text_types", label)
+    return tuple(t for t in TEXT_TYPES if t in value)
 
 
 def _per_reader(value: Any, reader: str, key: str) -> Any:
@@ -185,6 +206,9 @@ def expand_conditions(sweep: Mapping[str, Any], reader_cfg: Mapping[str, Any]) -
                 raise ValueError(f"{label}: {key} is missing; set it in the block or at the top of the sweep")
         axis = _choice(block.get("axis", "x"), AXES, "axis", label)
         paginate = _choice(block.get("paginate", "shared"), PAGINATION_MODES, "paginate", label)
+        text_types = _text_types(block.get("text_types"), label)
+        if paginate != "shared" and text_types != TEXT_TYPES:
+            raise ValueError(f"{label}: text_types needs paginate: shared; a per-condition block reads both text types")
         font_file = settings["font_file"]
         if not isinstance(font_file, str):
             raise ValueError(f"{label}: font_file must be one path, not {font_file!r} (one typeface per sweep)")
@@ -224,6 +248,7 @@ def expand_conditions(sweep: Mapping[str, Any], reader_cfg: Mapping[str, Any]) -
                         phase_y_px=phase_y,
                         patch_aware_slot_px=slot,
                         paginate=paginate,
+                        text_types=text_types,
                     )
                 )
     return conditions
@@ -232,7 +257,7 @@ def expand_conditions(sweep: Mapping[str, Any], reader_cfg: Mapping[str, Any]) -
 # Pages (section 2.4; the block Z pages of section 3.5).
 
 SHARED = "shared"  # the pagination key of the pages every shared block reads
-NATURAL, RANDOM62 = "natural", "random62"  # the two text types: the keys under pages: in a sweep config
+NATURAL, RANDOM62 = TEXT_TYPES  # the two text types: the keys under pages: in a sweep config
 RANDOM_STREAM_CHARS = 200_000  # one random_text stream per sweep (section 2.4, step 4)
 Z_MODE_TAGS = {"conventional": "conv", "patch_aware": "pa"}  # <mode> in a block Z page id
 
@@ -343,10 +368,10 @@ def _layout_cfg(
     )
 
 
-def _count(value: Any, label: str, reader: str) -> int:
+def _count(value: Any, label: str, reader: str, minimum: int = 1) -> int:
     value = _per_reader(value, reader, label)
-    if isinstance(value, bool) or not isinstance(value, numbers.Integral) or value < 1:
-        raise ValueError(f"{label} must be a whole number of pages, 1 or more, not {value!r}")
+    if isinstance(value, bool) or not isinstance(value, numbers.Integral) or value < minimum:
+        raise ValueError(f"{label} must be a whole number of pages, {minimum} or more, not {value!r}")
     return int(value)
 
 
@@ -354,8 +379,9 @@ def _page_counts(pages_cfg: Any, reader: str) -> tuple[dict[str, int], dict[str,
     """Return the shared and the block Z page counts by text type (section 2.4, step 7 on placeholders).
 
     The shared counts are ``pages.<text type>.per_text_type``; the Z counts are ``pages.z_per_text_type`` for both
-    text types, or the shared counts when that key is absent (the ladder). Any may be a map by reader. A string, a
-    fraction or zero raises ValueError naming the key.
+    text types, or the shared counts when that key is absent (the ladder). Any may be a map by reader. A string or a
+    fraction raises ValueError naming the key, and so does zero, except that one shared count of a reader may be 0
+    while the other is not (Study 2: smolvlm500m reads prose only, PREREGISTRATION_2.md section 2).
     """
     if not isinstance(pages_cfg, Mapping):
         raise ValueError("pages must be a mapping with natural and random62 (section 2.7)")
@@ -365,7 +391,9 @@ def _page_counts(pages_cfg: Any, reader: str) -> tuple[dict[str, int], dict[str,
         section = pages_cfg.get(kind)
         if not isinstance(section, Mapping) or "per_text_type" not in section:
             raise ValueError(f"{label} is missing")
-        shared[kind] = _count(section["per_text_type"], label, reader)
+        shared[kind] = _count(section["per_text_type"], label, reader, minimum=0)
+    if not any(shared.values()):
+        raise ValueError(f"pages.natural.per_text_type and pages.random62.per_text_type are both 0 for {reader}")
     if "z_per_text_type" in pages_cfg:
         n = _count(pages_cfg["z_per_text_type"], "pages.z_per_text_type", reader)
         return shared, {NATURAL: n, RANDOM62: n}
@@ -431,8 +459,9 @@ def plan_pages(
     """Return the pages of one reader for every pagination of ``sweep`` (section 2.4; block Z, section 3.5).
 
     Under ``shared`` are the pages every block with ``paginate: shared`` reads. A page fits when ``render.fits_page``
-    holds for each distinct shared layout (in the pilot: conventional unaligned for C and A, conventional aligned for
-    V, patch_aware unaligned for H and S) with the allowances of ``phase_allowances``. Natural pages come from
+    holds for each distinct shared layout that reads its text type (in the pilot: conventional unaligned for C and A,
+    conventional aligned for V, patch_aware unaligned for H and S; a block's ``text_types`` can leave a layout out of
+    one type) with the allowances of ``phase_allowances``. Natural pages come from
     ``pages.natural.books`` in rotation, each book from its front-matter skip (``text_source.book_text``); random
     pages from one ``random_text(RANDOM_STREAM_CHARS, seed)`` stream; the list interleaves them, natural then random.
 
@@ -501,17 +530,24 @@ def plan_pages(
     if shared:
         allowances = phase_allowances(shared)
         layouts: dict[tuple, dict[str, Any]] = {}
+        read_by: dict[str, dict[tuple, dict[str, Any]]] = {kind: {} for kind in TEXT_TYPES}  # the layouts of each type
         for c in shared:
             if _layout_id(c) not in layouts:
                 layouts[_layout_id(c)] = _layout_cfg(c, reader_cfg, render_cfg, font_paths, allowances)
-        cfgs = list(layouts.values())
-
-        def fits(page: str) -> bool:
-            return all(render.fits_page(page, cfg) for cfg in cfgs)
+            for kind in c.text_types:
+                read_by[kind][_layout_id(c)] = layouts[_layout_id(c)]
 
         by_type: dict[str, list[Page]] = {}
         for kind in (NATURAL, RANDOM62):
             by_type[kind] = []
+            cfgs = list(read_by[kind].values())
+            if shared_counts[kind] and not cfgs:
+                raise ValueError(f"pages.{kind}.per_text_type plans {shared_counts[kind]} pages for {reader}, "
+                                 f"but no shared block reads {kind}")
+
+            def fits(page: str, cfgs: list = cfgs) -> bool:
+                return all(render.fits_page(page, cfg) for cfg in cfgs)
+
             for i in range(shared_counts[kind]):
                 source = stream(kind, i)
                 text = source.page_from(source.cursor, fits)
@@ -617,7 +653,30 @@ def _repair_results(path: Path) -> None:
         fh.truncate(cut)
 
 
-def _done_keys(path: Path) -> set[tuple[str, str, str, str]]:
+DEFAULT_READERS_CONFIG = "configs/readers.yaml"
+
+
+def readers_config(sweep: Mapping[str, Any]) -> str:
+    """The reader file a sweep's readers are configured in: its ``readers_config``, else configs/readers.yaml.
+
+    Study 2 names configs/readers_study2.yaml, which adds the validation readers to Study 1's three (whose blocks it
+    copies unchanged), so that configs/readers.yaml and ``make contract`` keep Study 1's readers only.
+    """
+    path = sweep.get("readers_config", DEFAULT_READERS_CONFIG)
+    if not isinstance(path, str) or not path:
+        raise ValueError(f"readers_config must be one path, not {path!r}")
+    return path
+
+
+def results_columns(sweep: Mapping[str, Any]) -> tuple[str, ...]:
+    """The columns of results.csv a sweep writes: RESULTS_COLUMNS, or Study 2's 38 under ``results_schema: study2``."""
+    name = sweep.get("results_schema", "study1")
+    if name not in RESULTS_SCHEMAS:
+        raise ValueError(f"results_schema must be one of {', '.join(RESULTS_SCHEMAS)}, not {name!r}")
+    return RESULTS_SCHEMAS[name]
+
+
+def _done_keys(path: Path, columns: Sequence[str] = RESULTS_COLUMNS) -> set[tuple[str, str, str, str]]:
     """The resume keys (reader, page_id, condition_hash, repeat) of the rows already in results.csv."""
     if not path.exists():
         return set()
@@ -625,8 +684,9 @@ def _done_keys(path: Path) -> set[tuple[str, str, str, str]]:
         reader = csv.DictReader(fh)
         if reader.fieldnames is None:
             return set()
-        if list(reader.fieldnames) != list(RESULTS_COLUMNS):
-            raise RuntimeError(f"{path}: its header is not RESULTS_COLUMNS; the schema changed since this run started")
+        if list(reader.fieldnames) != list(columns):
+            raise RuntimeError(f"{path}: its header is not the sweep's results columns; the schema changed since this "
+                               "run started")
         return {(row["reader"], row["page_id"], row["condition_hash"], row["repeat"]) for row in reader}
 
 
@@ -737,7 +797,10 @@ class _ReaderRun:
     def __post_init__(self) -> None:
         self.name = str(self.reader_cfg["name"])
         self.sequence = _page_sequence(self.plan)
-        self.rows_planned = sum(len(self.plan[pagination_key(c)]) for c in self.conditions) * self.repeats
+        self.columns = results_columns(self.sweep)
+        self.rows_planned = self.repeats * sum(
+            sum(page.text_type in c.text_types for page in self.plan[pagination_key(c)]) for c in self.conditions
+        )
         self.hashes = {c: condition_hash(c) for c in self.conditions}
         self.blocks = {str(k): v for k, v in self.sweep["blocks"].items()}
         self.periods = reader_periods(self.reader_cfg)
@@ -755,14 +818,15 @@ class _ReaderRun:
         phase = (condition.phase_x_px, condition.phase_y_px) if at_phase else (0.0, 0.0)
         return _layout_cfg(condition, self.reader_cfg, self.render_defaults, self.font_paths, allow, phase=phase)
 
-    def _conditions_of(self, key: str) -> list[Condition]:
-        return [c for c in self.conditions if pagination_key(c) == key]
+    def _conditions_of(self, key: str, text_type: str) -> list[Condition]:
+        """The conditions that read the pages of pagination ``key`` and of ``text_type``, in condition order."""
+        return [c for c in self.conditions if pagination_key(c) == key and text_type in c.text_types]
 
     def pending(self, done: set[tuple[str, str, str, str]]) -> list[tuple[int, str, Page]]:
         """The pages with at least one row still to write: (index in the sequence, pagination key, page)."""
         out = []
         for i, (key, page) in enumerate(self.sequence):
-            conds = self._conditions_of(key)
+            conds = self._conditions_of(key, page.text_type)
             if any(self._key(page, c, r) not in done for c in conds for r in range(self.repeats)):
                 out.append((i, key, page))
         return out
@@ -771,7 +835,7 @@ class _ReaderRun:
         """The page's coherence at phase 0: one row per block layout, period and harmonic (section 2.2)."""
         rows = []
         seen = set()
-        for c in self._conditions_of(key):
+        for c in self._conditions_of(key, page.text_type):
             ident = (c.block, _layout_id(c))
             if ident in seen:
                 continue
@@ -790,7 +854,7 @@ class _ReaderRun:
 
     def check_tokens(self, backend: Any, reader: Any, page: Page, key: str) -> None:
         """Before the first row: the processor's token count must be the grid's (section 2.8, step 3; D8)."""
-        image = render.render_page(page.text, self._cfg(self._conditions_of(key)[0], key, at_phase=True))
+        image = render.render_page(page.text, self._cfg(self._conditions_of(key, page.text_type)[0], key, at_phase=True))
         height, width = image.shape[:2]
         counted, expected = backend.count_vision_tokens(reader, image), grid.token_count(self.reader_cfg, height, width)
         if counted != expected:
@@ -803,7 +867,7 @@ class _ReaderRun:
         """Write every missing row of this reader; return True if the deadline stopped the run (section 2.8)."""
         results_path = self.run_dir / RESULTS_FILE
         _repair_results(results_path)
-        done = _done_keys(results_path)
+        done = _done_keys(results_path, self.columns)
         coherence_done = {t[0] for t in _csv_tuples(self.run_dir / COHERENCE_FILE, ("page_id",))}
         determinism_done = _csv_tuples(self.run_dir / DETERMINISM_FILE, DETERMINISM_COLUMNS[:3])
         pending = self.pending(done)
@@ -826,7 +890,7 @@ class _ReaderRun:
                 if page.page_id not in coherence_done:
                     _append_rows(self.run_dir / COHERENCE_FILE, COHERENCE_COLUMNS, self.coherence_rows(page, key))
                     coherence_done.add(page.page_id)
-                conds = self._conditions_of(key)
+                conds = self._conditions_of(key, page.text_type)
                 limit = max(1, math.ceil(MAX_NEW_TOKENS_FACTOR * backend.count_text_tokens(reader, page.text)))
                 latencies: list[float] = []
                 for j in np.random.default_rng([self.seed, i]).permutation(len(conds) * self.repeats):
@@ -874,7 +938,12 @@ class _ReaderRun:
             "latency_s": result.latency_s, "timestamp_utc": _now().isoformat(timespec="seconds"),
             "git_commit": self.commit,
         }
-        _append_rows(self.run_dir / RESULTS_FILE, RESULTS_COLUMNS, [row])
+        if "spaces_inserted" in self.columns:  # Study 2's scores (PREREGISTRATION_2.md section 4)
+            letters = score.char_counts_letters_only(page.text, result.text)
+            row.update({"hits_ns": letters.hits, "substitutions_ns": letters.substitutions,
+                        "deletions_ns": letters.deletions, "insertions_ns": letters.insertions,
+                        "spaces_inserted": score.spaces_inserted(page.text, result.text)})
+        _append_rows(self.run_dir / RESULTS_FILE, self.columns, [row])
         done.add(self._key(page, c, r))
         return float(result.latency_s)
 
@@ -931,7 +1000,8 @@ def run_sweep(
     """Run a sweep: render, transcribe and score every page under every condition, one row at a time (section 2.8).
 
     One reader at a time, in the sweep's order. Each reader gets a run folder ``output_root / new_run_id(...)`` with
-    ``manifest.json``, ``results.csv`` (the 33 columns of ``RESULTS_COLUMNS``), ``coherence.csv``, ``determinism.csv``,
+    ``manifest.json``, ``results.csv`` (``results_columns(sweep)``: the 33 of ``RESULTS_COLUMNS``, 38 under
+    ``results_schema: study2``), ``coherence.csv``, ``determinism.csv``,
     ``progress.log``, ``references/`` and ``transcriptions/``, and ``images/`` under ``save_images``. The pages come
     from ``plan_pages``; within a page the (condition, repeat) pairs are shuffled with
     ``np.random.default_rng([seed, page_index]).permutation(n)``. Each page's ``max_new_tokens`` is
@@ -990,6 +1060,7 @@ def run_sweep(
     if deadline is not None:
         deadline = deadline.astimezone(timezone.utc)  # a naive deadline is local time
     repeats = _repeats(sweep)
+    results_columns(sweep)  # an unknown results_schema stops the run before any folder is made
     if require_clean:
         dirty = code_dirty(cwd=root)
         if dirty is None:
@@ -1046,7 +1117,8 @@ def run_sweep(
 
 
 # The dtypes results.csv is read with (section 3.2, step 4): a string for every id, hash and name, so that a hash such
-# as 1e5123456789 is never read as a number and an all-digit one never as an integer. The keys are RESULTS_COLUMNS.
+# as 1e5123456789 is never read as a number and an all-digit one never as an integer. The keys are RESULTS_COLUMNS and
+# STUDY2_SCORE_COLUMNS.
 RESULTS_DTYPES: dict[str, Any] = {
     "run_id": str, "reader": str, "reader_revision": str, "page_id": str, "book_id": str, "text_type": str,
     "block": str, "condition_hash": str, "repeat": "int64", "font_file": str, "font_size_px": "float64",
@@ -1055,6 +1127,7 @@ RESULTS_DTYPES: dict[str, Any] = {
     "reference_chars": "int64", "transcription_file": str, "output_tokens": "int64", "hit_limit": bool,
     "cer": "float64", "wer": "float64", "hits": "int64", "substitutions": "int64", "deletions": "int64",
     "insertions": "int64", "latency_s": "float64", "timestamp_utc": str, "git_commit": str,
+    **{column: "int64" for column in STUDY2_SCORE_COLUMNS},
 }
 RESULTS_KEY = ("reader", "page_id", "condition_hash", "repeat")  # the resume key of a row (section 2.8)
 
@@ -1092,23 +1165,25 @@ def load_results(sweep_path: Path, runs_root: Path) -> "pandas.DataFrame":
 
     Only the run folders of ``sweep_run_dirs`` are read, each ``results.csv`` with ``RESULTS_DTYPES``, so every id
     and hash stays a string. A ``run_dir`` column names each row's folder. Raises ValueError on a header that is
-    not ``RESULTS_COLUMNS`` and on a repeated key (reader, page_id, condition_hash, repeat), naming it. The frame
+    not the sweep's ``results_columns`` and on a repeated key (reader, page_id, condition_hash, repeat), naming it. The frame
     is sorted by reader, page_id, block and condition_hash. pandas is imported here, as plotting.py imports
     matplotlib, so the runner needs neither.
     """
     import pandas as pd  # noqa: PLC0415  (the analysis extra, not a runner dependency)
 
+    expected = results_columns(yaml.safe_load(Path(sweep_path).read_text(encoding="utf-8")) or {})
     frames = []
     for run_dir in sweep_run_dirs(sweep_path, runs_root):
         results_path = run_dir / RESULTS_FILE
         if not results_path.exists() or results_path.stat().st_size == 0:
             continue  # a run that has not written a row yet
         frame = pd.read_csv(results_path, dtype=RESULTS_DTYPES, keep_default_na=False)
-        if list(frame.columns) != list(RESULTS_COLUMNS):
-            raise ValueError(f"{results_path}: its header is not RESULTS_COLUMNS; the schema changed since this run")
+        if list(frame.columns) != list(expected):
+            raise ValueError(f"{results_path}: its header is not the sweep's results columns; the schema changed since "
+                             "this run")
         frame["run_dir"] = str(run_dir)
         frames.append(frame)
-    columns = [*RESULTS_COLUMNS, "run_dir"]
+    columns = [*expected, "run_dir"]
     if not frames:
         return pd.DataFrame({c: pd.Series(dtype=RESULTS_DTYPES.get(c, str)) for c in columns})
     df = pd.concat(frames, ignore_index=True)
@@ -1157,9 +1232,9 @@ class RunFolder:
         self.repeats = int(cfg.get("repeats", 1))
         self.rows_planned = int(cfg.get("rows_planned", 0))
         self.conditions = expand_conditions(self.sweep, self.reader_cfg)
-        self.hashes_by_key: dict[str, list[str]] = {}
+        self.hashes_by_key: dict[str, list[tuple[str, tuple[str, ...]]]] = {}  # (hash, text types) by pagination key
         for c in self.conditions:
-            self.hashes_by_key.setdefault(pagination_key(c), []).append(condition_hash(c))
+            self.hashes_by_key.setdefault(pagination_key(c), []).append((condition_hash(c), c.text_types))
         self.coherence = _read_csv_rows(self.run_dir / COHERENCE_FILE)
         self.determinism = _read_csv_rows(self.run_dir / DETERMINISM_FILE)
 
@@ -1171,9 +1246,13 @@ class RunFolder:
             return SHARED
         return f"z:{_Z_MODES[m['mode']]}:{float(m['size']):g}"
 
-    def planned_rows(self, page_id: str) -> set[tuple[str, int]]:
-        """The (condition hash, repeat) pairs the runner was to write for this page."""
-        return {(h, r) for h in self.hashes_by_key.get(self.page_key(page_id), []) for r in range(self.repeats)}
+    def planned_rows(self, page_id: str, text_type: str) -> set[tuple[str, int]]:
+        """The (condition hash, repeat) pairs the runner was to write for this page, whose text is ``text_type``.
+
+        A condition whose block names ``text_types`` without it reads none of that type's pages.
+        """
+        return {(h, r) for h, kinds in self.hashes_by_key.get(self.page_key(page_id), []) if text_type in kinds
+                for r in range(self.repeats)}
 
     def reference_symbols(self, page_id: str) -> float:
         """The page's reference length without whitespace, from references/<page_id>.txt; NaN without the file."""
@@ -1194,7 +1273,7 @@ def excluded_pages(df, folders: Sequence[RunFolder]) -> dict[str, set[str]]:
         missing: set[str] = set()
         for page_id, group in rows.groupby("page_id", sort=True):
             done = set(zip(group["condition_hash"].tolist(), (int(r) for r in group["repeat"].tolist())))
-            if folder.planned_rows(str(page_id)) - done:
+            if folder.planned_rows(str(page_id), str(group["text_type"].iloc[0])) - done:
                 missing.add(str(page_id))
         out[str(folder.run_dir)] = missing
     return out

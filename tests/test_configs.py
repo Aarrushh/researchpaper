@@ -1,5 +1,5 @@
 # PURPOSE: Tests for every sweep config in configs/sweeps/ (build guide section 2.3).
-# WHAT GOES HERE: CPU checks of the blocks: phase levels, condition counts, the header's run count, the determinism pair, placeholders; the full sweep against the ladder and the pilot: their blocks, no shared text, block Z pages (section 3.5).
+# WHAT GOES HERE: CPU checks of the blocks: phase levels, condition counts, the header's run count, the determinism pair, placeholders; the full sweep against the ladder and the pilot: their blocks, no shared text, block Z pages (section 3.5). Each sweep's readers come from its readers_config.
 # FILLED IN AT STEP: W2.2; W3.2 (the full sweep).
 # DO NOT: Load a model. Edit a config to make a test pass after its run has started; copy it to a new file instead.
 """Tests for the sweep configs."""
@@ -16,7 +16,7 @@ import pytest
 import yaml
 
 from mrr import grid
-from mrr.sweep import HASH_KEYS, Z_MODE_TAGS, expand_conditions, pagination_key, plan_pages
+from mrr.sweep import HASH_KEYS, Z_MODE_TAGS, expand_conditions, pagination_key, plan_pages, readers_config
 from mrr.text_source import BOOKS, TEXTS_DIR
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -41,6 +41,11 @@ def _load(path):
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
+def _readers(sweep):
+    """The reader configs by name of the file the sweep names (``readers_config``), configs/readers.yaml by default."""
+    return {reader["name"]: reader for reader in _load(ROOT / readers_config(sweep))["readers"]}
+
+
 def _concrete(sweep, size=16):
     """Return a copy whose placeholder font sizes (strings such as "from the ladder") are replaced by ``size``."""
     sweep = copy.deepcopy(sweep)
@@ -55,17 +60,19 @@ def _concrete(sweep, size=16):
 @pytest.mark.parametrize("path", SWEEPS, ids=lambda p: p.name)
 def test_every_block_passes_phase_levels_for_every_reader(path):
     sweep = _load(path)
+    readers = _readers(sweep)
     for reader in sweep["readers"]:
         for name, block in sweep["blocks"].items():
-            levels = grid.phase_levels(block, READERS[reader], block=name)
+            levels = grid.phase_levels(block, readers[reader], block=name)
             assert levels and levels[0] == 0.0 and len(set(levels)) == len(levels)
 
 
 @pytest.mark.parametrize("path", SWEEPS, ids=lambda p: p.name)
 def test_every_block_expands_once_the_sizes_are_numbers(path):
     sweep = _concrete(_load(path))
+    readers = _readers(sweep)
     for reader in sweep["readers"]:
-        conditions = expand_conditions(sweep, READERS[reader])
+        conditions = expand_conditions(sweep, readers[reader])
         assert len({dataclasses.astuple(c) for c in conditions}) == len(conditions)
         assert {c.block for c in conditions} == set(sweep["blocks"])
 
@@ -81,16 +88,18 @@ def test_header_run_count_equals_the_computed_count(path):
     header = re.search(r"total runs = (TODO\S*|\d+)", path.read_text(encoding="utf-8"))
     assert header, "the header comment must state the total run count"
     sweep = _load(path)
+    readers = _readers(sweep)
     if header.group(1).startswith("TODO"):
         # A config whose counts or seed are still placeholders must refuse to plan (sections 2.3 and 2.4).
         with pytest.raises(ValueError):
-            plan_pages(_concrete(sweep), READERS[sweep["readers"][0]], DEFAULTS, root=ROOT, readers=READERS)
+            plan_pages(_concrete(sweep), readers[sweep["readers"][0]], DEFAULTS, root=ROOT, readers=readers)
         pytest.skip(f"{path.name}: the run count is not set yet")
     sweep = _concrete(sweep)
-    total = 0  # rows = conditions x the pages each condition reads x repeats, as the runner counts them
+    total = 0  # rows = conditions x the pages of its text types each condition reads x repeats, as the runner counts
     for reader in sweep["readers"]:
-        plan = plan_pages(sweep, READERS[reader], DEFAULTS, root=ROOT, readers=READERS)  # readers: start_after
-        rows = sum(len(plan[pagination_key(c)]) for c in expand_conditions(sweep, READERS[reader]))
+        plan = plan_pages(sweep, readers[reader], DEFAULTS, root=ROOT, readers=readers)  # readers: start_after
+        rows = sum(sum(page.text_type in c.text_types for page in plan[pagination_key(c)])
+                   for c in expand_conditions(sweep, readers[reader]))
         total += rows * sweep["repeats"]
     assert int(header.group(1)) == total
 

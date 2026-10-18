@@ -28,13 +28,14 @@ from pathlib import Path
 import yaml
 
 from mrr import readers
-from mrr.sweep import SAVE_IMAGES, run_sweep
+from mrr.sweep import SAVE_IMAGES, readers_config, run_sweep
 
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--config", required=True, help="configs/sweeps/<name>.yaml")
-    p.add_argument("--readers-config", default="configs/readers.yaml")
+    p.add_argument("--readers-config", default=None,
+                   help="the reader file (default: the sweep's readers_config, else configs/readers.yaml)")
     p.add_argument("--render-config", default="configs/render_defaults.yaml")
     p.add_argument("--readers", default=None, help="comma-separated subset of the sweep's readers (default: all)")
     p.add_argument("--resume", default=None, help="an existing run folder of one reader to continue")
@@ -52,7 +53,8 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-    readers_cfg = yaml.safe_load(Path(args.readers_config).read_text(encoding="utf-8"))
+    readers_path = args.readers_config or readers_config(yaml.safe_load(Path(args.config).read_text(encoding="utf-8")))
+    readers_cfg = yaml.safe_load(Path(readers_path).read_text(encoding="utf-8"))
     render_defaults = yaml.safe_load(Path(args.render_config).read_text(encoding="utf-8"))
     only = [name.strip() for name in args.readers.split(",") if name.strip()] if args.readers else None
     deadline = datetime.fromisoformat(args.deadline) if args.deadline else None

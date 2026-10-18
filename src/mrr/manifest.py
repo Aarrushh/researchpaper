@@ -55,6 +55,14 @@ RESULTS_COLUMNS: tuple[str, ...] = (
     "timestamp_utc",
     "git_commit",
 )
+# Study 2 (PREREGISTRATION_2.md section 4): a sweep with ``results_schema: study2`` writes these after the 33, the
+# letters-only counts (score.char_counts_letters_only) and the inserted spaces (score.spaces_inserted). Study 1's runs
+# keep RESULTS_COLUMNS. Documented in docs/04_data_dictionary.md.
+STUDY2_SCORE_COLUMNS: tuple[str, ...] = ("hits_ns", "substitutions_ns", "deletions_ns", "insertions_ns", "spaces_inserted")
+RESULTS_SCHEMAS: dict[str, tuple[str, ...]] = {
+    "study1": RESULTS_COLUMNS,
+    "study2": RESULTS_COLUMNS + STUDY2_SCORE_COLUMNS,
+}
 
 # Packages whose versions are recorded, mapped to their distribution names.
 TRACKED_PACKAGES: dict[str, str] = {
