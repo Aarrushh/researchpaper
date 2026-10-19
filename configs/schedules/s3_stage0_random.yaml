@@ -1,0 +1,30 @@
+# PURPOSE: The clock that stops Study 3's stage 0 on random text (configs/sweeps/s3_stage0_random.yaml): which readers run in which phase, and until when.
+# WHAT GOES HERE: Phases in order, each with its readers (run side by side) and its end as ISO 8601 with the UTC offset; max_restarts per reader.
+# FILLED IN AT STEP: Study 3 stage 0, drafted 19 October 2026. The phases are fixed; the times are set with the owner's go, and scripts/11_run_schedule.py refuses to start until they are.
+# DO NOT: Edit after the run has started. A crash is resumed by the driver, and the lost time is not made up.
+#
+# As Studies 1 and 2: the Qwen-sized readers run alone and the two SmolVLM readers together. This schedule runs
+# first; configs/schedules/s3_stage0_prose.yaml follows it, its first phase ending after this one's last.
+# Expected hours at the sweep's ceilings, from the planned pages (characters a page per size), the measured speed of
+# each reader (seconds a generated token over every row of Studies 1 and 2: qwen 66 ms, qwen7b 39, internvl3_2b 31,
+# smolvlm 44 and smolvlm500m 55 ms beside each other; the validation readers' times x 1.3, since they never wrote
+# more than 500 tokens), and the generation length (the reference in tokens, 1.5 times it, the limit, below a reader's
+# a, where Study 1's ladder hit the limit on most pages):
+#   qwen          56 rows, 10 and 12 px at the limit (about 190 and 130 s a page)    about 1.05 h
+#   smolvlm       112 rows                                                        about 0.4 h, beside
+#   smolvlm500m   112 rows, every size at the limit if it never reads             about 0.3 h
+#   internvl3_2b  56 rows                                                         about 0.65 h
+#   qwen7b        56 rows                                                         about 0.8 h
+# Each phase gets about twice its expected time, rounded up to the half hour, so the ceilings are reached unless a
+# reader loops; the deadline is then the stopping rule, checked between pages. A phase whose readers reach their
+# ceilings early hands its time to the next, which still ends at its own deadline.
+
+# Times set on 19 October 2026 with the owner's go ("set the times from now"), from a start of 22:40 CEST: each
+# phase's end is the previous one's plus 2, 1, 1.5 and 1.5 hours.
+
+phases:
+  - {readers: [qwen], until: "2026-10-20T00:40:00+02:00"}
+  - {readers: [smolvlm, smolvlm500m], until: "2026-10-20T01:40:00+02:00"}
+  - {readers: [internvl3_2b], until: "2026-10-20T03:10:00+02:00"}
+  - {readers: [qwen7b], until: "2026-10-20T04:40:00+02:00"}
+max_restarts: 5

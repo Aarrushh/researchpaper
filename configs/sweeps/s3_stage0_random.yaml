@@ -1,0 +1,43 @@
+# PURPOSE: Study 3 stage 0, random text: each reader's acuity curve, CER against size on full pages of conventional Source Sans 3 (design note R7, section 3).
+# WHAT GOES HERE: The five readers of Study 2, the random pages only, the seed, one per-condition block of seven sizes per reader, the results schema and the reader file.
+# FILLED IN AT STEP: Study 3 stage 0, drafted 19 October 2026 for the owner's review. Frozen at the owner's go.
+# DO NOT: Edit after the run has started; resume instead. Never reuse a seed or a page of Study 1, Study 2, the pilots, the font pre-test or the feasibility step.
+#
+# Two sweeps: a per-condition block reads both text types at every size (sweep.expand_conditions), and the cliffs of
+# random text and prose sit at different sizes (prose at about half the size for the Qwen-sized readers). Random text
+# at a prose size is the costliest row there is (a full page of garbage up to the token limit) and tells nothing, so
+# the prose has its own sweep, configs/sweeps/s3_stage0_prose.yaml, with its own sizes.
+#
+# The layout is Study 1's block Z at one render mode: conventional, unaligned pitch, phase 0, coverage_srgb, each size
+# paginated on its own with no phase allowance (a full page), page i of every size starting at the same passage.
+# Sizes: about 0.75a to 2.5a in steps of about 1.22, a being the size at which CER is one half, from Study 1's ladder
+# and full block Z on full pages (reports/tables/full/sizes.csv, 8 pages a size; fit in R7 section 1):
+#   P = 14, 448 px page (qwen, qwen7b, internvl3_2b): a = 13.4 px and slope 6.1 for qwen, its 1% size 28 px. The two
+#     validation readers have no ladder; their Study 2 rows at 25 px on partial pages (0.010 and 0.037 against qwen's
+#     0.015) put them near it, so one ladder for the three, reaching 36 px so that internvl3_2b's 1% size falls inside.
+#     24 px is Study 1's size for qwen.
+#   smolvlm: a = 21.2 px, slope 7.5 (20 px 0.607 and 24 px 0.284 on full pages), its 1% size about 39 px.
+#   smolvlm500m: CER 0.97 or more at every Study 1 size up to 24 px, so a is unknown. 29 to 86 px asks whether its
+#     random-text failure is acuity (CER falls with size) or its decoder (it does not); at 86 px a page holds about 50
+#     characters.
+# Pages: 8 a size for the Qwen-sized readers, 16 for the two SmolVLM, whose pages at their sizes are short (about 70
+# and 50 characters at the top size) and fast.
+# Rows per reader = 7 sizes x N: qwen, qwen7b, internvl3_2b 56 each; smolvlm, smolvlm500m 112 each; total 392.
+# Hours: configs/schedules/s3_stage0_random.yaml.
+
+readers: [qwen, smolvlm, smolvlm500m, qwen7b, internvl3_2b]
+readers_config: configs/readers_study2.yaml     # Study 1's three blocks unchanged and Study 2's validation readers
+results_schema: study2                          # the 33 columns and hits_ns ... spaces_inserted, as Study 2
+seed: 20261023                                  # new: 20261012 to 20261022 are taken (Study 1, the pilots, Study 2, the bootstrap, the font pre-test)
+pages:
+  natural: {books: [pg105, pg84, pg1661], per_text_type: 0}     # the prose is in s3_stage0_prose.yaml
+  random62: {per_text_type: {qwen: 8, smolvlm: 16, smolvlm500m: 16, qwen7b: 8, internvl3_2b: 8}}
+repeats: 1
+font_file: data/external/fonts/source-sans-3/SourceSans3-Regular.ttf
+aa_mode: coverage_srgb
+blocks:
+  Z: {render_mode: conventional, line_pitch_mode: unaligned, phases_px: [0.0], paginate: per_condition,
+      font_size_px: {qwen: [10, 12, 15, 19, 24, 29, 36], smolvlm: [16, 19, 23, 28, 34, 42, 52],
+                     smolvlm500m: [29, 35, 42, 50, 60, 72, 86], qwen7b: [10, 12, 15, 19, 24, 29, 36],
+                     internvl3_2b: [10, 12, 15, 19, 24, 29, 36]}}
+output_root: results/runs

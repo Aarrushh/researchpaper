@@ -1,0 +1,26 @@
+# PURPOSE: The clock that stops Study 3's stage 0 on prose (configs/sweeps/s3_stage0_prose.yaml): which readers run in which phase, and until when.
+# WHAT GOES HERE: Phases in order, each with its readers (run side by side) and its end as ISO 8601 with the UTC offset; max_restarts per reader.
+# FILLED IN AT STEP: Study 3 stage 0, drafted 19 October 2026. The phases are fixed; the times are set with the owner's go, and scripts/11_run_schedule.py refuses to start until they are.
+# DO NOT: Edit after the run has started. A crash is resumed by the driver, and the lost time is not made up.
+#
+# Runs after configs/schedules/s3_stage0_random.yaml, from the same shell once that driver has exited; its first
+# phase ends after that schedule's last, so a random phase that ends early hands its time to the prose.
+# Expected hours at the sweep's ceilings, worked as in s3_stage0_random.yaml (planned characters a page, each reader's
+# measured seconds a token, the limit below a reader's a):
+#   qwen          56 rows, 6 and 7 px at the limit (about 200 and 150 s a page)      about 1.15 h
+#   smolvlm       112 rows                                                        about 0.3 h, beside
+#   smolvlm500m   112 rows                                                        about 0.3 h
+#   internvl3_2b  56 rows                                                         about 0.7 h
+#   qwen7b        56 rows                                                         about 0.9 h
+# Each phase gets about twice its expected time, rounded up to the half hour; the deadline is the stopping rule,
+# checked between pages.
+
+# Times set on 19 October 2026 with the owner's go ("set the times from now"), after the random schedule's last
+# phase (04:40 CEST on 20 October): each phase's end is the previous one's plus 2.5, 1, 1.5 and 2 hours.
+
+phases:
+  - {readers: [qwen], until: "2026-10-20T07:10:00+02:00"}
+  - {readers: [smolvlm, smolvlm500m], until: "2026-10-20T08:10:00+02:00"}
+  - {readers: [internvl3_2b], until: "2026-10-20T09:40:00+02:00"}
+  - {readers: [qwen7b], until: "2026-10-20T11:40:00+02:00"}
+max_restarts: 5

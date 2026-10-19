@@ -1,0 +1,37 @@
+# PURPOSE: Study 3 stage 0, prose: each reader's acuity curve on full pages of conventional Source Sans 3, the twin of s3_stage0_random.yaml (design note R7, section 3).
+# WHAT GOES HERE: The five readers of Study 2, the prose pages only, the seed, one per-condition block of seven sizes per reader, the results schema and the reader file.
+# FILLED IN AT STEP: Study 3 stage 0, drafted 19 October 2026 for the owner's review. Frozen at the owner's go.
+# DO NOT: Edit after the run has started; resume instead. Never reuse a seed or a page of Study 1, Study 2, the pilots, the font pre-test or the feasibility step.
+#
+# The layout, the steps between sizes and the page counts are those of s3_stage0_random.yaml; only the sizes and the
+# text type differ. Sizes from Study 1's full pages (reports/tables/full/sizes.csv):
+#   P = 14, 448 px page (qwen, qwen7b, internvl3_2b): qwen's prose cliff sits below Study 1's ladder (10 px 0.072,
+#     12 px 0.007), so a is about 7.5 px. 6 to 20 px spans it; at 6 px the cap height is 4 px, under the sampling floor
+#     of about 6 px (R7, section 2), which anchors the top of the curve. A page at 6 px holds about 8,600 characters.
+#     The validation readers read Study 2's prose at 25 px without error, so they share qwen's ladder.
+#   smolvlm: a = 16.1 px, slope 6.6 (R7, section 1), its 1% size about 32 px.
+#   smolvlm500m: a = about 23 px (20 px 0.837 and 24 px 0.415 on full pages), its 1% size about 36 px.
+# Natural pages start after every word of the three books that Study 1's ladder and full sweep and Study 2 planned for
+# any reader (pages.natural.start_after); the pilots, the font pre-test and the feasibility step read only pages
+# inside those ranges or random text.
+# Rows per reader = 7 sizes x N: qwen, qwen7b, internvl3_2b 56 each; smolvlm, smolvlm500m 112 each; total 392.
+# Hours: configs/schedules/s3_stage0_prose.yaml.
+
+readers: [qwen, smolvlm, smolvlm500m, qwen7b, internvl3_2b]
+readers_config: configs/readers_study2.yaml     # Study 1's three blocks unchanged and Study 2's validation readers
+results_schema: study2                          # the 33 columns and hits_ns ... spaces_inserted, as Study 2
+seed: 20261024                                  # new, and not s3_stage0_random.yaml's 20261023; this sweep reads no random page
+pages:
+  natural: {books: [pg105, pg84, pg1661],
+            per_text_type: {qwen: 8, smolvlm: 16, smolvlm500m: 16, qwen7b: 8, internvl3_2b: 8},
+            start_after: [configs/sweeps/ladder.yaml, configs/sweeps/full.yaml, configs/sweeps/study2.yaml]}
+  random62: {per_text_type: 0}                  # the random text is in s3_stage0_random.yaml
+repeats: 1
+font_file: data/external/fonts/source-sans-3/SourceSans3-Regular.ttf
+aa_mode: coverage_srgb
+blocks:
+  Z: {render_mode: conventional, line_pitch_mode: unaligned, phases_px: [0.0], paginate: per_condition,
+      font_size_px: {qwen: [6, 7, 9, 11, 13, 16, 20], smolvlm: [12, 14, 17, 21, 25, 31, 38],
+                     smolvlm500m: [18, 21, 25, 30, 36, 43, 52], qwen7b: [6, 7, 9, 11, 13, 16, 20],
+                     internvl3_2b: [6, 7, 9, 11, 13, 16, 20]}}
+output_root: results/runs
