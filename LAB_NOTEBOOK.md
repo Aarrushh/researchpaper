@@ -1195,3 +1195,16 @@ Broke:
 - Nothing. Tags still local only.
 Next:
 - `prereg-v2` on this commit; the worktree `.claude/worktrees/run2` at the tag; the launch outside the chat session with `PYTHONPATH=src` and `HF_HUB_OFFLINE=1`, and a keep-awake helper until 01:30 on 20 October.
+
+## 2026-10-19, Claude (D22): W5.2, the Study 2 run launched at `prereg-v2` (D26)
+Did:
+- `.claude/worktrees/run2`: a detached worktree at `prereg-v2` (badfe672), clean at creation; its `configs/sweeps/study2.yaml` has the SHA-1 of this worktree's copy, b0a2903c. Dry run of `scripts/11_run_schedule.py`: four phases, a new run folder for each reader. No `10_run_sweep.py` or `11_run_schedule.py` process alive before the launch; the GPU idle.
+- 12:08:02 CEST: driver launched through WMI (`run2/logs/launch_driver.cmd`) with the keep-awake helper (`run2/logs/keep_awake.ps1`, until 01:30 on 20 October). The driver started `qwen` at 12:08:03 and the whole tree was gone within 90 s, before the runner wrote a line or created its folder: no traceback, no exit line from `cmd.exe`, as Study 1's WMI launches of 15:27 and 15:41 on 15 October. The keep-awake helper, launched the same way, is still alive.
+- 12:10:54 CEST: driver relaunched from the chat session's background shell (`PYTHONPATH=src`, `HF_HUB_OFFLINE=1`), as Study 1's run was. Run folder `20261019-1011_study2_qwen_badfe67`: manifest at badfe672, 840 rows planned, 120 pages; first page (`pg105_p0000`, prose, 6 rows) at 12:12:14, 3.4 s a row; 7.45 GiB on the GPU.
+Found:
+- The manifest records `git_dirty: true`: the run worktree's `logs/` (the launch and keep-awake scripts and the driver's output) is untracked and not ignored, since `.gitignore` ignores only `*.log`, and the run folder itself is untracked. The code paths of section 2.8 are clean, which is what the runner checks before it starts. Study 1's first manifest was clean only because its `logs/` did not exist yet.
+- The first random page has the 8 renders of section 3, S28 at 28 px. A pipeline check only, no test.
+Broke:
+- Nothing.
+Next:
+- The run depends on the chat session staying open until about 00:30 on 20 October; phase boundaries at 16:00 (`qwen` ends), 20:00 (the SmolVLM pair), 21:30 (`internvl3_2b`), 00:30 (`qwen7b`). Before any relaunch, list the run processes and look for a deliberate stop. After `schedule done`: the run folders into this worktree without images, committed first; then `scripts/22_analyze_study2.py`, Figures 3 and 4, the freeze and `data-freeze-v2`.
