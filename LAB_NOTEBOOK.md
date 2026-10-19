@@ -1180,3 +1180,18 @@ Broke:
 - Nothing. Tags still local only.
 Next:
 - The owner's decision on S18, then the final text of `PREREGISTRATION_2.md`, `make test` and `make contract` on that commit, and `prereg-v2` locally; then the run's start time and the schedule's deadlines with the owner's go.
+
+## 2026-10-19, Claude (D22): W5.1, S28 chosen by the owner, the final text of `PREREGISTRATION_2.md`, `prereg-v2`
+Did:
+- The owner, at about 11:45 CEST, answered two questions: the size of the density-matched condition, "28 px (Recommended)" (the others offered: 34 px by the draft's glyphs-per-line rule, 18 px kept as a "small sans" comparison, or no density condition); and when the run should start, "Right after tagging" (tag `prereg-v2` locally, fill in the schedule and launch today once the tests and contract checks pass).
+- Block D at 28 px in `configs/sweeps/study2.yaml`; `study2.condition_code` names it S28. Sections 1, 3, 6 and 11 of `PREREGISTRATION_2.md` agree with it (section 3 now states the characters-per-page rule), and its status line is final. S18 renamed S28 in the docstrings of `src/mrr/study2.py`, `src/mrr/sweep.py` and `scripts/22_analyze_study2.py` and in `docs/04_data_dictionary.md`; D27's record in `docs/05_decisions.md` keeps the name it had then.
+- `configs/schedules/study2.yaml`: from a start of 12:30 CEST, `qwen` until 16:00, `smolvlm` and `smolvlm500m` until 20:00, `internvl3_2b` until 21:30, `qwen7b` until 00:30 on 20 October.
+- Tests: the conditions test of section 3 reads the sweep as it is (no stand-in size) and checks block D's font, size and layout; `tests/test_run_schedule.py` loads both committed schedules against their sweeps and checks that every reader of the sweep runs in some phase.
+- `make test` 763 passed; `make contract` 70 of 70, its `contract_checks.csv` (written to a scratch folder) identical byte for byte to the committed one; `scripts/40_freeze.py --check --sweep configs/sweeps/full.yaml`: the freeze checks out and Study 1's tables regenerate byte for byte.
+Found:
+- S28 is not quite neutral for the pages, as the draft's note said it was: planning with block D at 28 px and without block D gives the same pages for `qwen`, `smolvlm500m` and both validation readers, but for `smolvlm` S28 is the tightest layout on a few random pages, and its 90 random pages hold 2,279 words against 2,282 (13,584 characters against 13,602), the first change at the 31st random page. 18 px changed no page. Recorded in section 11.
+- This worktree's `configs/sweeps/study2.yaml` had been written with LF, while `.gitattributes` makes every checkout write it with CRLF, the bytes whose SHA-1 the run's manifests record. `load_results` here would have refused the run folders as "a frozen config was edited". Rewritten with CRLF; the stored blob is the same either way.
+Broke:
+- Nothing. Tags still local only.
+Next:
+- `prereg-v2` on this commit; the worktree `.claude/worktrees/run2` at the tag; the launch outside the chat session with `PYTHONPATH=src` and `HF_HUB_OFFLINE=1`, and a keep-awake helper until 01:30 on 20 October.

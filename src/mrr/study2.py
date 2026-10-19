@@ -7,7 +7,7 @@
 The sweep (``configs/sweeps/study2.yaml``) writes four blocks: S (sans, conventional, phases 0, 5, 10), Q (sans,
 patch_aware, phase 0, random text only), M (mono, patch_aware, phases 0, 3 and P / 2) and D (sans, conventional at the
 density size, random text only). ``condition_code`` names each row as section 3 does (S0, S5, S10, Q0, M0, M3, M7 or
-M8, S18) and ``group_of`` puts it in the groups section 6 compares: conventional (S pooled over its phases), contained
+M8, S28) and ``group_of`` puts it in the groups section 6 compares: conventional (S pooled over its phases), contained
 (M0 and M3 pooled), cut (M at P / 2), slot (Q0) and density (D). A page's value for a group pools the counts of every
 row of that group on the page.
 """
@@ -43,7 +43,7 @@ def role(reader: str) -> str:
 
 
 def condition_code(block: str, phase_x_px: float, font_size_px: float) -> str:
-    """Section 3's code of a row: the block and its phase (S0, S5, S10, Q0, M0, M3, M7), block D by its size (S18)."""
+    """Section 3's code of a row: the block and its phase (S0, S5, S10, Q0, M0, M3, M7), block D by its size (S28)."""
     if block == "D":
         return f"S{float(font_size_px):g}"
     return f"{block}{float(phase_x_px):g}"

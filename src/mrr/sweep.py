@@ -57,7 +57,7 @@ BLOCK_KEYS = frozenset(
      "text_types"}
 )
 # The two text types, the keys under pages: in a sweep config. A block reads both unless its text_types names one
-# (Study 2: Q0 and S18 read random characters only, PREREGISTRATION_2.md section 3). Not a hash key.
+# (Study 2: Q0 and S28 read random characters only, PREREGISTRATION_2.md section 3). Not a hash key.
 TEXT_TYPES = ("natural", "random62")
 # The keys a block inherits from the top of the sweep when it does not set them itself (section 2.3, step 1).
 INHERITED_KEYS = ("font_file", "font_size_px", "aa_mode")

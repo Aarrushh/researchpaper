@@ -192,6 +192,14 @@ def test_bad_schedules_are_refused(tmp_path, phases, match):
         rs.load_schedule(path, {"readers": ["qwen", "smolvlm"]})
 
 
+@pytest.mark.parametrize("name", ["full", "study2"])
+def test_the_committed_schedules_load_and_run_every_reader_of_their_sweep(name):
+    sweep = yaml.safe_load((REPO_ROOT / "configs" / "sweeps" / f"{name}.yaml").read_text(encoding="utf-8"))
+    phases, max_restarts = rs.load_schedule(REPO_ROOT / "configs" / "schedules" / f"{name}.yaml", sweep)
+    assert {reader for phase in phases for reader in phase["readers"]} == set(sweep["readers"])
+    assert max_restarts == 5
+
+
 def test_two_run_folders_of_one_reader_are_refused(setup):
     tmp_path, runner, make = setup
     sweep, _ = make([{"readers": ["qwen"], "until": _iso(T0 + timedelta(hours=1))}])

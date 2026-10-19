@@ -353,7 +353,7 @@ def test_study2_keeps_study1_allowances_and_gives_the_validation_readers_qwens()
 
 @pytest.mark.parametrize("reader", _load(STUDY2)["readers"])
 def test_study2_conditions_are_the_eight_renders_of_section_3(reader):
-    sweep = _concrete(_load(STUDY2), size=18)
+    sweep = _load(STUDY2)
     readers = _readers(sweep)
     cfg = readers[reader]
     conditions = expand_conditions(sweep, cfg)
@@ -370,6 +370,8 @@ def test_study2_conditions_are_the_eight_renders_of_section_3(reader):
     assert mono.patch_aware_slot_px == p and mono.font_size_px == {14: 23.333, 16: 26.651}[p]
     assert sans.font_file == "SourceSans3-Regular.ttf" and sans.font_size_px == {14: 25, 16: 29}[p]
     assert by_block["Q"][0].font_size_px == sans.font_size_px and by_block["Q"][0].render_mode == "patch_aware"
+    density = by_block["D"][0]  # S28, the owner's choice of 19 October (section 11)
+    assert density.font_file == sans.font_file and density.font_size_px == 28 and density.render_mode == "conventional"
     assert {b: cs[0].text_types for b, cs in by_block.items()} == {
         "S": ("natural", "random62"), "Q": ("random62",), "M": ("natural", "random62"), "D": ("random62",)}
 
@@ -390,7 +392,7 @@ def test_the_mono_size_puts_the_advance_at_most_one_patch_and_the_sans_matches_i
 def study2_plans():
     if not HAVE_DATA:
         pytest.skip("font or books not present (W1.4)")
-    sweep = _concrete(_load(STUDY2), size=18)
+    sweep = _load(STUDY2)
     readers = _readers(sweep)
     return sweep, {name: plan_pages(sweep, readers[name], DEFAULTS, root=ROOT, readers=readers)
                    for name in sweep["readers"]}

@@ -12,10 +12,14 @@
 #   qwen7b        480 x 7.4 s + 360 x 2.6 s               about 1.3 h
 # Each phase gets about twice its expected time, so the ceilings are reached unless a reader loops; the deadline is
 # then the stopping rule, checked between pages.
+#
+# Times set on 19 October 2026 with the owner's go ("Right after tagging"), from a start of 12:30 CEST: each phase's
+# end is the previous one's plus 3.5, 4, 1.5 and 3 hours. A phase whose readers reach their ceilings early hands its
+# time to the next, which still ends at its own deadline.
 
 phases:
-  - {readers: [qwen], until: "TODO[start + 3.5 h, set with the owner's go]"}
-  - {readers: [smolvlm, smolvlm500m], until: "TODO[previous + 4 h]"}
-  - {readers: [internvl3_2b], until: "TODO[previous + 1.5 h]"}
-  - {readers: [qwen7b], until: "TODO[previous + 3 h]"}
+  - {readers: [qwen], until: "2026-10-19T16:00:00+02:00"}
+  - {readers: [smolvlm, smolvlm500m], until: "2026-10-19T20:00:00+02:00"}
+  - {readers: [internvl3_2b], until: "2026-10-19T21:30:00+02:00"}
+  - {readers: [qwen7b], until: "2026-10-20T00:30:00+02:00"}
 max_restarts: 5

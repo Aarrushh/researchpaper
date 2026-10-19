@@ -23,7 +23,7 @@ pages section 8 excludes (``sweep.complete_rows``) and writes into ``<out-dir>/<
                     own text, glyphs per line, characters per vision token
 
 A page's value for a group pools the counts of the group's rows on that page (D13): conventional is S0, S5 and S10;
-contained is M0 and M3; cut is M at P / 2; slot is Q0; density is block D (S18). Every contrast is written
+contained is M0 and M3; cut is M at P / 2; slot is Q0; density is block D (S28). Every contrast is written
 ``<treatment>_vs_<baseline>`` and its median difference is treatment minus baseline, so a negative value means the
 treatment (the contained monospace layout) has the lower error. Every resampling is by page, 2,000 resamples, seed
 20261021 (section 6).
