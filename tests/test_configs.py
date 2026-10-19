@@ -88,7 +88,12 @@ def test_pilot_conditions_per_page_per_text_type(reader, expected):
 @pytest.mark.parametrize("path", SWEEPS, ids=lambda p: p.name)
 def test_header_run_count_equals_the_computed_count(path):
     # "total runs = 3320" on its own line, or "...; total runs = 216." at the end of the ladder's one-line formula.
-    header = re.search(r"total runs = (TODO\S*|\d+)", path.read_text(encoding="utf-8"))
+    # The stage-0 sweeps of Study 3 end their "Rows per reader" line with "...; total 392." instead; they were frozen
+    # by their run (the manifest holds their SHA-1) before this test saw them, so the wording stays and the count is
+    # checked all the same.
+    text = path.read_text(encoding="utf-8")
+    header = re.search(r"total runs = (TODO\S*|\d+)", text) or re.search(r"^# Rows per reader .*; total (\d+)\.$",
+                                                                          text, re.MULTILINE)
     assert header, "the header comment must state the total run count"
     sweep = _load(path)
     readers = _readers(sweep)
