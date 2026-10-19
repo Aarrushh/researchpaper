@@ -1,0 +1,6 @@
+run_dir,reader,rows_done,rows_planned,repeated_keys,missing_transcriptions,empty_transcriptions,hit_limit_count,hit_limit_share,median_output_tokens,determinism_pairs,determinism_expected,determinism_mismatches,coherence_malformed,pages_seen,pages_excluded,excluded_page_ids,median_latency_s,status,family
+20261019-1011_study2_qwen_badfe67,qwen,840,840,0,0,0,0,0.0,137.0,0,0,0,0,120,0,,6.4096723,preregistered,checks
+20261019-1206_study2_smolvlm500m_badfe67,smolvlm500m,360,360,0,0,0,18,0.05,64.0,0,0,0,0,60,0,,3.5927598,preregistered,checks
+20261019-1206_study2_smolvlm_badfe67,smolvlm,1260,1260,0,0,0,6,0.0047619047619,101.0,0,0,0,0,180,0,,3.04158925,preregistered,checks
+20261019-1414_study2_internvl3_2b_badfe67,internvl3_2b,840,840,0,0,0,1,0.00119047619048,136.0,0,0,0,0,120,0,,4.25211475,preregistered,checks
+20261019-1505_study2_qwen7b_badfe67,qwen7b,840,840,0,0,0,1,0.00119047619048,137.0,0,0,0,0,120,0,,4.7471574,preregistered,checks
