@@ -26,6 +26,16 @@
         "sweep_file": "configs\\sweeps\\s3_stage0_prose.yaml",
         "sweep_sha1": "40a1d702828e42174e0b22c14c586b720eef5b8c"
       },
+      "s3_stage0_prose_internvl3": {
+        "pages_excluded": {},
+        "rows_fitted": 112,
+        "rows_loaded": 112,
+        "run_dirs": [
+          "20261020-0847_s3_stage0_prose_internvl3_internvl3_2b_386d084"
+        ],
+        "sweep_file": "configs\\sweeps\\s3_stage0_prose_internvl3.yaml",
+        "sweep_sha1": "f8426aa6873272fa574a33c526921fe50967662d"
+      },
       "s3_stage0_random": {
         "pages_excluded": {},
         "rows_fitted": 392,
@@ -43,10 +53,10 @@
     },
     "tables": {
       "acuity": 10,
-      "cells": 70
+      "cells": 76
     }
   },
-  "git_commit": "79d5f8c536c41fd769d8d7d4de4be3f5884d1590",
+  "git_commit": "386d0849fa97a31ef487d25d22a1c0fdd6864b75",
   "git_dirty": true,
   "gpu_name": "NVIDIA GeForce RTX 5060 Laptop GPU",
   "packages": {
@@ -60,6 +70,6 @@
   },
   "platform": "Windows-10-10.0.26300-SP0",
   "python_version": "3.11.15",
-  "run_id": "20261020-0759_s3_stage0_analysis_79d5f8c",
-  "timestamp_utc": "2026-10-20T07:59:33Z"
+  "run_id": "20261020-0939_s3_stage0_analysis_386d084",
+  "timestamp_utc": "2026-10-20T09:39:46Z"
 }

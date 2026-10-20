@@ -4,7 +4,8 @@
 # DO NOT: Pool stage-0 rows with Study 1 or Study 2 in a reported table; --configs with Study 1's ladder and full sweep is a check of the fit only. Read reports/tables/.
 """Study 3 stage 0: turn the run folders of the stage-0 sweeps into each reader's acuity curve.
 
-    python scripts/25_fit_stage0.py [--configs configs/sweeps/s3_stage0_random.yaml configs/sweeps/s3_stage0_prose.yaml]
+    python scripts/25_fit_stage0.py [--configs configs/sweeps/s3_stage0_random.yaml configs/sweeps/s3_stage0_prose.yaml
+                                               configs/sweeps/s3_stage0_prose_internvl3.yaml]
                                     [--runs-root results/runs] [--out-dir reports/tables] [--name s3_stage0]
                                     [--resamples 2000] [--seed 20261025]
 
@@ -52,7 +53,8 @@ _spec.loader.exec_module(analyze1)
 
 _log = logging.getLogger(__name__)
 
-DEFAULT_CONFIGS = ("configs/sweeps/s3_stage0_random.yaml", "configs/sweeps/s3_stage0_prose.yaml")
+DEFAULT_CONFIGS = ("configs/sweeps/s3_stage0_random.yaml", "configs/sweeps/s3_stage0_prose.yaml",
+                   "configs/sweeps/s3_stage0_prose_internvl3.yaml")  # InternVL3's prose above 20 px, pooled with the second
 RESAMPLES = 2000
 SEED = 20261025  # new: 20261012 to 20261024 are taken (sweeps, the bootstrap of Study 2, the font pre-test, stage 0)
 CELL_COLUMNS = ("sweep", "reader", "text_type", "font_size_px", "pages", "reference_chars", "errors", "cer",

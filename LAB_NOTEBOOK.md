@@ -1230,3 +1230,17 @@ Next:
 - Two design questions for R7, the owner's: random text in mixed case measures a case prior besides acuity (a case-folded CER beside the scored one, or random text in one case); prose pages that start or end inside a sentence charge the SmolVLMs for a stopping habit (cut pages at sentence ends, or score the page's first and last sentence apart).
 - Whether to re-read Qwen random passages 4 to 7 to check that their transcriptions are unchanged.
 - Study 2's own finish entry and `data-freeze-v2` are still to do.
+
+## 2026-10-20, Claude (D22): Study 3 stage 0, InternVL3's upper prose ladder run (exploratory)
+Did:
+- `.claude/worktrees/run4`, a detached worktree at 386d0849, clean at creation; its `configs/sweeps/s3_stage0_prose_internvl3.yaml` has the SHA-1 of this worktree's CRLF copy, f8426aa6. Dry run: one phase, a new run folder. No runner, driver or test process alive before the launch; the GPU idle.
+- 10:41:32 CEST: driver started from the chat session's background shell (`PYTHONPATH=src`, `HF_HUB_OFFLINE=1`), with the keep-awake helper until 11:40. The runner replanned the earlier sweeps' prose until 10:47:11, read its first page at 10:47:47 and its last at 10:55:25: 112 of 112 rows, "exited cleanly (deadline or ceiling)", no restart; manifest at 386d0849 with `git_dirty: false`. Nothing else of mine ran beside it; the keep-awake helper stopped at the end.
+- On the owner's go ("Copy the new InternVL3 run folder from run4 into p5, add the sweep to the fit script's default configs, regenerate reports/tables/s3_stage0, add a short notebook entry for the run, and commit it all to build/p5 (local only)"): the run folder `20261020-0847_s3_stage0_prose_internvl3_internvl3_2b_386d084` copied into this worktree byte for byte without images; the sweep added to `DEFAULT_CONFIGS` of `scripts/25_fit_stage0.py`; `reports/tables/s3_stage0/` regenerated (76 cells, 10 fits; only InternVL3's prose rows change), identical byte for byte to a fit made from run4's folders; `tests/test_acuity.py` 25 passed.
+Found:
+- InternVL3 prose on the new passages, pooled CER: 14 px 0.750, 17 px 0.234, 20 px 0.029, 24 px 0.003, 29 px 0.001, 35 px 0.004, 42 px 0.027. Read off the cells, 1% lies between 20 and 24 px, about 22 px by log interpolation, where a page carries about 2.5 characters a vision token.
+- Pooled with `s3_stage0_prose.yaml` (24 passages, 13 sizes): a 14.9 [14.1, 15.5] px, β 7.8 [5.7, 10.7], s05 21.8 [20.0, 24.4], s01 26.9 [23.5, 32.6] px, κ01 1.57 [1.05, 2.09], both sizes now inside the measured range. The fitted s01 lies above the cells' 22 px: the two-parameter curve has no room for the 42 px cell, which is one page.
+- The errors left at 20 px and above are behaviour, not acuity: at 20 px two pages skip lines (187 and 61 characters deleted; the median page 0.010); at 42 px one page reads every character and opens with "Sure, here is the transcribed text from the image:" and a code fence (60 inserted characters of 144, the page's token limit reached). With this run all five readers show the same pattern: above the end of the cliff, what remains is skipped lines, dropped sentence tails, lower-cased capitals and a chat preamble.
+Broke:
+- Nothing.
+Next:
+- The analysis: how stage 0 scores and reports these behaviours apart from acuity (R7; the owner's decision, from the committed transcriptions, no new run).
