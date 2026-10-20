@@ -1,0 +1,193 @@
+{
+  "config": {
+    "conditions": 7,
+    "deadline": "2026-10-20T09:40:00+00:00",
+    "generation": {
+      "do_sample": false,
+      "max_new_tokens": "ceil(1.5 x the reference's length in the reader's tokens), per page (sections 1B.9 and 2.8)",
+      "num_beams": 1,
+      "repetition_penalty": 1.0
+    },
+    "pages": 56,
+    "placement": {
+      "decision": "D18",
+      "device_map": "cuda",
+      "dtype": "bfloat16"
+    },
+    "reader": {
+      "aligned_pitch_px": 28,
+      "device_map": "cuda",
+      "dtype": "bfloat16",
+      "hf_id": "Qwen/Qwen2.5-VL-7B-Instruct",
+      "image_token": "<|image_pad|>",
+      "max_new_tokens": 591,
+      "max_pixels": 12845056,
+      "merge_size": 2,
+      "min_pixels": 3136,
+      "name": "qwen7b",
+      "page_px": [
+        448,
+        448
+      ],
+      "patch_size": 14,
+      "prompt": "Transcribe all text in the image exactly. Output only the text.",
+      "quantization": "nf4",
+      "revision": "cc594898137f460bfe9f0759e9844b3ce807cfb5",
+      "token_cell_px": 28,
+      "window_px": 112
+    },
+    "render": {
+      "aa_mode": "coverage_srgb",
+      "background_color": [
+        255,
+        255,
+        255
+      ],
+      "blind_strip_px": 0,
+      "font_file": "SourceSans3-Regular.ttf",
+      "font_size_px": [
+        6,
+        7,
+        9,
+        11,
+        13,
+        16,
+        20
+      ],
+      "line_pitch_px": 20,
+      "margin_px": 14,
+      "max_phase_x_px": 0,
+      "max_phase_y_px": 0,
+      "page_height_px": 448,
+      "page_width_px": 448,
+      "patch_aware_slot_px": 14,
+      "phase_x_px": 0,
+      "phase_y_px": 0,
+      "render_mode": "conventional",
+      "text_color": [
+        0,
+        0,
+        0
+      ]
+    },
+    "repeats": 1,
+    "rows_planned": 56,
+    "save_images": "first",
+    "sweep": {
+      "aa_mode": "coverage_srgb",
+      "blocks": {
+        "Z": {
+          "font_size_px": {
+            "internvl3_2b": [
+              6,
+              7,
+              9,
+              11,
+              13,
+              16,
+              20
+            ],
+            "qwen": [
+              6,
+              7,
+              9,
+              11,
+              13,
+              16,
+              20
+            ],
+            "qwen7b": [
+              6,
+              7,
+              9,
+              11,
+              13,
+              16,
+              20
+            ],
+            "smolvlm": [
+              12,
+              14,
+              17,
+              21,
+              25,
+              31,
+              38
+            ],
+            "smolvlm500m": [
+              18,
+              21,
+              25,
+              30,
+              36,
+              43,
+              52
+            ]
+          },
+          "line_pitch_mode": "unaligned",
+          "paginate": "per_condition",
+          "phases_px": [
+            0.0
+          ],
+          "render_mode": "conventional"
+        }
+      },
+      "font_file": "data/external/fonts/source-sans-3/SourceSans3-Regular.ttf",
+      "output_root": "results/runs",
+      "pages": {
+        "natural": {
+          "books": [
+            "pg105",
+            "pg84",
+            "pg1661"
+          ],
+          "per_text_type": {
+            "internvl3_2b": 8,
+            "qwen": 8,
+            "qwen7b": 8,
+            "smolvlm": 16,
+            "smolvlm500m": 16
+          },
+          "start_after": [
+            "configs/sweeps/ladder.yaml",
+            "configs/sweeps/full.yaml",
+            "configs/sweeps/study2.yaml"
+          ]
+        },
+        "random62": {
+          "per_text_type": 0
+        }
+      },
+      "readers": [
+        "qwen",
+        "smolvlm",
+        "smolvlm500m",
+        "qwen7b",
+        "internvl3_2b"
+      ],
+      "readers_config": "configs/readers_study2.yaml",
+      "repeats": 1,
+      "results_schema": "study2",
+      "seed": 20261024
+    },
+    "sweep_file": "configs\\sweeps\\s3_stage0_prose.yaml",
+    "sweep_name": "s3_stage0_prose",
+    "sweep_sha1": "40a1d702828e42174e0b22c14c586b720eef5b8c"
+  },
+  "git_commit": "60064dc3b2edebc8e0ca666db3adebcbeede2cd1",
+  "git_dirty": true,
+  "gpu_name": "NVIDIA GeForce RTX 5060 Laptop GPU",
+  "packages": {
+    "freetype-py": "2.5.1",
+    "jiwer": "4.0.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0",
+    "scipy": "1.17.1",
+    "torch": "2.14.1+cu130",
+    "transformers": "5.19.0"
+  },
+  "platform": "Windows-10-10.0.26300-SP0",
+  "python_version": "3.11.15",
+  "run_id": "20261019-2348_s3_stage0_prose_qwen7b_60064dc",
+  "timestamp_utc": "2026-10-19T23:48:43Z"
+}
