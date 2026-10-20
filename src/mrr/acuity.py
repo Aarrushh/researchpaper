@@ -37,7 +37,7 @@ import dataclasses
 import math
 import re
 import zlib
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 import numpy as np
 from scipy.optimize import minimize
@@ -159,8 +159,13 @@ def _quantiles(values: np.ndarray) -> tuple[float, float]:
     return tuple(math.inf if x > 1e300 else float(x) for x in q)  # a bound beside an infinite resample is infinite
 
 
-def fit_group(rows: Any, *, resamples: int, seed: int) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+def fit_group(rows: Any, *, resamples: int, seed: int, errors_column: str | None = None,
+              chars_column: str | None = None) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Cells and fit of one reader and text type: ``rows`` are its results rows (a DataFrame), one per page and size.
+
+    A row's errors and characters are S + D + I and H + S + D (the primary CER), or the columns ``errors_column`` and
+    ``chars_column`` when both are given (the reading CER of ANALYSIS_PLAN_3.md, section 1.2). The passage draws depend
+    on the seed, the reader and the text type only, so two measures of one group are resampled alike.
 
     A ``sweep`` column, when present, names each row's sweep; a passage is then (sweep, book, index), so that rows of
     two sweeps (Study 1's ladder and full block Z) never share a passage. Returns the cell rows (one per size) and the
@@ -185,10 +190,16 @@ def fit_group(rows: Any, *, resamples: int, seed: int) -> tuple[list[dict[str, A
     errors = np.zeros((len(passages), sizes.size))
     chars = np.zeros_like(errors)
     present = np.zeros_like(errors)
+    if (errors_column is None) != (chars_column is None):
+        raise ValueError("fit_group: give both errors_column and chars_column, or neither")
     for r in rows.itertuples(index=False):
         i, k = p_index[key(r)], s_index[float(r.font_size_px)]
-        errors[i, k] += float(r.substitutions) + float(r.deletions) + float(r.insertions)
-        chars[i, k] += float(r.hits) + float(r.substitutions) + float(r.deletions)
+        if errors_column is None:
+            errors[i, k] += float(r.substitutions) + float(r.deletions) + float(r.insertions)
+            chars[i, k] += float(r.hits) + float(r.substitutions) + float(r.deletions)
+        else:
+            errors[i, k] += float(getattr(r, errors_column))
+            chars[i, k] += float(getattr(r, chars_column))
         present[i, k] += 1
 
     def pooled(idx: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -262,3 +273,129 @@ def fit_group(rows: Any, *, resamples: int, seed: int) -> tuple[list[dict[str, A
                     "floor_e0": floor.e0, "floor_a": floor.a, "floor_beta": floor.beta,
                     "floor_s01": floor.size_at(0.01), "floor_deviance": floor.deviance})
     return cells, fit_row
+
+
+# --------------------------------------------------------------------------- ANALYSIS_PLAN_3.md, section 2
+
+
+def passage_matrices(rows: Any, columns: Sequence[str]) -> tuple[list[tuple[str, str, int]], np.ndarray,
+                                                                  dict[str, np.ndarray], np.ndarray]:
+    """One reader and text type as matrices: its passages (sweep, book, index) and sizes as ``fit_group`` keys them,
+    the sum of each of ``columns`` per passage and size, and the rows per passage and size."""
+
+    def key(r: Any) -> tuple[str, str, int]:
+        return (str(getattr(r, "sweep", "")),) + passage_key(r.page_id)
+
+    sizes = np.array(sorted({float(v) for v in rows["font_size_px"]}), dtype=np.float64)
+    passages = sorted({key(r) for r in rows.itertuples(index=False)})
+    p_index = {p: i for i, p in enumerate(passages)}
+    s_index = {s: k for k, s in enumerate(sizes)}
+    mats = {c: np.zeros((len(passages), sizes.size)) for c in columns}
+    present = np.zeros((len(passages), sizes.size))
+    for r in rows.itertuples(index=False):
+        i, k = p_index[key(r)], s_index[float(r.font_size_px)]
+        for c in columns:
+            mats[c][i, k] += float(getattr(r, c))
+        present[i, k] += 1
+    return passages, sizes, mats, present
+
+
+def ratio_intervals(mats: Mapping[str, np.ndarray], ratios: Mapping[str, tuple[str, str]], *, resamples: int,
+                    rng: np.random.Generator) -> dict[str, tuple[np.ndarray, np.ndarray]]:
+    """Per size, the 95% passage-bootstrap interval of each pooled ratio, ``name -> (numerator, denominator)`` columns
+    of ``mats``. One draw of passages with replacement serves every ratio and size, as ``fit_group`` draws them."""
+    n_passages = next(iter(mats.values())).shape[0]
+    draws = rng.integers(0, n_passages, size=(resamples, n_passages))
+    out: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+    for name, (num, den) in ratios.items():
+        top, bottom = mats[num][draws].sum(axis=1), mats[den][draws].sum(axis=1)  # resamples x sizes
+        with np.errstate(divide="ignore", invalid="ignore"):
+            values = np.where(bottom > 0, top / bottom, np.nan)
+        bounds = [_quantiles(values[:, k]) for k in range(values.shape[1])]
+        out[name] = (np.array([b[0] for b in bounds]), np.array([b[1] for b in bounds]))
+    return out
+
+
+def readoff_size(sizes: Sequence[float], cer: Sequence[float], eps: float) -> tuple[float, str]:
+    """The size at which the cells first reach CER ``eps``, read off without a model, and how it was read.
+
+    Scanning up the sizes, the first cell at or below ``eps`` and the cell before it bracket the size, interpolated
+    with log CER linear in log size (CER linear when the lower cell is 0): ``interpolated``. ``at_or_below_first``
+    when the smallest size is already there (the size is the smallest, an upper bound); nan and ``not_reached`` when no
+    cell gets there. Cells that rise again above ``eps`` at larger sizes do not move the first crossing.
+    """
+    order = np.argsort(np.asarray(sizes, dtype=np.float64))
+    s = np.asarray(sizes, dtype=np.float64)[order]
+    y = np.asarray(cer, dtype=np.float64)[order]
+    for k in range(s.size):
+        if y[k] <= eps:
+            if k == 0:
+                return float(s[0]), "at_or_below_first"
+            lo, hi, y_lo, y_hi = s[k - 1], s[k], y[k - 1], y[k]
+            if y_hi > 0:
+                f = (math.log(y_lo) - math.log(eps)) / (math.log(y_lo) - math.log(y_hi))
+            else:
+                f = (y_lo - eps) / (y_lo - y_hi)
+            return float(math.exp(math.log(lo) + f * (math.log(hi) - math.log(lo)))), "interpolated"
+    return math.nan, "not_reached"
+
+
+def interp_log(sizes: Sequence[float], values: Sequence[float], size: float) -> float:
+    """``values`` at ``size``, linear in log size between the measured sizes; nan outside them or at a nan size."""
+    s = np.asarray(sizes, dtype=np.float64)
+    order = np.argsort(s)
+    if not math.isfinite(size) or size < s.min() or size > s.max():
+        return math.nan
+    return float(np.interp(math.log(size), np.log(s[order]), np.asarray(values, dtype=np.float64)[order]))
+
+
+def leave_one_size_out(sizes: np.ndarray, errors: np.ndarray, chars: np.ndarray, present: np.ndarray, *,
+                       resamples: int, rng: np.random.Generator) -> list[dict[str, Any]]:
+    """For each size: the curve fitted to the other sizes, its CER there, the observed cell (capped at 1), and the 95%
+    passage-bootstrap interval of observed minus predicted, each resample refitting the other sizes (ANALYSIS_PLAN_3.md
+    section 2.2). ``inside`` says whether that interval holds 0. A size whose other cells number fewer than three
+    gets nan. ``errors``, ``chars`` and ``present`` are passage x size matrices (``passage_matrices``)."""
+    n_passages = errors.shape[0]
+    draws = rng.integers(0, n_passages, size=(resamples, n_passages))
+    out: list[dict[str, Any]] = []
+    for k, s in enumerate(sizes):
+        others = np.arange(sizes.size) != k
+
+        def observed_and_predicted(idx: np.ndarray, starts: Any) -> tuple[float, float, CurveFit | None]:
+            e, n, w = errors[idx].sum(axis=0), chars[idx].sum(axis=0), present[idx].sum(axis=0)
+            keep = others & (n > 0)
+            if keep.sum() < 3 or n[k] == 0:
+                return math.nan, math.nan, None
+            fit = fit_curve(sizes[keep], e[keep] / n[keep], w[keep], starts=starts)
+            return min(float(e[k] / n[k]), 1.0), float(cer_curve(s, fit.a, fit.beta)), fit
+
+        obs, pred, point = observed_and_predicted(np.arange(n_passages), None)
+        diffs = np.full(resamples, np.nan)
+        if point is not None:
+            starts = [(point.a, point.beta, 0.0), (float(np.median(sizes)), 5.0, 0.0)]
+            for b in range(resamples):
+                ob, pb, _ = observed_and_predicted(draws[b], starts)
+                diffs[b] = ob - pb
+        lo, hi = _quantiles(diffs)
+        out.append({"font_size_px": float(s), "observed": obs, "predicted": pred, "difference": obs - pred,
+                    "difference_lo": lo, "difference_hi": hi,
+                    "inside": bool(lo <= 0.0 <= hi) if math.isfinite(lo) and math.isfinite(hi) else False})
+    return out
+
+
+def subsample_fits(sizes: np.ndarray, errors: np.ndarray, chars: np.ndarray, present: np.ndarray, *,
+                   size_keep: np.ndarray, n_passages: int | None, subsets: int, rng: np.random.Generator,
+                   eps: float = 0.01, starts: Any = None) -> np.ndarray:
+    """s_eps of the curve fitted to parts of the design (ANALYSIS_PLAN_3.md section 2.3): the sizes where
+    ``size_keep`` is true and, in each of ``subsets`` subsets, ``n_passages`` passages drawn without replacement (all
+    passages, once, when None). nan where fewer than three cells remain."""
+    total = errors.shape[0]
+    rounds = 1 if n_passages is None or n_passages >= total else subsets
+    out = np.full(rounds, np.nan)
+    for b in range(rounds):
+        idx = np.arange(total) if rounds == 1 else rng.choice(total, size=n_passages, replace=False)
+        e, n, w = errors[idx].sum(axis=0), chars[idx].sum(axis=0), present[idx].sum(axis=0)
+        keep = size_keep & (n > 0)
+        if keep.sum() >= 3:
+            out[b] = fit_curve(sizes[keep], e[keep] / n[keep], w[keep], starts=starts).size_at(eps)
+    return out

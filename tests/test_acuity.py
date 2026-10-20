@@ -166,12 +166,118 @@ def test_status_flags_an_extrapolated_a(a, status):
     assert fit["status"] == status
 
 
+def test_fit_group_on_columns_equal_to_the_default_is_unchanged():
+    rows = _rows(13.4, 6.1, noise=0.3, seed=4)
+    rows["e"] = rows["substitutions"] + rows["deletions"] + rows["insertions"]
+    rows["n"] = rows["hits"] + rows["substitutions"] + rows["deletions"]
+    assert (acuity.fit_group(rows, resamples=30, seed=7, errors_column="e", chars_column="n")
+            == acuity.fit_group(rows, resamples=30, seed=7))
+
+
+def test_fit_group_needs_both_columns():
+    with pytest.raises(ValueError, match="both"):
+        acuity.fit_group(_rows(13.4, 6.1), resamples=5, seed=1, errors_column="hits")
+
+
+def test_passage_matrices_sum_per_passage_and_size():
+    rows = pd.concat([_rows(13.4, 6.1, passages=3), _rows(13.4, 6.1, passages=1)], ignore_index=True)
+    passages, sizes, mats, present = acuity.passage_matrices(rows, ["substitutions", "reference_chars"])
+    assert passages == [("", "rnd1", i) for i in range(3)]
+    assert sizes.tolist() == list(SIZES)
+    assert present[:, 0].tolist() == [2, 1, 1]  # passage 0 twice
+    assert mats["reference_chars"][:, 0].tolist() == [2 * round(2.75e5 / 100), round(2.75e5 / 100),
+                                                      round(2.75e5 / 100)]
+
+
+def test_ratio_intervals_hold_the_pooled_ratio():
+    for noise, width in ((0.0, False), (0.3, True)):
+        _, _, mats, _ = acuity.passage_matrices(_rows(13.4, 6.1, noise=noise, seed=4),
+                                                ["substitutions", "reference_chars"])
+        bands = acuity.ratio_intervals(mats, {"cer": ("substitutions", "reference_chars")}, resamples=100,
+                                       rng=np.random.default_rng(0))
+        point = mats["substitutions"].sum(axis=0) / mats["reference_chars"].sum(axis=0)
+        lo, hi = bands["cer"]
+        assert np.all(lo <= point + 1e-12) and np.all(point <= hi + 1e-12)
+        assert bool(hi[0] > lo[0]) is width  # identical passages: a zero-width interval
+
+
+def test_readoff_size_reads_the_first_crossing():
+    s, how = acuity.readoff_size([10, 20, 40], [0.5, 0.1, 0.001], 0.01)
+    assert how == "interpolated" and s == pytest.approx(math.sqrt(20 * 40))  # log CER linear in log size
+    s, how = acuity.readoff_size([40, 10, 20], [0.0, 0.5, 0.1], 0.05)  # unsorted; CER linear to a zero cell
+    assert how == "interpolated" and s == pytest.approx(math.sqrt(20 * 40))
+    assert acuity.readoff_size([10, 20, 40], [0.004, 0.002, 0.001], 0.01) == (10.0, "at_or_below_first")
+    s, how = acuity.readoff_size([10, 20, 40], [0.9, 0.5, 0.2], 0.01)
+    assert math.isnan(s) and how == "not_reached"
+    s, how = acuity.readoff_size([10, 20, 40, 80], [0.5, 0.005, 0.05, 0.002], 0.01)
+    assert 10 < s < 20 and how == "interpolated"  # a later rise does not move the first crossing
+
+
+def test_readoff_size_on_the_curve_is_near_the_fitted_size():
+    sizes = np.geomspace(8.0, 48.0, 15)
+    s, how = acuity.readoff_size(sizes, acuity.cer_curve(sizes, 13.4, 6.1), 0.01)
+    assert how == "interpolated" and s == pytest.approx(acuity.size_at(0.01, 13.4, 6.1), rel=0.01)
+
+
+def test_interp_log():
+    assert acuity.interp_log([10, 40], [0.0, 1.0], 20.0) == pytest.approx(0.5)  # halfway in log size
+    for size in (50.0, 5.0, math.nan, math.inf):
+        assert math.isnan(acuity.interp_log([10, 40], [0.0, 1.0], size))
+
+
+def test_leave_one_size_out_finds_a_cell_off_the_curve():
+    rows = _rows(13.4, 6.1, chars_c=2.75e7)  # many characters a page, so that rounding stays off the curve's tail
+    _, sizes, mats, present = acuity.passage_matrices(rows, ["substitutions", "reference_chars"])
+    errors, chars = mats["substitutions"], mats["reference_chars"]
+    out = acuity.leave_one_size_out(sizes, errors, chars, present, resamples=10, rng=np.random.default_rng(0))
+    assert [r["font_size_px"] for r in out] == list(SIZES)
+    assert max(abs(r["difference"]) for r in out) < 0.01
+    k = list(SIZES).index(24.0)
+    bumped = errors.copy()
+    bumped[:, k] = np.round(0.2 * chars[:, k])  # CER 0.2 where the curve gives 0.03
+    out = acuity.leave_one_size_out(sizes, bumped, chars, present, resamples=10, rng=np.random.default_rng(0))
+    assert out[k]["difference"] > 0.15 and out[k]["difference_lo"] > 0 and not out[k]["inside"]
+    assert all(math.isfinite(r["predicted"]) for r in out)
+
+
+def test_leave_one_size_out_needs_three_other_cells():
+    rows = _rows(13.4, 6.1, sizes=(10.0, 15.0, 24.0))
+    _, sizes, mats, present = acuity.passage_matrices(rows, ["substitutions", "reference_chars"])
+    out = acuity.leave_one_size_out(sizes, mats["substitutions"], mats["reference_chars"], present, resamples=5,
+                                    rng=np.random.default_rng(0))
+    assert all(math.isnan(r["predicted"]) and not r["inside"] for r in out)
+
+
+def test_subsample_fits():
+    rows = _rows(13.4, 6.1, chars_c=2.75e7)
+    _, sizes, mats, present = acuity.passage_matrices(rows, ["substitutions", "reference_chars"])
+    errors, chars = mats["substitutions"], mats["reference_chars"]
+    true = acuity.size_at(0.01, 13.4, 6.1)
+    every = np.ones(sizes.size, dtype=bool)
+    full = acuity.subsample_fits(sizes, errors, chars, present, size_keep=every, n_passages=None, subsets=10,
+                                 rng=np.random.default_rng(0))
+    assert full.shape == (1,) and full[0] == pytest.approx(true, rel=0.01)
+    four = acuity.subsample_fits(sizes, errors, chars, present, size_keep=every, n_passages=4, subsets=10,
+                                 rng=np.random.default_rng(0))
+    assert four.shape == (10,) and np.allclose(four, full[0], rtol=1e-6)  # identical passages
+    every_other = np.zeros(sizes.size, dtype=bool)
+    every_other[::2] = True
+    half = acuity.subsample_fits(sizes, errors, chars, present, size_keep=every_other, n_passages=None, subsets=10,
+                                 rng=np.random.default_rng(0))
+    assert half[0] == pytest.approx(true, rel=0.02)
+    two = np.zeros(sizes.size, dtype=bool)
+    two[:2] = True
+    assert np.isnan(acuity.subsample_fits(sizes, errors, chars, present, size_keep=two, n_passages=None,
+                                          subsets=10, rng=np.random.default_rng(0))).all()
+
+
 def test_script_on_study1_ladder(tmp_path):
     script = _script()
     code = script.main(["--configs", str(REPO_ROOT / "configs" / "sweeps" / "ladder.yaml"),
                         "--runs-root", str(REPO_ROOT / "results" / "runs"), "--out-dir", str(tmp_path),
-                        "--name", "ladder_check", "--resamples", "20"])
-    assert code == 0
+                        "--name", "ladder_check", "--resamples", "20", "--loso-resamples", "3", "--subsets", "3",
+                        "--no-tokens"])
+    assert code == 0  # every recomputed primary count equals results.csv's
     out = tmp_path / "ladder_check"
     with open(out / "acuity.csv", encoding="utf-8", newline="") as fh:
         reader = csv.DictReader(fh)
@@ -181,7 +287,28 @@ def test_script_on_study1_ladder(tmp_path):
     assert qwen["status"] == "ok"
     assert 11.0 < float(qwen["a"]) < 15.0  # Study 1's ladder alone, 3 passages: about 13 px
     assert qwen["patch_size"] == "14" and float(qwen["a_over_patch"]) == pytest.approx(float(qwen["a"]) / 14)
+    assert float(qwen["reading_a"]) <= float(qwen["a"]) * 1.05  # behaviour removed: no worse a reader
     with open(out / "cells.csv", encoding="utf-8", newline="") as fh:
-        cells = list(csv.DictReader(fh))
+        reader = csv.DictReader(fh)
+        assert tuple(reader.fieldnames) == script.CELL_COLUMNS
+        cells = list(reader)
     assert {float(c["font_size_px"]) for c in cells if c["reader"] == "qwen"} == {10, 12, 14, 16, 20, 24}
+    with open(out / "pages.csv", encoding="utf-8", newline="") as fh:
+        reader = csv.DictReader(fh)
+        assert tuple(reader.fieldnames) == script.PAGE_COLUMNS
+        pages = list(reader)
+    assert len(pages) == sum(int(c["pages"]) for c in cells)
+    assert all(p["errors"] == p["results_errors"] for p in pages)
+    for p in pages:
+        omitted = int(p["omitted_head"]) + int(p["omitted_interior"]) + int(p["omitted_tail"])
+        assert int(p["omitted"]) == omitted and int(p["read_chars"]) == int(p["reference_chars"]) - omitted
+    tables = {"behaviour": script.BEHAVIOUR_COLUMNS, "sensitivity": script.SENSITIVITY_COLUMNS,
+              "sensitivity_fits": script.SENSITIVITY_FIT_COLUMNS, "form": script.FORM_COLUMNS,
+              "subsample": script.SUBSAMPLE_COLUMNS, "cost": script.COST_COLUMNS, "latency": script.LATENCY_COLUMNS}
+    for name, columns in tables.items():
+        with open(out / f"{name}.csv", encoding="utf-8", newline="") as fh:
+            reader = csv.DictReader(fh)
+            assert tuple(reader.fieldnames) == columns, name
+            assert list(reader), name
+    assert not (out / "tokens.csv").exists()
     assert (out / "manifest.json").exists()

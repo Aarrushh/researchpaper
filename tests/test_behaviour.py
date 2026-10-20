@@ -145,9 +145,9 @@ def test_the_classes_add_up_to_the_primary_count_on_random_edits():
 
 @pytest.mark.skipif(not (SANS.exists() and MONO.exists()), reason="fonts not present (W1.4)")
 def test_the_shape_alike_letters_of_the_two_study_fonts():
-    # Measured on 20 October 2026 before any row was scored (ANALYSIS_PLAN_3.md section 1.1, R4).
+    # Measured on 20 October 2026 with the study's renderer (ANALYSIS_PLAN_3.md section 1.1, R4, and Amendment 1).
     assert behaviour.shape_alike_letters(str(SANS)) == frozenset("csouvxz")
-    assert behaviour.shape_alike_letters(str(MONO)) == frozenset("csovxz")
+    assert behaviour.shape_alike_letters(str(MONO)) == frozenset("coqsvxz")
     overlaps = behaviour.letter_overlaps(SANS)
     assert overlaps["l"] < 0.2 and overlaps["o"] > overlaps["a"]
 

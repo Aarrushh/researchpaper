@@ -1,0 +1,6 @@
+reader,sweeps,run_folders,rows,rows_inflated,inference_minutes,wall_minutes,inference_minutes_imputed,seconds_per_page_imputed,analysis_status
+internvl3_2b,s3_stage0_prose;s3_stage0_prose_internvl3;s3_stage0_random,3,224,0,56.2210321183,56.405677,56.2210321183,15.0592050317,exploratory
+qwen,s3_stage0_prose;s3_stage0_random,2,112,28,73.1673386733,73.2810536833,61.2136299067,32.7930160214,exploratory
+qwen7b,s3_stage0_prose;s3_stage0_random,2,112,0,74.2386972233,74.3616422,74.2386972233,39.7707306554,exploratory
+smolvlm,s3_stage0_prose;s3_stage0_random,2,224,0,20.1184860917,20.2427185333,20.1184860917,5.38888020312,exploratory
+smolvlm500m,s3_stage0_prose;s3_stage0_random,2,224,0,16.4115402733,16.5649670833,16.4115402733,4.3959482875,exploratory

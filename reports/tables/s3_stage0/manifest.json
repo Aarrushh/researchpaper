@@ -1,16 +1,72 @@
 {
   "config": {
     "alpha": 0.05,
-    "analysis_plan": "design note R7, section 3 (stage 0)",
+    "analysis_plan": "ANALYSIS_PLAN_3.md section 2; design note R7, section 3 (stage 0)",
     "blas_threads": 1,
     "curve": "CER(s) = 1 / (1 + (s / a) ** beta), binomial deviance of capped cell CERs, pages as weights; check fit with a free floor e0",
     "epsilons": [
       0.05,
       0.01
     ],
+    "format_touched": [
+      "20261019-2156_s3_stage0_random_qwen7b_60064dc/rnd20261023_z15_conv_p0002",
+      "20261019-2313_s3_stage0_prose_smolvlm_60064dc/pg105_z21_conv_p0000",
+      "20261019-2322_s3_stage0_prose_internvl3_2b_60064dc/pg105_z11_conv_p0003",
+      "20261019-2322_s3_stage0_prose_internvl3_2b_60064dc/pg84_z6_conv_p0007",
+      "20261020-0847_s3_stage0_prose_internvl3_internvl3_2b_386d084/pg1661_z42_conv_p0014"
+    ],
+    "latency_inflated": {
+      "s3_stage0_random/qwen": [
+        4,
+        5,
+        6,
+        7
+      ]
+    },
+    "loso_resamples": 500,
+    "primary_count_mismatches": [],
     "resamples": 2000,
+    "rows_scored": 896,
+    "rules": {
+      "anchor_chars": 30,
+      "anchor_errors": 3,
+      "fence": "^\\s*```[\\w+.-]*\\s*$",
+      "min_run": 15,
+      "preamble": "^\\s*(sure|certainly|of course|here is|here(?:'|\u2019)s|here are|below is|the text|the transcription|transcribed text)\\b[^\\n]*:\\s*$",
+      "sensitivity": [
+        {
+          "anchor_chars": 30,
+          "min_run": 10,
+          "variant": "L10"
+        },
+        {
+          "anchor_chars": 30,
+          "min_run": 30,
+          "variant": "L30"
+        },
+        {
+          "anchor_chars": 20,
+          "min_run": 15,
+          "variant": "anchor20"
+        },
+        {
+          "anchor_chars": 50,
+          "min_run": 15,
+          "variant": "anchor50"
+        }
+      ],
+      "shape_alike": {
+        "SourceSans3-Regular.ttf": "cosuvxz"
+      },
+      "shape_min_iou": 0.6,
+      "shape_rasteriser": "mrr.render.load_glyph (unhinted FreeType, as the pages)",
+      "shape_size_px": 48
+    },
     "runs_root": "results\\runs",
     "seed": 20261025,
+    "status": "exploratory",
+    "subset_passages": 4,
+    "subsets": 200,
     "sweeps": {
       "s3_stage0_prose": {
         "pages_excluded": {},
@@ -53,10 +109,20 @@
     },
     "tables": {
       "acuity": 10,
-      "cells": 76
-    }
+      "behaviour": 76,
+      "cells": 76,
+      "cost": 5,
+      "form": 152,
+      "latency": 10,
+      "pages": 896,
+      "sensitivity": 304,
+      "sensitivity_fits": 40,
+      "subsample": 60,
+      "tokens": 10
+    },
+    "tokens": true
   },
-  "git_commit": "386d0849fa97a31ef487d25d22a1c0fdd6864b75",
+  "git_commit": "5325e7522ce0b86ca32ba312f96b4954d15ceb2b",
   "git_dirty": true,
   "gpu_name": "NVIDIA GeForce RTX 5060 Laptop GPU",
   "packages": {
@@ -70,6 +136,6 @@
   },
   "platform": "Windows-10-10.0.26300-SP0",
   "python_version": "3.11.15",
-  "run_id": "20261020-0939_s3_stage0_analysis_386d084",
-  "timestamp_utc": "2026-10-20T09:39:46Z"
+  "run_id": "20261020-1643_s3_stage0_analysis_5325e75",
+  "timestamp_utc": "2026-10-20T16:43:03Z"
 }

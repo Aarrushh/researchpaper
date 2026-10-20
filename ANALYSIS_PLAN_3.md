@@ -59,18 +59,18 @@ These habits do not shrink with glyph size as misreading does, so they bend the 
 - **R4, case.** A substitution of a letter by the same letter in the other case is a case error (Study 2's `case_pair`, `src/mrr/study2.py`). It is split by letter:
   - **Shape-alike letters** are those whose lower-case glyph is the capital at a smaller size. A shape-alike case error can be a misreading of size, so it is a reading error.
   - **Shape-distinct letters** (a/A, e/E, g/G and so on) are the rest. A case error on one cannot be misreading: the reader got the letter right and changed its case. It is behaviour, called case normalisation.
-  - **The measure** (`shape_alike_letters`): at 48 px, the lower-case glyph is scaled by cap height over x-height (the ink heights of H and x). Centred on its capital and moved by up to 2 px each way, it counts as shape-alike when its ink mask (grey ≥ 128) overlaps the capital's with IoU ≥ 0.6.
-  - **Measured on 20 October, before any row was scored:**
+  - **The measure** (`shape_alike_letters`): at 48 px, each glyph is rasterised as the pages were (`mrr.render.load_glyph`, unhinted FreeType), and the lower-case glyph is scaled by cap height over x-height (the ink heights of H and x). Centred on its capital and moved by up to 2 px each way, it counts as shape-alike when its ink mask (grey ≥ 128) overlaps the capital's with IoU ≥ 0.6.
+  - **Measured on 20 October with the study's renderer (Amendment 1):**
     - Source Sans 3: **c o s u v x z**;
-    - Fira Mono: **c o s v x z** (its u has a spur).
-  - **A threshold set after measuring.** The draft fixed IoU ≥ 0.8 before measuring, and that admitted no letter in either font: scaling the lower case up thickens its strokes, so even o/O reach only 0.66 (Source Sans 3) and 0.62 (Fira Mono). The threshold was lowered to 0.6, the widest gap in Source Sans 3's ranking, before any row was scored. The overlaps:
+    - Fira Mono: **c o q s v x z** (its u has a spur; q, at 0.603, lies just above the threshold).
+  - **A threshold set after measuring.** The draft fixed IoU ≥ 0.8 before measuring. Measured first with Pillow's hinted rasteriser, that admitted no letter in either font (o/O reached 0.66 and 0.62), and the threshold was lowered to 0.6, the widest gap in Source Sans 3's ranking, before any row was scored. The study's renderer gives higher overlaps: 0.8 would admit only s (Source Sans 3) and z (Fira Mono), and 0.6 still lies in the widest gap of Source Sans 3's ranking (u .66, q .53). The owner kept 0.6 on 20 October. The overlaps:
 
     | Font | z | s | c | o | v | x | u | q | n | y | e | i | w | h | k | t | r | a | j | b | p | f | d | g | m | l |
     |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-    | Source Sans 3 | .74 | .74 | .69 | .66 | .66 | .65 | .64 | .52 | .47 | .44 | .43 | .43 | .42 | .38 | .33 | .33 | .31 | .28 | .26 | .22 | .22 | .21 | .20 | .15 | .12 | .11 |
-    | Fira Mono | .71 | .71 | .70 | .62 | .71 | .69 | .57 | .53 | .42 | .44 | .45 | .30 | .43 | .35 | .35 | .39 | .36 | .28 | .36 | .24 | .22 | .25 | .22 | .22 | .28 | .10 |
+    | Source Sans 3 | .76 | .82 | .76 | .77 | .70 | .71 | .66 | .53 | .49 | .46 | .45 | .43 | .51 | .40 | .32 | .39 | .32 | .30 | .27 | .25 | .23 | .16 | .24 | .16 | .13 | .12 |
+    | Fira Mono | .80 | .72 | .73 | .66 | .73 | .69 | .58 | .60 | .40 | .46 | .45 | .30 | .43 | .36 | .38 | .46 | .31 | .29 | .37 | .25 | .24 | .23 | .28 | .18 | .28 | .11 |
 
-    w (0.42, 0.43), which the draft expected to be alike, is not.
+    w (0.51, 0.43), which the draft expected to be alike, is not.
   - **Sensitivity.** The case-folded reading CER of section 1.2 removes every case error, and the primary CER keeps every one, so the two bound any choice of this threshold.
 - **R5, reading errors.** Everything else:
   - other substitutions, with O/0 and I/l/1 counted as Study 2 counts them;
@@ -230,7 +230,7 @@ These are reported as frozen (`data-freeze-v1`, `spec-v1`), and R6's analyses as
 1. ~~The owner settles section 6.~~ Done, 20 October.
 2. ~~Study 2's freeze: `data-freeze-v2` and its notebook entry.~~ Done, 20 October.
 3. ~~Section 1 built: `src/mrr/behaviour.py`, its tests, the shape-alike sets measured, this document committed.~~ Done, 20 October, in the commit that adds this file.
-4. **Stage 0:** the per-row scoring script, the tables, Figures 5 and 6, the freeze check, the tag.
+4. **Stage 0:** ~~the per-row scoring script and the tables~~ (done 20 October, `scripts/25_fit_stage0.py`); Figures 5 and 6, the freeze check, the tag.
 5. **Study 2:** the exploratory tables of section 3.
 6. **Results text:** every claim names its table and its status.
 
@@ -247,4 +247,7 @@ The owner's words: "Approve all four section 6 recommendations."
 
 ## Amendments
 
-None.
+1. **The shape test's rasteriser (20 October 2026, after stage 0 was scored and before any Study 2 row; confirmed by the owner the same day: "Yes: I confirm Amendment 1").**
+   - **Why.** `shape_alike_letters` drew its glyphs with Pillow. `tests/test_render.py` forbids that anywhere under `src/` (Section 1A.11, checks 3 and 4: no text drawn with Pillow or hinted FreeType), and Pillow hints outlines that no page ever hinted. The full test suite found it; the commit that added R4 had run only the scoring tests.
+   - **Change.** `_glyph` now rasterises with `mrr.render.load_glyph`, the rasteriser of every page, so the test measures the shapes the readers saw. The threshold (0.6), the size (48 px), the scaling and the shifts are unchanged.
+   - **Effect.** Source Sans 3's set is unchanged (c o s u v x z), so no stage-0 row's score changes. Fira Mono's set gains q (0.603), and no Fira Mono row had been scored. R4's table above gives the new overlaps.

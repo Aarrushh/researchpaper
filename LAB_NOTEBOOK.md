@@ -1308,3 +1308,76 @@ Next:
   - then the extended cells and fits, behaviour, tokens, sensitivity and cost tables;
   - Figures 5 and 6;
   - the freeze check for `scripts/25_fit_stage0.py`, and the tag `data-freeze-s3-stage0`.
+
+## 2026-10-20, Claude (D22): Stage 0 scored by section 1's rules, and the tables of `ANALYSIS_PLAN_3.md` section 2
+Did:
+- On the owner's go of 20 October: "Keep the R4 shape threshold at 0.6. Start stage 0: the per-row scoring script and pages.csv first, then the tables of ANALYSIS_PLAN_3.md section 2."
+- `scripts/25_fit_stage0.py` scores every row's stored transcription with `mrr.behaviour.score_row` and writes `pages.csv`. From the same rows it writes the tables of section 2 into `reports/tables/s3_stage0/`, with one manifest:
+  - `cells.csv` and `acuity.csv`, extended (section 2.1);
+  - `behaviour.csv`, `sensitivity.csv` with `sensitivity_fits.csv`, `tokens.csv`, `cost.csv` and `latency.csv`;
+  - `form.csv` (section 2.2) and `subsample.csv` (section 2.3).
+- `mrr.acuity`: `fit_group` takes an errors and a characters column, for the reading CER. New helpers: `passage_matrices`, `ratio_intervals`, `readoff_size`, `interp_log`, `leave_one_size_out`, `subsample_fits`. `mrr.behaviour`: `read_texts` and `font_path`.
+- Two choices made in writing the tables, not rules:
+  - `form.csv` leaves the logit residual empty on the 9 cells capped at CER 1, where the logit is infinite;
+  - `cost.csv` adds Qwen's minutes with its 28 inflated rows replaced by the mean latency of its clean rows of the same sweep and size.
+- Tests: `tests/test_acuity.py` 35 passed, 10 of them new. Its script test now checks every table's columns on Study 1's ladder, and that the classes add up there.
+- The full suite (`-m "not todo and not model"`) gave 820 passed and 1 failed, the check fixed by Amendment 1 below. After the fix, `tests/test_behaviour.py`, `tests/test_acuity.py` and `tests/test_render.py` pass.
+- The script runs in about 9 minutes on the CPU with one BLAS thread. Two runs made at once wrote byte-identical tables.
+Found:
+- **Scoring.** All 896 rows were scored. Every recomputed primary count equals `results.csv`'s, and on the rows R1 leaves alone the classes add up exactly (0 rows not adding up).
+- **The primary columns are unchanged.** The 14 old columns of `cells.csv` (76 rows) and the 43 old columns of `acuity.csv` (10 rows) equal the committed tables, value for value.
+- **R1 touched 5 rows, all read by eye.** Each removal is a preamble line or a fence:
+  - Qwen-7B, random text, 15 px (`rnd20261023_z15_conv_p0002`): a preamble and two fences;
+  - SmolVLM-2.2B, prose, 21 px (`pg105_z21_conv_p0000`): a first line summarising the story, ending in a colon;
+  - InternVL3, prose, 11 px (`pg105_z11_conv_p0003`): a preamble and an opening fence;
+  - InternVL3, prose, 6 px (`pg84_z6_conv_p0007`): "Transcribed text:";
+  - InternVL3, prose, 42 px (`pg1661_z42_conv_p0014`): a preamble and two fences, 58 of the page's 61 errors; its reading CER is 0.014.
+- [Flag] Two of those rows show behaviour that the rules, as written, leave as reading (R5). No rule was changed; the paper states that R3 catches a loop only when it is inserted.
+  - SmolVLM-2.2B's page at 21 px goes on to describe the story instead of transcribing it (reading CER 0.71).
+  - InternVL3's page at 11 px loops "and extensive," to the token limit. The loop replaces the text rather than adding to it, so R3 finds no anchored insertion (reading CER 1.00).
+- [Flag, deviation] **Amendment 1 to `ANALYSIS_PLAN_3.md`, the shape test's rasteriser.** Confirmed by the owner on 20 October: "Yes: I confirm Amendment 1."
+  - The full suite failed `tests/test_render.py::test_src_draws_no_text_with_pillow_or_hinted_freetype`. `behaviour.py` drew its glyphs with Pillow, in commit 5325e752, which had run only the scoring tests.
+  - `_glyph` now rasterises with `mrr.render.load_glyph`, as every page was.
+  - Source Sans 3's set is unchanged (c o s u v x z). The tables regenerated with it are byte for byte those of the Pillow run.
+  - Fira Mono's set gains q (0.603). No Fira Mono row has been scored.
+  - With this rasteriser, 0.8 would have admitted s (Source Sans 3, 0.82) and z (Fira Mono, 0.80), so "0.8 admitted no letter" held only for Pillow's hinted glyphs. The threshold stays 0.6, as the owner decided. It still lies in the widest gap of Source Sans 3's ranking (u .66, q .53).
+- **The 1% size per reader (exploratory).** In px: fitted [95% interval], then read off the cells.
+  - Prose, primary CER:
+    - Qwen 12.3 [10.8, 13.8], 10.9;
+    - Qwen-7B 11.7 [10.8, 13.2], 10.5 (they disagree);
+    - InternVL3 26.9 [23.5, 32.6], 22.0 (they disagree, as section 2.1 expected);
+    - SmolVLM-2.2B 44.1 and SmolVLM-500M 53.4, both past their ladders and not reached.
+  - Prose, reading CER:
+    - Qwen 12.3, Qwen-7B 11.6;
+    - InternVL3 24.8 [22.6, 28.6], read off 21.8;
+    - SmolVLM-2.2B 34.3 [29.6, 38.5], with coverage 0.95 there;
+    - SmolVLM-500M 47.7.
+    So the preamble page at 42 px explains only part of InternVL3's gap between fitted and read off. Section 2.1 had said the fit is pulled up "mainly" by it.
+  - Random text, primary CER:
+    - Qwen 29.7 [28.4, 31.0], but no cell reaches 1% up to 36 px (free floor 0.016);
+    - Qwen-7B 27.0 [24.8, 29.6], against 34.9 read off (free floor 0.010);
+    - InternVL3 37.0, past its ladder.
+    The curve without a floor puts both Qwen readers' 1% size below where their cells get there.
+  - Random text, reading CER: Qwen 27.3, Qwen-7B 24.7 and InternVL3 35.6, against 34.3, 28.6 and not reached read off.
+- **Curve form (section 2.2).** The share of cells inside the leave-one-size-out band, primary CER, was set no pass mark:
+  - prose: Qwen 1.00, Qwen-7B 0.86, InternVL3 0.69 (13 sizes), SmolVLM-2.2B 0.57, SmolVLM-500M 0.71;
+  - random text: 0.43, 0.43, 0.57, 0.29 and 0.14 in the same order.
+  The random-text curves fit worse; the SmolVLM pair's deviances there are 15.0 and 11.6.
+- **Subsampling (section 2.3).** The share of 200 four-passage subsets whose s01 lies within 10% of the full fit's, primary CER, prose then random text:
+  - Qwen 0.81 and 1.00, Qwen-7B 0.97 and 0.97, InternVL3 0.27 and 1.00;
+  - SmolVLM-2.2B 0.41 and 0.26, SmolVLM-500M 0.51 and 0.40.
+  Every other size alone moves s01 by 1 to 9% for the Qwen pair and InternVL3, and by 4 to 35% for the SmolVLM pair.
+  - [Flag] InternVL3's prose keys its passages by sweep, as the committed fit does. Its 4 passages are 4 of 24 keys, each with 7 of its 13 sizes, so its subsample rows do not compare with the other readers'.
+- **Sensitivity (section 1.3).** The L and anchor variants move a cell's coverage by at most 0.021, its reading CER by at most 0.019, and the reading s01 by at most 1.6 px (the SmolVLM pair's prose).
+- **Tokens.** Characters per text token are 4.49 to 4.59 on prose and 1.39 to 1.49 on random text. Qwen's tokenizer gives 4.59 and 1.49 here; R7 measured 4.54 and 1.48 on Study 2's references.
+  - The token ratio at s01 is above 1 only for prose with Qwen (1.78 [1.40, 2.31]) and Qwen-7B (1.96 [1.53, 2.31]).
+  - Qwen-7B's random text gives 0.98 [0.81, 1.16].
+- **Behaviour.** At its worst size:
+  - the SmolVLM pair omit 9.6% (2.2B) and 6.7% (500M) of prose reference characters;
+  - case normalisation on random text reaches 3.3 to 10.3%.
+- **Cost.** GPU minutes from first to last row, model load apart: InternVL3 56.4, Qwen 73.3, Qwen-7B 74.4, SmolVLM-2.2B 20.2, SmolVLM-500M 16.6. With its inflated rows imputed, Qwen's is 61.2 minutes, 32.8 s a page.
+Broke:
+- Commit 5325e752 left `tests/test_render.py` failing. It is fixed here and not yet committed.
+Next:
+- Committed on the owner's go of 20 October ("Commit today's stage-0 work to build/p5 (local only), then add the stage-0 freeze check and tag data-freeze-s3-stage0 (local only)").
+- Figures 5 and 6; the freeze check for `scripts/25_fit_stage0.py` (`--configs` and `--name`); the tag `data-freeze-s3-stage0`; then Study 2's exploratory tables (section 3).

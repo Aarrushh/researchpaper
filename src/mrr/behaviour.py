@@ -50,6 +50,32 @@ PREAMBLE = re.compile(
     r"transcribed text)\b[^\n]*:\s*$", re.IGNORECASE)  # R1: tested on the first line that is not blank
 FENCE = re.compile(r"^\s*```[\w+.-]*\s*$")  # R1: a line that is only a code fence, with or without a language name
 HEAD, INTERIOR, TAIL = "head", "interior", "tail"
+FONT_DIR = Path("data") / "external" / "fonts"  # under the repository root: results.csv names a font by its file name
+
+
+# --------------------------------------------------------------------------- a results row's texts and font
+
+
+def read_texts(run_dir: str | Path, page_id: str, transcription_file: str) -> tuple[str, str]:
+    """The reference and the stored transcription of one results row: ``references/<page_id>.txt`` and the row's
+    ``transcription_file``, both under its run folder (as ``mrr.study2.run_confusions`` reads them)."""
+    run_dir = Path(run_dir)
+    return ((run_dir / "references" / f"{page_id}.txt").read_text(encoding="utf-8"),
+            (run_dir / str(transcription_file)).read_text(encoding="utf-8"))
+
+
+def font_path(font_file: str, root: str | Path) -> Path:
+    """The font file a results row names: a path as given when it exists under ``root``, else the one file of that name
+    under ``root / FONT_DIR``. Raises FileNotFoundError when there is none, ValueError when there are several."""
+    given = Path(root) / str(font_file)
+    if given.is_file():
+        return given
+    found = sorted((Path(root) / FONT_DIR).rglob(Path(str(font_file)).name))
+    if not found:
+        raise FileNotFoundError(f"no font file {font_file!r} under {Path(root) / FONT_DIR}")
+    if len(found) > 1:
+        raise ValueError(f"{len(found)} font files named {font_file!r} under {Path(root) / FONT_DIR}")
+    return found[0]
 
 
 # --------------------------------------------------------------------------- R1, format
@@ -75,17 +101,17 @@ def strip_format(hypothesis: str) -> tuple[str, list[str]]:
 # --------------------------------------------------------------------------- R4, letter shapes
 
 
-def _glyph(font, char: str) -> np.ndarray:
-    """The ink of one character at the font's size, cropped to its bounding box, as grey levels 0 to 255."""
-    from PIL import Image, ImageDraw
+def _glyph(font_file: str | Path, size_px: int, char: str) -> np.ndarray:
+    """The ink of one character, rasterised as the pages were (``mrr.render.load_glyph``: unhinted FreeType, phase
+    0), cropped to its inked pixels, as grey levels 0 to 255."""
+    from mrr.render import load_glyph_coverage
 
-    size = font.size
-    canvas = Image.new("L", (4 * size, 4 * size), 0)
-    ImageDraw.Draw(canvas).text((size, size), char, fill=255, font=font)
-    box = canvas.getbbox()
-    if box is None:
+    coverage = load_glyph_coverage(str(font_file), float(size_px), char)
+    ink = np.argwhere(coverage > 0)
+    if ink.size == 0:
         raise ValueError(f"the font draws no ink for {char!r}")
-    return np.asarray(canvas.crop(box))
+    (y0, x0), (y1, x1) = ink.min(axis=0), ink.max(axis=0) + 1
+    return np.round(coverage[y0:y1, x0:x1] * 255.0).astype(np.uint8)
 
 
 def _scaled(glyph: np.ndarray, factor: float) -> np.ndarray:
@@ -123,11 +149,9 @@ def overlap(a: np.ndarray, b: np.ndarray, shift: int = 2) -> float:
 def letter_overlaps(font_file: str | Path, size_px: int = SHAPE_SIZE_PX) -> dict[str, float]:
     """For each letter a to z: the overlap of its lower-case glyph, scaled by cap height over x-height, with its
     capital (R4). Cap height is the ink height of H, x-height that of x."""
-    from PIL import ImageFont
-
-    font = ImageFont.truetype(str(font_file), size_px)
-    factor = _glyph(font, "H").shape[0] / _glyph(font, "x").shape[0]
-    return {c: overlap(_glyph(font, c.upper()), _scaled(_glyph(font, c), factor)) for c in string.ascii_lowercase}
+    factor = _glyph(font_file, size_px, "H").shape[0] / _glyph(font_file, size_px, "x").shape[0]
+    return {c: overlap(_glyph(font_file, size_px, c.upper()), _scaled(_glyph(font_file, size_px, c), factor))
+            for c in string.ascii_lowercase}
 
 
 @lru_cache(maxsize=None)

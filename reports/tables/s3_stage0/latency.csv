@@ -1,0 +1,11 @@
+reader,text_type,rows,rows_left_out,latency_s_median,latency_s_per_output_token_median,output_tokens_median,analysis_status
+internvl3_2b,natural,168,0,4.5469448,0.0246191530455,183.0,exploratory
+internvl3_2b,random62,56,0,13.4371899,0.0262238350351,503.5,exploratory
+qwen,natural,56,0,16.3302019,0.0305603423554,539.5,exploratory
+qwen,random62,28,28,18.5881692,0.036631480847,509.0,exploratory
+qwen7b,natural,56,0,18.50805165,0.0327367095607,549.5,exploratory
+qwen7b,random62,56,0,30.58854385,0.0587856588442,529.0,exploratory
+smolvlm,natural,112,0,2.2458457,0.0280260124893,80.5,exploratory
+smolvlm,random62,112,0,4.10858505,0.0268244097489,156.0,exploratory
+smolvlm500m,natural,112,0,2.32348995,0.0371935658375,64.0,exploratory
+smolvlm500m,random62,112,0,3.280842,0.0385512224868,85.0,exploratory
