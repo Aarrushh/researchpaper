@@ -1,4 +1,5 @@
-"""Tests for src/mrr/plotting.py and scripts/30_make_figures.py (build guide section 3.3). CPU only.
+"""Tests for src/mrr/plotting.py, scripts/30_make_figures.py (build guide section 3.3) and scripts/31_stage0_figures.py.
+CPU only.
 
 Figures 1, 2 and 3 and Figure 0 are drawn from small synthetic frames: a cosine of the patch period plus a page
 effect and noise, with the character counts a pooled CER needs. The script runs once through subprocess on a
@@ -7,6 +8,7 @@ fake-backend run of a four-block sweep (V, H, C, Z), as make figures runs it.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import subprocess
@@ -300,3 +302,98 @@ def test_the_script_with_neither_a_sweep_nor_mtf_csvs_exits_1(tmp_path):
     result = _figures(None, tmp_path / "runs", tmp_path / "figures", mtf_dir=tmp_path / "mtf")
     assert result.returncode == 1 and "nothing to draw" in result.stderr
     assert not (tmp_path / "figures").exists()
+
+
+# --------------------------------------------------------------------------- Study 3 stage 0, Figures 5 and 6
+
+STAGE0_TABLES = REPO_ROOT / "reports" / "tables" / "s3_stage0"
+
+
+def _stage0_script():
+    spec = importlib.util.spec_from_file_location("stage0_figures", REPO_ROOT / "scripts" / "31_stage0_figures.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _stage0_rows() -> tuple[list[dict], list[dict], list[dict]]:
+    """cells, acuity and behaviour rows as csv reads scripts/25_fit_stage0.py's tables back (strings): qwen with a fit
+    per text type, its random s01 just past the measured sizes and one reading interval empty, qwen7b's prose cells
+    without a fit, a cell interval reaching 0, and format on one size."""
+    from mrr.acuity import cer_curve
+
+    cells, fits, behaviour = [], [], []
+    for reader, text_type, a, beta in (("qwen", "natural", 8.5, 12.0), ("qwen", "random62", 13.0, 5.6),
+                                       ("qwen7b", "natural", 7.8, 11.0)):
+        for s in (6, 9, 13, 20, 29):
+            cer = float(cer_curve(s, a, beta))
+            cells.append({"reader": reader, "text_type": text_type, "font_size_px": str(s), "cer": f"{cer + 0.002}",
+                          "cer_lo": "0" if s == 29 else f"{cer / 2}", "cer_hi": f"{1.5 * cer + 0.004}",
+                          "reading_cer": f"{cer + 0.001}", "reading_cer_lo": f"{cer / 2}",
+                          "reading_cer_hi": f"{1.5 * cer + 0.003}", "behaviour_rate_lo": "0.001",
+                          "behaviour_rate_hi": "0.012"})
+            behaviour.append({"reader": reader, "text_type": text_type, "font_size_px": str(s),
+                              "omitted_head_rate": "0", "omitted_interior_rate": f"{0.001 * (s % 3)}",
+                              "omitted_tail_rate": "0.002", "runaway_rate": "0.001" if s == 9 else "0",
+                              "case_normalised_rate": "0.003" if text_type == "random62" else "0",
+                              "format_rate": "0.004" if s == 29 else "0"})
+        if reader == "qwen":
+            s01 = a * 99 ** (1 / beta)  # CER(s01) = 0.01
+            fits.append({"reader": reader, "text_type": text_type, "patch_size": "14", "a": f"{a}", "beta": f"{beta}",
+                         "s01": f"{s01}", "s01_lo": f"{0.9 * s01}", "s01_hi": f"{1.1 * s01}",
+                         "s01_in_range": str(s01 <= 29), "reading_a": f"{0.97 * a}", "reading_beta": f"{beta}",
+                         "reading_s01": f"{0.97 * s01}", "reading_s01_lo": "" if text_type == "random62" else "6",
+                         "reading_s01_hi": "" if text_type == "random62" else "40", "reading_s01_in_range": True})
+    return cells, fits, behaviour
+
+
+def test_plot_stage0_curves_and_behaviour_write_the_same_bytes_twice(tmp_path):
+    cells, fits, behaviour = _stage0_rows()
+    assert fits[1]["s01_in_range"] == "False"  # the random s01 lies past 29 px: drawn faint
+    for name in ("first", "second"):
+        plotting.plot_stage0_curves(cells, fits, tmp_path / name / "fig5.pdf")
+        plotting.plot_stage0_behaviour(behaviour, cells, tmp_path / name / "fig6.pdf")
+    for fig in ("fig5.pdf", "fig6.pdf"):
+        assert _is_pdf(tmp_path / "first" / fig)
+        assert (tmp_path / "first" / fig).read_bytes() == (tmp_path / "second" / fig).read_bytes()
+
+
+def test_plot_stage0_figures_refuse_empty_tables(tmp_path):
+    with pytest.raises(ValueError, match="Figure 5"):
+        plotting.plot_stage0_curves([], [], tmp_path / "fig5.pdf")
+    with pytest.raises(ValueError, match="Figure 6"):
+        plotting.plot_stage0_behaviour([], [], tmp_path / "fig6.pdf")
+    assert not any(tmp_path.iterdir())
+
+
+def test_the_stage0_script_draws_figures_5_and_6_and_exits_1_without_a_table(tmp_path):
+    import csv
+
+    tables = tmp_path / "s3_stage0"
+    tables.mkdir()
+    for name, rows in zip(("cells", "acuity", "behaviour"), _stage0_rows()):
+        columns = list(dict.fromkeys(k for r in rows for k in r))
+        with open(tables / f"{name}.csv", "w", encoding="utf-8", newline="") as fh:
+            writer = csv.DictWriter(fh, fieldnames=columns)
+            writer.writeheader()
+            writer.writerows(rows)
+    script = _stage0_script()
+    out_dir = tmp_path / "figures"
+    assert script.main(["--tables-dir", str(tables), "--out-dir", str(out_dir)]) == 0
+    assert sorted(p.name for p in out_dir.iterdir()) == ["fig5_acuity_s3_stage0.pdf", "fig6_behaviour_s3_stage0.pdf"]
+    assert all(_is_pdf(p) for p in out_dir.iterdir())
+    (tables / "behaviour.csv").unlink()
+    assert script.main(["--tables-dir", str(tables), "--out-dir", str(tmp_path / "none")]) == 1
+    assert not (tmp_path / "none").exists()
+
+
+@pytest.mark.skipif(not (STAGE0_TABLES / "behaviour.csv").exists(), reason="stage-0 tables not present")
+def test_figure_6s_stack_adds_up_to_the_committed_behaviour_rate():
+    """Figure 6 stacks BEHAVIOUR_PARTS and puts the behaviour rate's interval on top: the parts must be that rate."""
+    behaviour = pd.read_csv(STAGE0_TABLES / "behaviour.csv")
+    cells = pd.read_csv(STAGE0_TABLES / "cells.csv")
+    keys = ["reader", "text_type", "font_size_px"]
+    both = behaviour.merge(cells[keys + ["behaviour_rate"]], on=keys, validate="one_to_one")
+    assert len(both) == len(behaviour) == len(cells)
+    parts = both[[column for column, _, _ in plotting.BEHAVIOUR_PARTS]].sum(axis=1)
+    assert np.allclose(parts, both["behaviour_rate"], rtol=0, atol=1e-9)

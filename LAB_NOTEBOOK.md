@@ -1403,3 +1403,37 @@ Broke:
 Next:
 - Figures 5 and 6, drawn from the frozen tables.
 - Study 2's exploratory re-scoring (`ANALYSIS_PLAN_3.md` section 3.2), if the owner wants it in the paper.
+
+## 2026-10-20, Claude (D23): Figures 5 and 6 from the frozen stage-0 tables
+Did:
+- On the owner's go of 20 October: "Draw Figures 5 and 6 from the frozen stage-0 tables (ANALYSIS_PLAN_3.md section 2.7) and commit them locally."
+- `scripts/31_stage0_figures.py` (`make figures-stage0`) reads `cells.csv`, `acuity.csv` and `behaviour.csv` from `reports/tables/s3_stage0/` and calls two new functions of `mrr.plotting`.
+  - It refits nothing: the curves, the intervals and s01 are the tables', which `40_freeze.py --check --fit s3_stage0` regenerates.
+  - `30_make_figures.py` is left alone, since it may read only `results/`.
+- `reports/figures/fig5_acuity_s3_stage0.pdf`, Figure 5 (`plotting.plot_stage0_curves`), one panel per reader and text type:
+  - primary CER (filled points, solid fit) and reading CER (open points, dashed fit) against size in px, both axes logarithmic, with patches of P on the top axis;
+  - the cells' passage-bootstrap intervals;
+  - CER 0.01 dotted, with each fit's s01 and its interval on it;
+  - a curve or an s01 beyond the measured sizes is drawn faint;
+  - an interval bound of 0 (four cells of each measure) is drawn down to the axis, at 5e-4.
+- `reports/figures/fig6_behaviour_s3_stage0.pdf`, Figure 6 (`plotting.plot_stage0_behaviour`):
+  - per size, the behaviour errors per 100 reference characters, stacked as omitted (head, interior, tail), runaway inserted and case normalised, with the behaviour rate's interval from `cells.csv`;
+  - format characters hatched on top, since R1 counts them apart from the alignment;
+  - each panel has its own scale.
+- Readers are in the order of Study 2's figures (development, then validation). The text colours are those of every figure.
+- `tests/test_plotting.py`: 18 passed, 4 of them new. They check:
+  - that the same rows give the same bytes;
+  - that empty tables are refused;
+  - that the script writes both PDFs, and exits 1 without a table;
+  - that the stack's five parts add up to the committed behaviour rate (to 1e-9; they differ by at most 5e-13).
+- Three draws gave the same bytes: Figure 5 sha256 bfe5a8a4…, Figure 6 4ff9be0a…. Both were read by eye at 170 dpi.
+Found:
+- Nothing new: the figures show what the tables report. What they make visible:
+  - InternVL3's 42 px prose cell: primary CER 0.027, reading CER 0.0013. Its preamble page is 2.5% format.
+  - On random text, all the behaviour of the Qwen pair, InternVL3 and SmolVLM-500M is case normalisation, at most 3.3 to 10.3%. SmolVLM-2.2B also omits, up to 5.6%.
+  - The Qwen pair's random cells at 29 and 36 px sit above the curve: the floor flagged before.
+  - The SmolVLM pair's reading fits reach 1% sooner than the primary ones: 34.3 against 44.1 px (2.2B), 47.7 against 53.4 px (500M). The two primary sizes are extrapolated and drawn faint; the two reading sizes lie inside the ladder.
+Broke:
+- Nothing.
+Next:
+- Study 2's exploratory re-scoring (`ANALYSIS_PLAN_3.md` section 3.2), if the owner wants it in the paper.

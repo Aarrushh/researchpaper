@@ -230,7 +230,7 @@ These are reported as frozen (`data-freeze-v1`, `spec-v1`), and R6's analyses as
 1. ~~The owner settles section 6.~~ Done, 20 October.
 2. ~~Study 2's freeze: `data-freeze-v2` and its notebook entry.~~ Done, 20 October.
 3. ~~Section 1 built: `src/mrr/behaviour.py`, its tests, the shape-alike sets measured, this document committed.~~ Done, 20 October, in the commit that adds this file.
-4. **Stage 0:** ~~the per-row scoring script and the tables~~ (done 20 October, `scripts/25_fit_stage0.py`); ~~the freeze check, the tag~~ (done 20 October, `40_freeze.py --fit s3_stage0`, `data-freeze-s3-stage0`); Figures 5 and 6.
+4. **Stage 0:** ~~the per-row scoring script and the tables~~ (done 20 October, `scripts/25_fit_stage0.py`); ~~the freeze check, the tag~~ (done 20 October, `40_freeze.py --fit s3_stage0`, `data-freeze-s3-stage0`); ~~Figures 5 and 6~~ (done 20 October, `scripts/31_stage0_figures.py`).
 5. **Study 2:** the exploratory tables of section 3.
 6. **Results text:** every claim names its table and its status.
 

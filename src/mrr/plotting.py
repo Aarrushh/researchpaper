@@ -1,6 +1,6 @@
 # PURPOSE: The paper's figures.
-# WHAT GOES HERE: Figure 0 (shift-equivariance error), Figure 1 (phase curve), Figure 2 (the trade-off: CER against characters per token, and the Fano floor) and Figure 3 (the encoder's modulation transfer).
-# FILLED IN AT STEP: W1.9 (Figure 0), W2.5 (Figures 1 and 2, the MTF axes), W3.4 (Figure 2 on the full run).
+# WHAT GOES HERE: Figure 0 (shift-equivariance error), Figure 1 (phase curve), Figure 2 (the trade-off: CER against characters per token, and the Fano floor) and Figure 3 (the encoder's modulation transfer); Study 2's Figures 3 and 4; Study 3 stage 0's Figures 5 (acuity curves) and 6 (behaviour rates).
+# FILLED IN AT STEP: W1.9 (Figure 0), W2.5 (Figures 1 and 2, the MTF axes), W3.4 (Figure 2 on the full run); Figures 5 and 6 on 20 October 2026, after the tag data-freeze-s3-stage0.
 # DO NOT: Hand-edit output images. Do not import matplotlib at module top level. Do not smooth the points: the line is the fitted model, the points are the data.
 """Figures.
 
@@ -527,5 +527,228 @@ def plot_study2_confusions(rates: Sequence[Mapping[str, Any]], out_path: str | P
                     ax.set_ylabel("confusions per 1,000 letters")
         handles = [Patch(color=GROUP_COLOURS[g], label=g) for g in groups]
         fig.tight_layout(rect=(0, 0.08, 1, 1))
+        fig.legend(handles=handles, loc="lower center", ncol=len(handles), frameon=False, bbox_to_anchor=(0.5, 0.0))
+        _save(fig, out_path)
+
+
+# --------------------------------------------------------------------------- Study 3 stage 0, Figures 5 and 6 (ANALYSIS_PLAN_3.md section 2.7)
+
+BEHAVIOUR_PARTS = (  # Figure 6's stack, bottom up: mrr.behaviour's behaviour errors, which add up to behaviour_rate
+    ("omitted_head_rate", "omitted, head", "#c5b0d5"),
+    ("omitted_interior_rate", "omitted, interior", "#9467bd"),
+    ("omitted_tail_rate", "omitted, tail", "#5e3c99"),
+    ("runaway_rate", "runaway inserted", "#ff7f0e"),
+    ("case_normalised_rate", "case normalised", "#8c564b"),
+)
+FORMAT_HATCH = "//////"  # format characters (R1) are counted apart from the alignment, so they are hatched, not filled
+_FAINT = 0.35  # the alpha of a curve or a 1% size beyond the measured sizes
+_CER_FLOOR = 5e-4  # Figure 5's log axis starts here; an interval that reaches 0 is drawn down to it
+_PX_TICKS = (6, 8, 10, 15, 20, 30, 40, 60, 80, 100, 150, 200)
+_PATCH_TICKS = (0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4, 6, 8, 10, 15)
+
+
+def _num(value: Any) -> float:
+    """A table value as a float: an empty CSV field is NaN."""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return float("nan")
+
+
+def _flag(value: Any) -> bool:
+    """A table's True/False column, read by pandas (bool) or csv (str)."""
+    return str(value).strip().lower() in ("true", "1")
+
+
+def _panels(rows: Sequence[Mapping[str, Any]]) -> dict[tuple[str, str], list[Mapping[str, Any]]]:
+    """(reader, text type) -> its rows, smallest size first."""
+    panels: dict[tuple[str, str], list[Mapping[str, Any]]] = {}
+    for r in rows:
+        panels.setdefault((str(r["reader"]), str(r["text_type"])), []).append(r)
+    return {k: sorted(v, key=lambda r: _num(r["font_size_px"])) for k, v in panels.items()}
+
+
+def _log_ticks(axis: Any, ticks: Sequence[float], low: float, high: float) -> None:
+    from matplotlib.ticker import FixedLocator, FuncFormatter, NullFormatter
+
+    axis.set_major_locator(FixedLocator([t for t in ticks if low <= t <= high]))
+    axis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:g}"))
+    axis.set_minor_formatter(NullFormatter())
+
+
+def plot_stage0_curves(cells: Sequence[Mapping[str, Any]], fits: Sequence[Mapping[str, Any]],
+                       out_path: str | Path) -> None:
+    """Study 3 stage 0's Figure 5: each reader's acuity curves, one panel per reader (rows) and text type (columns).
+
+    The primary and the reading CER are drawn against the font size in pixels (bottom axis) and in patches of the
+    reader's P (top axis), both logarithmic. The cells are points with their passage-bootstrap intervals (filled:
+    primary; open: reading, set 4% to the right so neither hides the other). The lines are the fits of
+    ``mrr.acuity``, CER(s) = 1 / (1 + (s / a) ** beta) (solid: primary; dashed: reading), faint beyond the measured
+    sizes. The dotted line is CER 0.01; each fit's s01 sits on it as a diamond with its interval (filled: primary;
+    open: reading, just below), faint when it lies beyond the measured sizes. An interval that reaches 0 is drawn
+    down to the axis. Nothing is refitted: the curves and intervals are the tables'.
+
+    Args:
+        cells: rows of cells.csv (scripts/25_fit_stage0.py): reader, text_type, font_size_px, cer, cer_lo, cer_hi,
+            reading_cer, reading_cer_lo and reading_cer_hi.
+        fits: rows of acuity.csv: reader, text_type, patch_size, a, beta, s01, s01_lo, s01_hi, s01_in_range and the
+            same reading_* columns. A panel without a fit shows its cells only.
+        out_path: the PDF to write, under reports/figures/.
+
+    Raises:
+        ValueError: when ``cells`` is empty.
+    """
+    import matplotlib
+    from matplotlib.figure import Figure
+    from matplotlib.lines import Line2D
+
+    from mrr.acuity import cer_curve
+
+    if not cells:
+        raise ValueError("no cells to draw: Figure 5 needs cells.csv from scripts/25_fit_stage0.py")
+    text_types, readers = _study2_grid(cells)
+    panels = _panels(cells)
+    fit_of = {(str(f["reader"]), str(f["text_type"])): f for f in fits}
+    measures = (("", "o", "-", 1.0, 0.01), ("reading_", "s", "--", 1.04, 0.01 / 1.45))  # prefix, marker, line, x, s01 y
+    with matplotlib.rc_context(_RC):
+        fig = Figure(figsize=(6.75, 1.0 + 1.8 * len(readers)))
+        axes = fig.subplots(len(readers), len(text_types), squeeze=False, sharey=True)
+        for i, reader in enumerate(readers):
+            for j, text_type in enumerate(text_types):
+                ax = axes[i][j]
+                rows, fit = panels.get((reader, text_type)), fit_of.get((reader, text_type))
+                ax.set_title(f"{reader}, {text_type}")
+                if not rows:
+                    ax.text(0.5, 0.5, f"no {text_type} cells", ha="center", va="center", transform=ax.transAxes,
+                            fontsize=6, color="0.5")
+                    ax.set_xticks([])
+                    continue
+                colour = TEXT_COLOURS.get(text_type, "black")
+                sizes = np.array([_num(r["font_size_px"]) for r in rows])
+                first, last = float(sizes.min()), float(sizes.max())
+                reach = [last] + ([_num(fit[f"{p}s01_hi"]) for p, *_ in measures] if fit else [])
+                left, right = first / 1.12, max(v for v in reach if np.isfinite(v)) * 1.12
+                ax.axhline(0.01, color="0.6", linewidth=0.6, linestyle=":", zorder=1)
+                for prefix, marker, line, shift, s01_y in measures:
+                    face = colour if not prefix else "white"
+                    y = np.array([_num(r[f"{prefix}cer"]) for r in rows])
+                    low = np.maximum([_num(r[f"{prefix}cer_lo"]) for r in rows], _CER_FLOOR)
+                    high = np.array([_num(r[f"{prefix}cer_hi"]) for r in rows])
+                    ax.errorbar(sizes * shift, y, yerr=[np.clip(y - low, 0, None), np.clip(high - y, 0, None)],
+                                fmt=marker, markersize=3, color=colour, markerfacecolor=face, elinewidth=0.6,
+                                capsize=1.2, zorder=3)
+                    a, beta = (_num(fit[f"{prefix}a"]), _num(fit[f"{prefix}beta"])) if fit else (np.nan, np.nan)
+                    if not (np.isfinite(a) and np.isfinite(beta)):
+                        continue
+                    for lo, hi, alpha in ((left, first, _FAINT), (first, last, 1.0), (last, right, _FAINT)):
+                        if hi > lo:
+                            s = np.geomspace(lo, hi, 80)
+                            ax.plot(s, cer_curve(s, a, beta), line, color=colour, linewidth=0.9, alpha=alpha, zorder=2)
+                    s01, s01_lo, s01_hi = (_num(fit[f"{prefix}s01{k}"]) for k in ("", "_lo", "_hi"))
+                    if np.isfinite(s01):
+                        banded = np.isfinite(s01_lo) and np.isfinite(s01_hi)
+                        xerr = [[max(s01 - s01_lo, 0)], [max(s01_hi - s01, 0)]] if banded else None
+                        ax.errorbar([s01], [s01_y], xerr=xerr, fmt="D", markersize=3.2, color=colour,
+                                    markerfacecolor=face, elinewidth=0.8, capsize=1.5,
+                                    alpha=1.0 if _flag(fit[f"{prefix}s01_in_range"]) else _FAINT, zorder=4)
+                ax.set_xscale("log")
+                ax.set_yscale("log")
+                ax.set_xlim(left, right)
+                ax.set_ylim(_CER_FLOOR, 1.5)
+                _log_ticks(ax.xaxis, _PX_TICKS, left, right)
+                patch = _num(fit["patch_size"]) if fit else np.nan
+                if np.isfinite(patch):
+                    top = ax.secondary_xaxis("top", functions=(lambda v, p=patch: v / p, lambda v, p=patch: v * p))
+                    _log_ticks(top.xaxis, _PATCH_TICKS, left / patch, right / patch)
+                    top.set_xlabel(f"patches (P = {patch:g} px)", fontsize=6, labelpad=1)
+                if j == 0:
+                    ax.set_ylabel("CER")
+                if i == len(readers) - 1:
+                    ax.set_xlabel("font size (px)")
+        grey = "0.3"
+        handles = [
+            Line2D([], [], marker="o", markersize=3, color=grey, linestyle="-", label="primary CER: cells and fit"),
+            Line2D([], [], marker="s", markersize=3, color=grey, markerfacecolor="white", linestyle="--",
+                   label="reading CER: cells and fit"),
+            Line2D([], [], color="0.6", linestyle=":", linewidth=0.6, label="CER 0.01"),
+            Line2D([], [], marker="D", markersize=3.2, color=grey, linestyle="", label="s01 and its interval"),
+            Line2D([], [], color=grey, alpha=_FAINT, linewidth=0.9, label="faint: beyond the measured sizes"),
+        ]
+        fig.tight_layout(rect=(0, 0.035, 1, 1), h_pad=0.6)
+        fig.legend(handles=handles, loc="lower center", ncol=len(handles), frameon=False, bbox_to_anchor=(0.5, 0.0))
+        _save(fig, out_path)
+
+
+def plot_stage0_behaviour(behaviour: Sequence[Mapping[str, Any]], cells: Sequence[Mapping[str, Any]],
+                          out_path: str | Path) -> None:
+    """Study 3 stage 0's Figure 6: the behaviour rates against size, one panel per reader (rows) and text type (columns).
+
+    Each size is a bar of behaviour errors per 100 reference characters (ANALYSIS_PLAN_3.md section 1.2), stacked
+    bottom up as omitted (head, interior, tail), runaway inserted and case normalised. These add up to the cell's
+    behaviour rate, whose passage-bootstrap interval from cells.csv is the black bar. Format characters (R1) are
+    counted apart from the alignment and sit hatched on top. Each panel has its own scale, since SmolVLM's prose
+    rates are tens of times Qwen's.
+
+    Args:
+        behaviour: rows of behaviour.csv (scripts/25_fit_stage0.py): reader, text_type, font_size_px and the rates
+            of ``BEHAVIOUR_PARTS`` and format_rate.
+        cells: rows of cells.csv, for behaviour_rate_lo and behaviour_rate_hi; a size without a cell has no interval.
+        out_path: the PDF to write, under reports/figures/.
+
+    Raises:
+        ValueError: when ``behaviour`` is empty.
+    """
+    import matplotlib
+    from matplotlib.figure import Figure
+    from matplotlib.patches import Patch
+
+    if not behaviour:
+        raise ValueError("no behaviour rows to draw: Figure 6 needs behaviour.csv from scripts/25_fit_stage0.py")
+    text_types, readers = _study2_grid(behaviour)
+    panels = _panels(behaviour)
+    band = {(str(c["reader"]), str(c["text_type"]), _num(c["font_size_px"])):
+            (_num(c["behaviour_rate_lo"]), _num(c["behaviour_rate_hi"])) for c in cells}
+    with matplotlib.rc_context(_RC):
+        fig = Figure(figsize=(6.75, 1.0 + 1.45 * len(readers)))
+        axes = fig.subplots(len(readers), len(text_types), squeeze=False)
+        for i, reader in enumerate(readers):
+            for j, text_type in enumerate(text_types):
+                ax = axes[i][j]
+                rows = panels.get((reader, text_type))
+                ax.set_title(f"{reader}, {text_type}")
+                if not rows:
+                    ax.text(0.5, 0.5, f"no {text_type} cells", ha="center", va="center", transform=ax.transAxes,
+                            fontsize=6, color="0.5")
+                    ax.set_xticks([])
+                    ax.set_yticks([])
+                    continue
+                x = np.arange(len(rows))
+                stack = np.zeros(len(rows))
+                for column, _, colour in BEHAVIOUR_PARTS:
+                    height = 100 * np.array([_num(r[column]) for r in rows])
+                    ax.bar(x, height, bottom=stack, width=0.7, color=colour, linewidth=0)
+                    stack += height
+                fmt = 100 * np.array([_num(r["format_rate"]) for r in rows])
+                ax.bar(x, fmt, bottom=stack, width=0.7, facecolor="white", edgecolor="0.4", hatch=FORMAT_HATCH,
+                       linewidth=0.4)
+                tallest = float((stack + fmt).max())
+                for k, r in enumerate(rows):
+                    lo, hi = band.get((reader, text_type, _num(r["font_size_px"])), (np.nan, np.nan))
+                    if np.isfinite(lo) and np.isfinite(hi):
+                        below, above = max(stack[k] - 100 * lo, 0), max(100 * hi - stack[k], 0)
+                        ax.errorbar([x[k]], [stack[k]], yerr=[[below], [above]], fmt="none", ecolor="black",
+                                    elinewidth=0.6, capsize=1.5, zorder=3)
+                        tallest = max(tallest, 100 * hi)
+                ax.set_xticks(x)
+                ax.set_xticklabels([f"{_num(r['font_size_px']):g}" for r in rows])
+                ax.set_xlim(-0.6, len(rows) - 0.4)
+                ax.set_ylim(0, max(tallest * 1.12, 0.05))
+                if j == 0:
+                    ax.set_ylabel("% of reference chars")
+                if i == len(readers) - 1:
+                    ax.set_xlabel("font size (px)")
+        handles = [Patch(color=colour, label=label) for _, label, colour in BEHAVIOUR_PARTS]
+        handles.append(Patch(facecolor="white", edgecolor="0.4", hatch=FORMAT_HATCH, label="format (counted apart)"))
+        fig.tight_layout(rect=(0, 0.035, 1, 1), h_pad=0.6)
         fig.legend(handles=handles, loc="lower center", ncol=len(handles), frameon=False, bbox_to_anchor=(0.5, 0.0))
         _save(fig, out_path)

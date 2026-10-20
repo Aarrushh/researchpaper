@@ -11,7 +11,7 @@ RESUME ?=                         # e.g. RESUME=results/runs/<run_id> continues 
 
 .DEFAULT_GOAL := help
 .PHONY: help env check-env test test-models test-all readers render-check equivariance coherence
-.PHONY: contract reader-facts ladder pilot sweep analyze levels figures mtf freeze freeze-check clean-interim
+.PHONY: contract reader-facts ladder pilot sweep analyze levels figures figures-stage0 mtf freeze freeze-check clean-interim
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -67,6 +67,9 @@ levels: ## Exploratory per-level CER and its parts from the frozen runs, into re
 
 figures: ## Generate Figures 1, 2 and 3a into reports/figures (W2.5, W3.4, W3.6); SWEEP=... to pick config
 	$(PYTHON) scripts/30_make_figures.py --config "$(SWEEP)"
+
+figures-stage0: ## Draw Study 3 stage 0's Figures 5 and 6 from reports/tables/s3_stage0 (ANALYSIS_PLAN_3.md section 2.7)
+	$(PYTHON) scripts/31_stage0_figures.py
 
 mtf: ## Layer-0 MTF of each reader from its patch-embedding weights, fetched by byte range; no model, no GPU (W3.6)
 	$(PYTHON) scripts/04_mtf.py --config "configs/readers.yaml"
