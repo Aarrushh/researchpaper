@@ -1,11 +1,12 @@
 # PURPOSE: Freeze the results: copy them into results/final/ and write the README that names every file's SHA-256 (W3.5).
 # WHAT GOES HERE: The copy, the README, and the check that the tables regenerate byte for byte from the frozen copy.
 # FILLED IN AT STEP: W3.5 (build guide section 3.8).
-# DO NOT: Edit anything under results/final/ by hand. Do not freeze over a previous freeze without --replace. Do not tag here: the tags data-freeze-v1 (Study 1) and data-freeze-v2 (Study 2) follow the owner's sign-off.
+# DO NOT: Edit anything under results/final/ by hand. Do not freeze over a previous freeze without --replace. Do not tag here: the tags data-freeze-v1 (Study 1), data-freeze-v2 (Study 2) and data-freeze-s3-stage0 (stage 0's tables) follow the owner's sign-off.
 """Step W3.5: the freeze (build guide 3.8).
 
     python scripts/40_freeze.py [--results results] [--final results/final] [--replace]
-    python scripts/40_freeze.py --check [--final results/final] [--sweep configs/sweeps/full.yaml ...] [--tables reports/tables]
+    python scripts/40_freeze.py --check [--final results/final] [--sweep configs/sweeps/full.yaml ...] [--fit s3_stage0 ...]
+                                [--tables reports/tables]
 
 The first form copies ``runs/``, ``equivariance/``, ``mtf/`` and ``probe/`` (those that exist) from ``results/`` into
 ``results/final/``, without the git-ignored ``images/`` folders, and writes ``results/final/README.md``: what each
@@ -15,7 +16,10 @@ A second freeze is refused unless ``--replace`` removes the first.
 The second form checks a freeze: every file's SHA-256 against the README, and, for each ``--sweep``, the tables that
 the sweep's analysis script regenerates from ``results/final/runs`` against ``reports/tables/<sweep_name>/``, byte
 for byte (only manifest.json may differ): scripts/22_analyze_study2.py for ``study2`` (PREREGISTRATION_2.md section 9,
-step 7), scripts/20_analyze.py for every other sweep. Exit 1 on any difference. The tag is the owner's, after sign-off.
+step 7), scripts/20_analyze.py for every other sweep. Each ``--fit`` names an analysis of several sweeps in ``FITS``
+(Study 3's stage 0: scripts/25_fit_stage0.py over its three sweeps, ANALYSIS_PLAN_3.md section 2.7), whose tables are
+regenerated and compared with ``reports/tables/<fit_name>/`` the same way. Exit 1 on any difference. The tag is the
+owner's, after sign-off.
 """
 
 from __future__ import annotations
@@ -53,6 +57,12 @@ HASH_LINE = re.compile(r"^([0-9a-f]{64})  (.+)$")  # sha256sum format: the hash,
 ROOT = Path(__file__).resolve().parents[1]
 ANALYZE = "20_analyze.py"  # under scripts/: Study 1's tables, for every sweep not in ANALYZERS
 ANALYZERS = {"study2": "22_analyze_study2.py"}  # by sweep name (PREREGISTRATION_2.md section 9, step 7)
+# Analyses of several sweeps, by table folder: (script under scripts/, its --configs, further arguments). The configs
+# are scripts/25_fit_stage0.py's DEFAULT_CONFIGS, which wrote the committed tables (ANALYSIS_PLAN_3.md section 2.7).
+FITS: dict[str, tuple[str, tuple[str, ...], tuple[str, ...]]] = {
+    "s3_stage0": ("25_fit_stage0.py", ("configs/sweeps/s3_stage0_random.yaml", "configs/sweeps/s3_stage0_prose.yaml",
+                                       "configs/sweeps/s3_stage0_prose_internvl3.yaml"), ()),
+}
 
 _log = logging.getLogger("freeze")
 
@@ -216,6 +226,34 @@ def analyzer(sweep_path: Path) -> str:
     return ANALYZERS.get(Path(sweep_path).stem, ANALYZE)
 
 
+def _regenerate_and_compare(name: str, script: str, args: Sequence[str], committed: Path, root: Path,
+                            python: str) -> list[str]:
+    """Run ``scripts/<script> <args> --out-dir <tmp>`` and compare every CSV it writes under ``<tmp>/<name>/`` with
+    ``committed``, byte for byte; manifest.json is not compared. Returns the problems."""
+    env = {**os.environ, "PYTHONUTF8": "1",
+           "PYTHONPATH": os.pathsep.join(p for p in (str(root / "src"), os.environ.get("PYTHONPATH", "")) if p)}
+    problems: list[str] = []
+    with tempfile.TemporaryDirectory(prefix="freeze_check_") as tmp:
+        cmd = [python, str(root / "scripts" / script), *args, "--out-dir", tmp]
+        proc = subprocess.run(cmd, capture_output=True, text=True, env=env, cwd=root)
+        if proc.returncode != 0:
+            last = proc.stderr.strip().splitlines()[-1] if proc.stderr.strip() else ""
+            return [f"{name}: scripts/{script} exited {proc.returncode}: {last}"]
+        fresh = Path(tmp) / name
+        names = sorted({p.name for p in committed.glob("*.csv")} | {p.name for p in fresh.glob("*.csv")})
+        for csv_name in names:
+            a, b = committed / csv_name, fresh / csv_name
+            if not a.exists():
+                problems.append(f"{name}/{csv_name}: regenerated but not in {committed}")
+            elif not b.exists():
+                problems.append(f"{name}/{csv_name}: in {committed} but not regenerated")
+            elif a.read_bytes() != b.read_bytes():
+                problems.append(f"{name}/{csv_name}: differs from the regenerated table")
+            else:
+                _log.info("%s/%s: identical to the regenerated table", name, csv_name)
+    return problems
+
+
 def check_tables(final: Path, sweeps: Sequence[Path], tables_root: Path, root: Path = ROOT,
                  python: str = sys.executable) -> list[str]:
     """Regenerate each sweep's tables from ``final/runs`` and compare them with ``tables_root/<sweep_name>/``.
@@ -223,8 +261,6 @@ def check_tables(final: Path, sweeps: Sequence[Path], tables_root: Path, root: P
     Every CSV must be byte-identical (build guide 3.8, step 3); manifest.json is not compared. Returns the problems.
     """
     final, tables_root = Path(final), Path(tables_root)
-    env = {**os.environ, "PYTHONUTF8": "1",
-           "PYTHONPATH": os.pathsep.join(p for p in (str(root / "src"), os.environ.get("PYTHONPATH", "")) if p)}
     problems: list[str] = []
     for sweep_path in sweeps:
         sweep_path = Path(sweep_path)
@@ -233,27 +269,31 @@ def check_tables(final: Path, sweeps: Sequence[Path], tables_root: Path, root: P
         if not committed.is_dir():
             problems.append(f"{committed} is missing: run make analyze SWEEP={sweep_path} first")
             continue
-        script = analyzer(sweep_path)
-        with tempfile.TemporaryDirectory(prefix="freeze_check_") as tmp:
-            cmd = [python, str(root / "scripts" / script), "--config", str(sweep_path), "--runs-root",
-                   str(final / "runs"), "--out-dir", tmp]
-            proc = subprocess.run(cmd, capture_output=True, text=True, env=env, cwd=root)
-            if proc.returncode != 0:
-                last = proc.stderr.strip().splitlines()[-1] if proc.stderr.strip() else ""
-                problems.append(f"{name}: scripts/{script} exited {proc.returncode}: {last}")
-                continue
-            fresh = Path(tmp) / name
-            names = sorted({p.name for p in committed.glob("*.csv")} | {p.name for p in fresh.glob("*.csv")})
-            for csv_name in names:
-                a, b = committed / csv_name, fresh / csv_name
-                if not a.exists():
-                    problems.append(f"{name}/{csv_name}: regenerated but not in {committed}")
-                elif not b.exists():
-                    problems.append(f"{name}/{csv_name}: in {committed} but not regenerated")
-                elif a.read_bytes() != b.read_bytes():
-                    problems.append(f"{name}/{csv_name}: differs from the regenerated table")
-                else:
-                    _log.info("%s/%s: identical to the regenerated table", name, csv_name)
+        args = ["--config", str(sweep_path), "--runs-root", str(final / "runs")]
+        problems += _regenerate_and_compare(name, analyzer(sweep_path), args, committed, root, python)
+    return problems
+
+
+def check_fits(final: Path, names: Sequence[str], tables_root: Path, root: Path = ROOT,
+               python: str = sys.executable) -> list[str]:
+    """Regenerate each fit of ``FITS`` from ``final/runs`` and compare its tables with ``tables_root/<name>/``.
+
+    A fit is one script over several sweeps (``--configs`` and ``--name``), such as Study 3's stage 0. Every CSV must
+    be byte-identical; manifest.json is not compared. Returns the problems.
+    """
+    final, tables_root = Path(final), Path(tables_root)
+    problems: list[str] = []
+    for name in names:
+        if name not in FITS:
+            problems.append(f"{name}: not a fit this check knows ({', '.join(sorted(FITS))})")
+            continue
+        script, configs, extra = FITS[name]
+        committed = tables_root / name
+        if not committed.is_dir():
+            problems.append(f"{committed} is missing: run scripts/{script} first")
+            continue
+        args = ["--configs", *configs, "--name", name, "--runs-root", str(final / "runs"), *extra]
+        problems += _regenerate_and_compare(name, script, args, committed, root, python)
     return problems
 
 
@@ -269,6 +309,9 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     p.add_argument("--sweep", action="append", default=[],
                    help="with --check: a sweep whose tables are regenerated from the frozen runs and compared with "
                         "<tables>/<sweep_name>/; repeatable")
+    p.add_argument("--fit", action="append", default=[], choices=sorted(FITS),
+                   help="with --check: an analysis of several sweeps (FITS) whose tables are regenerated from the "
+                        "frozen runs and compared with <tables>/<fit_name>/; repeatable")
     p.add_argument("--tables", default="reports/tables", help="the committed tables (default reports/tables)")
     return p.parse_args(argv)
 
@@ -282,12 +325,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         listed = len(read_hashes(final / README)) if (final / README).exists() else 0
         _log.info("%s: %d file(s) listed in README.md, %d problem(s)", final, listed, len(problems))
         problems += check_tables(final, [Path(s) for s in args.sweep], Path(args.tables))
+        problems += check_fits(final, args.fit, Path(args.tables))
         for problem in problems:
             _log.error("  %s", problem)
         if problems:
             _log.error("the freeze does not check out: %d problem(s)", len(problems))
             return 1
-        _log.info("the freeze checks out%s", " and the tables regenerate byte for byte" if args.sweep else "")
+        regenerated = args.sweep or args.fit
+        _log.info("the freeze checks out%s", " and the tables regenerate byte for byte" if regenerated else "")
         return 0
     try:
         copied = freeze(Path(args.results), final, replace=args.replace, root=ROOT)

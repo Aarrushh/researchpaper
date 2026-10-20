@@ -1381,3 +1381,25 @@ Broke:
 Next:
 - Committed on the owner's go of 20 October ("Commit today's stage-0 work to build/p5 (local only), then add the stage-0 freeze check and tag data-freeze-s3-stage0 (local only)").
 - Figures 5 and 6; the freeze check for `scripts/25_fit_stage0.py` (`--configs` and `--name`); the tag `data-freeze-s3-stage0`; then Study 2's exploratory tables (section 3).
+
+## 2026-10-20, Claude (D22): the freeze check covers stage 0's tables; `data-freeze-s3-stage0`
+Did:
+- On the owner's go of 20 October: "Commit today's stage-0 work to build/p5 (local only), then add the stage-0 freeze check and tag data-freeze-s3-stage0 (local only)."
+- Today's stage-0 work was committed as 9a12d729.
+- `scripts/40_freeze.py` now has `FITS`, analyses of several sweeps keyed by their table folder. Its one entry, `s3_stage0`, runs `scripts/25_fit_stage0.py` over the script's three default sweeps with no other argument.
+  - `--check --fit s3_stage0` regenerates those tables from `results/final/runs` and compares every CSV with `reports/tables/s3_stage0/`, byte for byte, as `--sweep` does. The two share one comparison.
+- `tests/test_freeze.py`: 11 passed, 3 of them new. They check:
+  - that the fit's sweeps equal the script's `DEFAULT_CONFIGS`;
+  - that an unknown fit and a missing table folder are named;
+  - a round trip on Study 1's ladder with few resamples, in which a changed `cells.csv` is named.
+- `40_freeze.py --check --sweep configs/sweeps/full.yaml --sweep configs/sweeps/study2.yaml --fit s3_stage0`, at 9a12d729 with this change, took 1,351 s. Its result: "the freeze checks out and the tables regenerate byte for byte".
+  - All 44,989 hashes of `results/final/` match, with 0 problems.
+  - All 26 tables regenerate identically: Study 1's 9, Study 2's 6 and stage 0's 11.
+- Tagged `data-freeze-s3-stage0` on this commit, local only.
+Found:
+- Nothing new. `results/final/` is unchanged since `data-freeze-v2`: the stage-0 run folders were already in it.
+Broke:
+- Nothing.
+Next:
+- Figures 5 and 6, drawn from the frozen tables.
+- Study 2's exploratory re-scoring (`ANALYSIS_PLAN_3.md` section 3.2), if the owner wants it in the paper.

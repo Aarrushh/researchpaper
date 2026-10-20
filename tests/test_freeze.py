@@ -140,6 +140,45 @@ def test_each_sweep_is_checked_with_the_script_that_wrote_its_tables():
         assert (REPO_ROOT / "scripts" / script).is_file()
 
 
+def test_the_stage0_fit_is_checked_over_the_sweeps_that_wrote_its_tables():
+    # ANALYSIS_PLAN_3.md section 2.7: the check runs scripts/25_fit_stage0.py over its default sweeps, which wrote
+    # reports/tables/s3_stage0/, with no other argument.
+    m = _module()
+    script, configs, extra = m.FITS["s3_stage0"]
+    spec = importlib.util.spec_from_file_location("fit_stage0", REPO_ROOT / "scripts" / script)
+    fit = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(fit)
+    assert configs == tuple(fit.DEFAULT_CONFIGS) and extra == ()
+    assert all((REPO_ROOT / c).is_file() for c in configs)
+
+
+def test_check_fits_names_an_unknown_fit_and_missing_tables(tmp_path):
+    m = _module()
+    assert m.check_fits(tmp_path, ["nothing"], tmp_path)[0].startswith("nothing: not a fit")
+    problems = m.check_fits(tmp_path, ["s3_stage0"], tmp_path / "tables")
+    assert len(problems) == 1 and "is missing: run scripts/25_fit_stage0.py first" in problems[0]
+
+
+@needs_data
+def test_a_fit_regenerates_byte_for_byte_and_a_changed_table_is_named(tmp_path, monkeypatch):
+    # Study 1's ladder through scripts/25_fit_stage0.py, with few resamples, stands in for stage 0's three sweeps.
+    m = _module()
+    quick = ("--resamples", "20", "--loso-resamples", "3", "--subsets", "3", "--no-tokens")
+    monkeypatch.setitem(m.FITS, "ladder_fit", ("25_fit_stage0.py", ("configs/sweeps/ladder.yaml",), quick))
+    tables, runs = tmp_path / "tables", REPO_ROOT / "results" / "runs"
+    env = {**os.environ, "PYTHONUTF8": "1",
+           "PYTHONPATH": os.pathsep.join(p for p in (str(REPO_ROOT / "src"), os.environ.get("PYTHONPATH", "")) if p)}
+    proc = subprocess.run([sys.executable, str(REPO_ROOT / "scripts" / "25_fit_stage0.py"), "--configs",
+                           "configs/sweeps/ladder.yaml", "--name", "ladder_fit", "--runs-root", str(runs),
+                           "--out-dir", str(tables), *quick], capture_output=True, text=True, env=env, cwd=REPO_ROOT)
+    assert proc.returncode == 0, proc.stderr
+    assert m.check_fits(runs.parent, ["ladder_fit"], tables, REPO_ROOT) == []
+    cells = tables / "ladder_fit" / "cells.csv"
+    cells.write_bytes(cells.read_bytes() + b"\n")
+    assert m.check_fits(runs.parent, ["ladder_fit"], tables, REPO_ROOT) == [
+        "ladder_fit/cells.csv: differs from the regenerated table"]
+
+
 @needs_data
 def test_the_tables_regenerate_byte_for_byte_from_the_frozen_runs_and_a_changed_table_is_named(results, tmp_path):
     m = _module()
