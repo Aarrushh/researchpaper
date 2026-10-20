@@ -1404,7 +1404,7 @@ Next:
 - Figures 5 and 6, drawn from the frozen tables.
 - Study 2's exploratory re-scoring (`ANALYSIS_PLAN_3.md` section 3.2), if the owner wants it in the paper.
 
-## 2026-10-20, Claude (D23): Figures 5 and 6 from the frozen stage-0 tables
+## 2026-10-20, Claude (D22): Figures 5 and 6 from the frozen stage-0 tables
 Did:
 - On the owner's go of 20 October: "Draw Figures 5 and 6 from the frozen stage-0 tables (ANALYSIS_PLAN_3.md section 2.7) and commit them locally."
 - `scripts/31_stage0_figures.py` (`make figures-stage0`) reads `cells.csv`, `acuity.csv` and `behaviour.csv` from `reports/tables/s3_stage0/` and calls two new functions of `mrr.plotting`.
@@ -1437,3 +1437,85 @@ Broke:
 - Nothing.
 Next:
 - Study 2's exploratory re-scoring (`ANALYSIS_PLAN_3.md` section 3.2), if the owner wants it in the paper.
+
+## 2026-10-20, Claude (D22): Study 2's exploratory re-scoring (`ANALYSIS_PLAN_3.md` section 3.2)
+Did:
+- Built section 3.2 as the writing session of 20 October asked, on frozen data. Nothing is committed.
+- `scripts/26_rescore_study2.py` loads Study 2's rows as `22_analyze_study2.py` does: `study2.yaml`, `load_results`, `complete_rows` and `with_codes`. All 4,140 rows were kept.
+  - It scores every stored transcription with `behaviour.score_row`, unchanged, twice:
+    - on the normalised strings;
+    - on the letters-only strings: the spaces removed after R1, as `score.char_counts_letters_only` removes them.
+  - The O/0 and I/l/1 substitutions come from `study2.letter_confusions` on the same strings.
+  - It pools counts through `mrr.study2` (`page_values`, `paired_pages`, `condition_bands`) and tests with `22_analyze_study2.paired_row` and its Holm step, so no method is copied. Seed 20261021, 2,000 page resamples.
+- `reports/tables/study2_rescored/`: `pages.csv` (4,140 rows), `conditions.csv` (62), `paired.csv` (13), `q1_prose.csv` (35), `q2_letterform.csv` (12), `q2_classes.csv` (35), `q3_case.csv` (97), and a manifest. Every row carries `analysis_status` exploratory.
+- `tests/test_rescore_study2.py`: 9 passed on synthetic rows. They plant one error of each class and check:
+  - that each lands in its class, on both strings;
+  - the checks against `results.csv`;
+  - the pooling;
+  - families 2 to 4;
+  - Q1 to Q3;
+  - that the tables are byte-identical twice;
+  - that the script refuses to write into `study2/`.
+  With `test_behaviour.py` and `test_study2.py`: 41 passed (`-m "not todo and not model"`).
+- Two full runs (78 s each) gave byte-identical CSVs. `git status` shows `reports/tables/study2/` unchanged.
+Found:
+- **Checks.**
+  - The recomputed primary and letters-only counts equal `results.csv` on all 4,140 rows.
+  - Section 1's parts add up on every row.
+  - R1 touched no Study 2 row.
+  - Anchored omissions are on 88 rows, runaway insertions on 78 rows.
+  - `conditions.csv`'s primary CER and its interval equal `study2/letters.csv` in all 62 cells.
+  - The Q1 `cer` row and the Q2 `letters` rows reproduce the confirmatory H6 and H4 rows exactly.
+- **Families 2 to 4 on reading CER** (`paired.csv`, secondary to the confirmatory table). The verdict pattern is the confirmatory one. Contained minus the baseline, median [95% interval]:
+  - containment, on letters-only reading CER:
+    - InternVL3 −0.0030 [−0.0088, 0.0000] and SmolVLM-2.2B −0.0160 [−0.0220, −0.0077]: supported;
+    - Qwen 0.0000 [0.0000, 0.0014] and Qwen-7B 0.0000 [0.0000, 0.0030]: not (Qwen-7B: Holm p 0.091).
+  - advantage, on reading CER:
+    - InternVL3 −0.0127 [−0.0159, −0.0071] and SmolVLM-2.2B −0.0175 [−0.0263, −0.0127]: supported;
+    - Qwen −0.0012 [−0.0060, +0.0021] and Qwen-7B −0.0012 [−0.0031, +0.0025]: not.
+  - prose, δ = 0.01: every reader passes except SmolVLM-500M, +0.0014 [−0.0133, +0.0164].
+  Taking the behaviour out changes no verdict.
+- **Q1. SmolVLM-500M's H6 failure is misreading and runaway insertion, not an omission habit.** Its 60 prose pages, contained minus conventional (`q1_prose.csv`):
+  - **Coverage:** median 0.000 [0.000, 0.000]; 38 of 60 differences are zero; p = 0.21.
+    - Pooled, the contained layout covers more: 0.990 against 0.975.
+    - Its omitted rate is 1.0% against 2.5%.
+  - **Reading CER:** median +0.0014 [−0.0133, +0.0164], p = 0.36; pooled 0.119 against 0.091.
+  - **Runaway insertions:** pooled 3.7% against 1.5% (median 0, p = 0.11).
+    - Pages with one: 18% (M0) and 20% (M3), against 10% in each S phase.
+    - Pages at the token limit: 13% (M0) and 5% (M3), against 0 to 3%.
+  - **The pooled primary CER**, 0.168 against 0.132 (+0.036), splits into:
+    - reading errors +0.029;
+    - runaway +0.022;
+    - omitted −0.015;
+    - case normalisation −0.000.
+  - M0 carries most of it: reading CER 0.150 against M3's 0.089.
+  - By the median page neither coverage nor reading CER moves. The failure is a tail of pages.
+- **Q2. Yes: for both Qwen readers the H4 null is a letterform floor.** Random text, contained minus cut (`q2_letterform.csv`, `q2_classes.csv`):
+  - **Classes.** O/0, I/l/1 and case make up 82% (cut) and 83% (contained) of Qwen-3B's letters-only errors, and 93% and 91% of Qwen-7B's. Contained, in letters:
+    - Qwen-3B: 224 case, 106 O/0, 14 I/l/1 and 68 other, of 412;
+    - Qwen-7B: 95, 168, 2 and 27, of 292.
+  - **Without the classes**, the letters-only reading CER is:
+    - Qwen-3B: 0.0038 (cut) against 0.0034 (contained); median 0.000 [0.000, 0.000], p = 0.95;
+    - Qwen-7B: 0.0010 against 0.0013; median 0.000 [0.000, 0.000], 47 of 60 differences zero, p = 0.33.
+    Nothing is left for containment to improve. The argument the preregistration made for Qwen-3B (section 10) also holds for Qwen-7B.
+  - **The other readers, for comparison:**
+    - InternVL3's containment gain mostly goes with the classes: 0.000 [−0.0056, 0.000], p = 0.058.
+    - SmolVLM-2.2B keeps a gain: −0.0085 [−0.0148, −0.0038].
+- **Q3. Case errors are a larger share of the mono's errors than of the sans'** (`q3_case.csv`). Random text, shape-alike plus case-normalised as a share of the primary errors, conventional / contained / cut:
+  - Qwen-3B 28% / 51% / 55%;
+  - Qwen-7B 15% / 32% / 38%;
+  - InternVL3 37% / 44% / 50%;
+  - SmolVLM-2.2B 41% / 57% / 52%.
+  - The slot layout: 0.5 to 9%. Its errors are spaces.
+  - Case-normalised (shape-distinct) errors outnumber shape-alike ones in every random group, by 1.5 to 12 times.
+  - Per reference character, the mono has more case errors for the Qwen pair and SmolVLM-2.2B, and fewer for InternVL3 (0.0101 against 0.0134).
+  - On prose, case is at most 6% of errors. The exceptions are InternVL3's mono, 30% (contained, 26 of 88 errors) and 25% (cut), a small count.
+- [Flag, judgement] **Two readings of the plan.**
+  - "Letters-only reading CER" is `score_row` on the letters-only strings, so L = 15 and the 30-character anchor count letters there. On random text this finds omissions only in Qwen-7B's slot layout (18 letters).
+  - Family 2 (containment) is tested on that letters-only reading CER, to keep H4's strings; families 3 and 4 on the reading CER of the normalised strings.
+  If you would rather test family 2 on the full-string reading CER, it is one entry of `FAMILIES`.
+Broke:
+- Nothing.
+Next:
+- Committed on the owner's go of 20 October ("Yes: commit the Study 2 re-scoring to build/p5 locally (no push)…"). Section 5, item 5 of `ANALYSIS_PLAN_3.md` is marked done.
+- `40_freeze.py --check` has no `study2_rescored` entry yet, so these tables are not covered by the freeze check. Adding one would let them regenerate from `results/final/runs` like the others.
