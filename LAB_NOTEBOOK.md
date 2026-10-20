@@ -1274,3 +1274,37 @@ Broke:
 - Nothing.
 Next:
 - `ANALYSIS_PLAN_3.md`, the scoring rules and `src/mrr/behaviour.py`, committed before any row is scored (next entry).
+
+## 2026-10-20, Claude (D22): Analysis plan 3 and its scoring rules (`src/mrr/behaviour.py`), committed before any row is scored
+Did:
+- On the owner's go of 20 October: "Approve all four section 6 recommendations. Start with Study 2's freeze (data-freeze-v2, local only), then build behaviour.py and its tests, and commit the plan as ANALYSIS_PLAN_3.md before scoring any row."
+- `ANALYSIS_PLAN_3.md` comes from the draft `research-paper-notes/research/R8_analysis_plan.md`, with section 6 approved. It covers:
+  - the paper's scope: the mechanisms, Study 2's preregistered results, and the calibration method on five readers;
+  - the scoring rules R1 to R5;
+  - the stage-0 tables;
+  - Study 2's exploratory questions Q1 to Q3;
+  - the descriptive link between Study 2's effects and each reader's half-error size a.
+- `src/mrr/behaviour.py` implements the rules. `score_row` makes one jiwer alignment per row and returns a `RowScore`:
+  - format (R1);
+  - omissions anchored by 30 reference characters with at most 3 errors, head, interior or tail (R3);
+  - runaway insertions (R3);
+  - case errors split by letter shape (R4);
+  - reading errors (R5).
+  `RowScore` carries coverage, reading CER and the check that the classes add up to the primary count. `results.csv` and `mrr.score` are untouched.
+- `tests/test_behaviour.py`: 13 tests on planted strings, all passed. `tests/test_freeze.py`: 8 passed.
+- No stage-0 or Study 2 row has been scored with `score_row`; the first scoring comes after this commit.
+Found:
+- [Flag, deviation] The R4 shape test, IoU ≥ 0.8 at 48 px as the draft fixed it, admitted no letter in either font.
+  - Scaling a lower-case glyph up by cap height over x-height thickens its strokes, so even o/O reach only 0.66 (Source Sans 3) and 0.62 (Fira Mono).
+  - The ranking is the expected one: Source Sans 3 z s .74, c .69, o v .66, x .65, u .64, then q .52; Fira Mono z s v .71, c .70, x .69, o .62, u .57.
+  - The threshold was lowered to 0.6, the widest gap in Source Sans 3's ranking, before any row was scored. The sets are Source Sans 3 c o s u v x z and Fira Mono c o s v x z: Fira's u has a spur, and w (0.42, 0.43) is in neither, unlike the draft's guess.
+  - The full table is in `ANALYSIS_PLAN_3.md`, R4. The case-folded and primary CERs bound any choice of threshold.
+  - The owner's to confirm before the first scoring.
+Broke:
+- Nothing.
+Next:
+- Stage 0 (`ANALYSIS_PLAN_3.md` section 2):
+  - the per-row scoring script and `pages.csv`;
+  - then the extended cells and fits, behaviour, tokens, sensitivity and cost tables;
+  - Figures 5 and 6;
+  - the freeze check for `scripts/25_fit_stage0.py`, and the tag `data-freeze-s3-stage0`.
