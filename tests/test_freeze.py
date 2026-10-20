@@ -131,6 +131,15 @@ def test_check_hashes_names_a_changed_a_missing_and_an_unlisted_file(results, tm
     assert m.check_hashes(tmp_path / "nowhere") == [f"{tmp_path / 'nowhere' / 'README.md'} is missing"]
 
 
+def test_each_sweep_is_checked_with_the_script_that_wrote_its_tables():
+    m = _module()
+    assert m.analyzer(Path("configs/sweeps/study2.yaml")) == "22_analyze_study2.py"  # PREREGISTRATION_2.md, 9.7
+    for name in ("full", "ladder", "analysis"):
+        assert m.analyzer(Path(f"configs/sweeps/{name}.yaml")) == "20_analyze.py"
+    for script in {m.ANALYZE, *m.ANALYZERS.values()}:
+        assert (REPO_ROOT / "scripts" / script).is_file()
+
+
 @needs_data
 def test_the_tables_regenerate_byte_for_byte_from_the_frozen_runs_and_a_changed_table_is_named(results, tmp_path):
     m = _module()

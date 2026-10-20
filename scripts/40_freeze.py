@@ -1,7 +1,7 @@
 # PURPOSE: Freeze the results: copy them into results/final/ and write the README that names every file's SHA-256 (W3.5).
 # WHAT GOES HERE: The copy, the README, and the check that the tables regenerate byte for byte from the frozen copy.
 # FILLED IN AT STEP: W3.5 (build guide section 3.8).
-# DO NOT: Edit anything under results/final/ by hand. Do not freeze over a previous freeze without --replace. Do not tag here: the tag data-freeze-v1 follows the owner's sign-off.
+# DO NOT: Edit anything under results/final/ by hand. Do not freeze over a previous freeze without --replace. Do not tag here: the tags data-freeze-v1 (Study 1) and data-freeze-v2 (Study 2) follow the owner's sign-off.
 """Step W3.5: the freeze (build guide 3.8).
 
     python scripts/40_freeze.py [--results results] [--final results/final] [--replace]
@@ -13,8 +13,9 @@ folder holds, the sweep, reader and commit of every run folder, and the SHA-256 
 A second freeze is refused unless ``--replace`` removes the first.
 
 The second form checks a freeze: every file's SHA-256 against the README, and, for each ``--sweep``, the tables that
-scripts/20_analyze.py regenerates from ``results/final/runs`` against ``reports/tables/<sweep_name>/``, byte for
-byte (only manifest.json may differ). Exit 1 on any difference. The tag is the owner's, after sign-off.
+the sweep's analysis script regenerates from ``results/final/runs`` against ``reports/tables/<sweep_name>/``, byte
+for byte (only manifest.json may differ): scripts/22_analyze_study2.py for ``study2`` (PREREGISTRATION_2.md section 9,
+step 7), scripts/20_analyze.py for every other sweep. Exit 1 on any difference. The tag is the owner's, after sign-off.
 """
 
 from __future__ import annotations
@@ -40,7 +41,7 @@ FOLDERS = ("runs", "equivariance", "mtf", "probe")  # copied when present, in th
 SKIPPED = ("images", "__pycache__")  # rendered pages are git-ignored (.gitignore: results/runs/**/images/)
 README = "README.md"
 WHAT = {
-    "runs": "one folder per run of the ladder, the pilot and the full sweep: manifest.json, results.csv, "
+    "runs": "one folder per run, its sweep named in the table below: manifest.json, results.csv, "
             "transcriptions/, references/, coherence.csv, determinism.csv and progress.log (section 2.8); the rendered "
             "pages under images/ are git-ignored and not copied",
     "equivariance": "the shift-equivariance error per layer of each vision tower, <reader>_<text_type>.csv and "
@@ -50,7 +51,8 @@ WHAT = {
 }
 HASH_LINE = re.compile(r"^([0-9a-f]{64})  (.+)$")  # sha256sum format: the hash, two spaces, the path
 ROOT = Path(__file__).resolve().parents[1]
-ANALYZE = ROOT / "scripts" / "20_analyze.py"
+ANALYZE = "20_analyze.py"  # under scripts/: Study 1's tables, for every sweep not in ANALYZERS
+ANALYZERS = {"study2": "22_analyze_study2.py"}  # by sweep name (PREREGISTRATION_2.md section 9, step 7)
 
 _log = logging.getLogger("freeze")
 
@@ -209,6 +211,11 @@ def check_hashes(final: Path) -> list[str]:
     return problems
 
 
+def analyzer(sweep_path: Path) -> str:
+    """The script under scripts/ that writes a sweep's tables: Study 2's for ``study2``, Study 1's for any other."""
+    return ANALYZERS.get(Path(sweep_path).stem, ANALYZE)
+
+
 def check_tables(final: Path, sweeps: Sequence[Path], tables_root: Path, root: Path = ROOT,
                  python: str = sys.executable) -> list[str]:
     """Regenerate each sweep's tables from ``final/runs`` and compare them with ``tables_root/<sweep_name>/``.
@@ -226,13 +233,14 @@ def check_tables(final: Path, sweeps: Sequence[Path], tables_root: Path, root: P
         if not committed.is_dir():
             problems.append(f"{committed} is missing: run make analyze SWEEP={sweep_path} first")
             continue
+        script = analyzer(sweep_path)
         with tempfile.TemporaryDirectory(prefix="freeze_check_") as tmp:
-            cmd = [python, str(ANALYZE), "--config", str(sweep_path), "--runs-root", str(final / "runs"),
-                   "--out-dir", tmp]
+            cmd = [python, str(root / "scripts" / script), "--config", str(sweep_path), "--runs-root",
+                   str(final / "runs"), "--out-dir", tmp]
             proc = subprocess.run(cmd, capture_output=True, text=True, env=env, cwd=root)
             if proc.returncode != 0:
                 last = proc.stderr.strip().splitlines()[-1] if proc.stderr.strip() else ""
-                problems.append(f"{name}: scripts/20_analyze.py exited {proc.returncode}: {last}")
+                problems.append(f"{name}: scripts/{script} exited {proc.returncode}: {last}")
                 continue
             fresh = Path(tmp) / name
             names = sorted({p.name for p in committed.glob("*.csv")} | {p.name for p in fresh.glob("*.csv")})
@@ -288,7 +296,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
     _log.info("%s: %s copied; %d file(s) listed in %s", final, ", ".join(copied), len(read_hashes(final / README)),
               final / README)
-    _log.info("next: review the README, run --check, then the owner tags data-freeze-v1 (section 3.8, step 4)")
+    _log.info("next: review the README, run --check, then the owner tags the freeze: data-freeze-v1 for Study 1 "
+              "(section 3.8, step 4), data-freeze-v2 for Study 2 (PREREGISTRATION_2.md section 9, step 7)")
     return 0
 
 
