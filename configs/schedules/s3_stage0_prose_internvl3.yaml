@@ -1,0 +1,15 @@
+# PURPOSE: The clock that stops InternVL3's upper prose ladder of Study 3's stage 0 (configs/sweeps/s3_stage0_prose_internvl3.yaml): which readers run in which phase, and until when.
+# WHAT GOES HERE: Phases in order, each with its readers (run side by side) and its end as ISO 8601 with the UTC offset; max_restarts per reader.
+# FILLED IN AT STEP: Study 3 stage 0, drafted 20 October 2026. The phase is fixed; the time is set with the owner's go, and scripts/11_run_schedule.py refuses to start until it is.
+# DO NOT: Edit after the run has started. A crash is resumed by the driver, and the lost time is not made up.
+#
+# Expected hours, from InternVL3's measured seconds a page on s3_stage0_prose.yaml (13 px 12.0 s, 16 px 6.4 s,
+# 20 px 3.8 s; random text 24 to 36 px 8.3 to 3.9 s): about 27 s for one passage at the seven sizes, 16 passages,
+# about 7 minutes, plus the model's load; about 0.2 h. The phase gets about twice that, rounded up to the half hour.
+
+# Time set on 20 October 2026 with the owner's go ("set the time from now"), from a start of 10:50 CEST: the phase
+# ends half an hour later.
+
+phases:
+  - {readers: [internvl3_2b], until: "2026-10-20T11:20:00+02:00"}
+max_restarts: 5

@@ -1,0 +1,38 @@
+# PURPOSE: Study 3 stage 0, prose, InternVL3-2B only: the upper half of its acuity curve on full pages, above the 20 px top of s3_stage0_prose.yaml (design note R7, section 3).
+# WHAT GOES HERE: One reader, the prose pages only, a new seed, one per-condition block of seven sizes, the results schema and the reader file, as s3_stage0_prose.yaml.
+# FILLED IN AT STEP: Study 3 stage 0, drafted 20 October 2026 for the owner's review, after the stage-0 fit (reports/tables/s3_stage0/). Frozen at the owner's go.
+# DO NOT: Edit after the run has started; resume instead. Never reuse a seed or a page of Study 1, Study 2, the pilots, the font pre-test, the feasibility step or the stage-0 sweeps.
+#
+# Why: on s3_stage0_prose.yaml InternVL3's prose cells are 13 px 0.756, 16 px 0.390 and 20 px 0.085, and the fit puts
+# a at 14.7 px [13.5, 15.8] with s05 22.6 and s01 28.7 px, both extrapolated past the ladder's 20 px top. At 20 px
+# seven of the eight pages read with CER 0.000 to 0.064 and one skipped half its text (0.527), so the 1% size is not
+# yet measured.
+# Sizes: steps of about 1.2, as the other stage-0 ladders. 14 px sits on the cliff (about 0.6 on the fit) and joins
+# this ladder to the first; 20 px repeats the first ladder's top on new passages; 42 px is about 1.5 times the
+# extrapolated s01 (InternVL3's random-text cell at 36 px is 0.036, s3_stage0_random.yaml).
+# Pages: 16 passages, not 8. A page at 42 px holds about 146 characters on eight lines (the plan of this sweep; 1,594
+# at 14 px), so eight pages hold about 1,200 and one skipped line of about 18 characters is 1.5% on its own; sixteen
+# hold about 2,300.
+# Natural pages start after every word of the three books that Study 1's ladder and full sweep, Study 2 and the stage-0
+# prose sweep planned for any reader (pages.natural.start_after). The fit pools this sweep with s3_stage0_prose.yaml as
+# two sets of passages (mrr.acuity.fit_group, a passage is (sweep, book, index)).
+# Not covered: InternVL3's random-text s01 (37.0 px) also lies just past its ladder's 36 px top.
+# Rows per reader = 7 sizes x 16: internvl3_2b 112; total 112.
+# Hours: configs/schedules/s3_stage0_prose_internvl3.yaml.
+
+readers: [internvl3_2b]
+readers_config: configs/readers_study2.yaml     # Study 1's three blocks unchanged and Study 2's validation readers
+results_schema: study2                          # the 33 columns and hits_ns ... spaces_inserted, as Study 2
+seed: 20261026                                  # new: 20261012 to 20261024 are taken (as s3_stage0_prose.yaml) and 20261025 is the stage-0 fit
+pages:
+  natural: {books: [pg105, pg84, pg1661], per_text_type: {internvl3_2b: 16},
+            start_after: [configs/sweeps/ladder.yaml, configs/sweeps/full.yaml, configs/sweeps/study2.yaml,
+                          configs/sweeps/s3_stage0_prose.yaml]}
+  random62: {per_text_type: 0}                  # prose only, as s3_stage0_prose.yaml
+repeats: 1
+font_file: data/external/fonts/source-sans-3/SourceSans3-Regular.ttf
+aa_mode: coverage_srgb
+blocks:
+  Z: {render_mode: conventional, line_pitch_mode: unaligned, phases_px: [0.0], paginate: per_condition,
+      font_size_px: {internvl3_2b: [14, 17, 20, 24, 29, 35, 42]}}
+output_root: results/runs
