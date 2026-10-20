@@ -1244,3 +1244,33 @@ Broke:
 - Nothing.
 Next:
 - The analysis: how stage 0 scores and reports these behaviours apart from acuity (R7; the owner's decision, from the committed transcriptions, no new run).
+
+## 2026-10-20, Claude (D22): W5.3, Study 2's finish and the freeze, `data-freeze-v2`
+Did:
+- The run of 19 October, at `prereg-v2` (badfe672) in `.claude/worktrees/run2`, from the chat session's background shell (`run2/logs/schedule.log`, `schedule_driver.out`):
+  - qwen: 840 rows, 12:10 to 14:06 CEST.
+  - The SmolVLM pair: from 14:06. Paused by the owner at about 14:20 CEST and resumed on the owner's word at 15:08, each resuming its own folder. SmolVLM-500M finished at 15:21 with 360 rows, SmolVLM-2.2B at 16:14 with 1,260.
+  - internvl3_2b: 840 rows, 16:14 to 17:05.
+  - qwen7b: 840 rows, 17:05 to 18:12.
+  - In all, 4,140 of 4,140 rows by 18:12:19 CEST. Every runner "exited cleanly (deadline or ceiling)", `schedule done`, driver exit 0.
+- The run folders were copied byte for byte from run2 without images (18baae36). The tables of `scripts/22_analyze_study2.py` and Figures 3 and 4 were made from them (d4817abf).
+- `scripts/40_freeze.py --check` ran `scripts/20_analyze.py` for every `--sweep`, and that script does not write Study 2's tables. Its `analyzer()` now picks `22_analyze_study2.py` for `study2` and keeps `20_analyze.py` for every other sweep (f8e0086b, with a test; `tests/test_freeze.py` 8 passed).
+- The freeze, on the owner's go of 20 October ("Start with Study 2's freeze (data-freeze-v2, local only)"):
+  - `40_freeze.py --replace` at f8e0086b copied `runs/`, `equivariance/` and `mtf/` into `results/final/` without images. Its README was written at 12:24:41 CEST.
+  - It holds 31 run folders: Study 1's 12, the three reader checks of 17 October, Study 2's 5 and stage 0's 11. The README lists 44,989 files with their SHA-256.
+  - Study 1's frozen files are unchanged byte for byte: git sees only the README and the 19 new folders.
+  - The README says "with uncommitted changes" because `git_dirty` counts the freeze's own untracked copies, as Study 1's freeze did.
+  - The stage-0 run folders are hashed here too, so every collected row is fixed before the scoring rules of `ANALYSIS_PLAN_3.md` touch one.
+- `40_freeze.py --check --sweep configs/sweeps/full.yaml --sweep configs/sweeps/study2.yaml`: "the freeze checks out and the tables regenerate byte for byte". All 44,989 hashes match with 0 problems. Study 1's nine tables of `reports/tables/full/` and Study 2's six of `reports/tables/study2/` are identical to the ones regenerated from `results/final/runs`.
+- Tagged `data-freeze-v2` on this commit, local only.
+Found:
+- Results as preregistered (`reports/tables/study2/paired.csv`):
+  - H3 is supported for all four random-text readers: contained minus slot is −0.221, −0.244, −0.187 and −0.171 spaces per character. Its non-inferiority part against conventional holds, with every upper end at 0.000.
+  - H4 is supported for InternVL3-2B (−0.010 letters-only CER) and SmolVLM-2.2B (−0.022), not for Qwen-3B or Qwen-7B (0.000).
+  - H5 shows a gain for InternVL3-2B and SmolVLM-2.2B (−0.015 each) and parity for both Qwen readers.
+  - H6 passes for four readers and fails for SmolVLM-500M: median +0.015, interval [−0.003, +0.056] against δ = 0.01. Non-inferiority is not shown, which does not mean the layout is shown worse.
+  - H7 fails by section 10, because Qwen-7B misses H4. The generalisation claim is withdrawn as worded.
+Broke:
+- Nothing.
+Next:
+- `ANALYSIS_PLAN_3.md`, the scoring rules and `src/mrr/behaviour.py`, committed before any row is scored (next entry).

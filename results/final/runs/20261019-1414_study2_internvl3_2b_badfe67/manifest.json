@@ -1,0 +1,240 @@
+{
+  "config": {
+    "conditions": 8,
+    "deadline": "2026-10-19T19:30:00+00:00",
+    "generation": {
+      "do_sample": false,
+      "max_new_tokens": "ceil(1.5 x the reference's length in the reader's tokens), per page (sections 1B.9 and 2.8)",
+      "num_beams": 1,
+      "repetition_penalty": 1.0
+    },
+    "pages": 120,
+    "placement": {
+      "decision": "D18",
+      "device_map": "cuda",
+      "dtype": "bfloat16"
+    },
+    "reader": {
+      "aligned_pitch_px": 28,
+      "device_map": "cuda",
+      "dtype": "bfloat16",
+      "hf_id": "OpenGVLab/InternVL3-2B-hf",
+      "image_token": "<IMG_CONTEXT>",
+      "max_new_tokens": 591,
+      "merge_size": 2,
+      "name": "internvl3_2b",
+      "page_px": [
+        448,
+        448
+      ],
+      "patch_size": 14,
+      "prompt": "Transcribe all text in the image exactly. Output only the text.",
+      "revision": "cb57a075cb75a2e6d1b668b128d48bb00ae321d2",
+      "token_cell_px": 28
+    },
+    "render": {
+      "aa_mode": "coverage_srgb",
+      "background_color": [
+        255,
+        255,
+        255
+      ],
+      "blind_strip_px": 0,
+      "font_file": [
+        "FiraMono-Regular.ttf",
+        "SourceSans3-Regular.ttf"
+      ],
+      "font_size_px": [
+        23.333,
+        25,
+        28
+      ],
+      "line_pitch_px": 20,
+      "margin_px": 14,
+      "max_phase_x_px": 105,
+      "max_phase_y_px": 26,
+      "page_height_px": 448,
+      "page_width_px": 448,
+      "patch_aware_slot_px": 14,
+      "phase_x_px": 0,
+      "phase_y_px": 0,
+      "render_mode": "conventional",
+      "text_color": [
+        0,
+        0,
+        0
+      ]
+    },
+    "repeats": 1,
+    "rows_planned": 840,
+    "save_images": "first",
+    "sweep": {
+      "aa_mode": "coverage_srgb",
+      "blocks": {
+        "D": {
+          "axis": "x",
+          "font_size_px": 28,
+          "line_pitch_mode": "unaligned",
+          "phases_px": [
+            0.0
+          ],
+          "render_mode": "conventional",
+          "text_types": [
+            "random62"
+          ]
+        },
+        "M": {
+          "axis": "x",
+          "font_file": "data/external/fonts/fira-mono/FiraMono-Regular.ttf",
+          "font_size_px": {
+            "internvl3_2b": 23.333,
+            "qwen": 23.333,
+            "qwen7b": 23.333,
+            "smolvlm": 23.333,
+            "smolvlm500m": 26.651
+          },
+          "line_pitch_mode": "unaligned",
+          "phases_px": {
+            "internvl3_2b": [
+              0.0,
+              3.0,
+              7.0
+            ],
+            "qwen": [
+              0.0,
+              3.0,
+              7.0
+            ],
+            "qwen7b": [
+              0.0,
+              3.0,
+              7.0
+            ],
+            "smolvlm": [
+              0.0,
+              3.0,
+              7.0
+            ],
+            "smolvlm500m": [
+              0.0,
+              3.0,
+              8.0
+            ]
+          },
+          "render_mode": "patch_aware"
+        },
+        "Q": {
+          "axis": "x",
+          "line_pitch_mode": "unaligned",
+          "phases_px": [
+            0.0
+          ],
+          "render_mode": "patch_aware",
+          "text_types": [
+            "random62"
+          ]
+        },
+        "S": {
+          "axis": "x",
+          "line_pitch_mode": "unaligned",
+          "phases_px": [
+            0.0,
+            5.0,
+            10.0
+          ],
+          "render_mode": "conventional"
+        }
+      },
+      "font_file": "data/external/fonts/source-sans-3/SourceSans3-Regular.ttf",
+      "font_size_px": {
+        "internvl3_2b": 25,
+        "qwen": 25,
+        "qwen7b": 25,
+        "smolvlm": 25,
+        "smolvlm500m": 29
+      },
+      "output_root": "results/runs",
+      "pages": {
+        "natural": {
+          "books": [
+            "pg105",
+            "pg84",
+            "pg1661"
+          ],
+          "per_text_type": {
+            "internvl3_2b": 60,
+            "qwen": 60,
+            "qwen7b": 60,
+            "smolvlm": 90,
+            "smolvlm500m": 60
+          },
+          "start_after": [
+            "configs/sweeps/ladder.yaml",
+            "configs/sweeps/full.yaml"
+          ]
+        },
+        "random62": {
+          "per_text_type": {
+            "internvl3_2b": 60,
+            "qwen": 60,
+            "qwen7b": 60,
+            "smolvlm": 90,
+            "smolvlm500m": 0
+          }
+        }
+      },
+      "phase_allowances_px": {
+        "internvl3_2b": [
+          105,
+          26
+        ],
+        "qwen": [
+          105,
+          26
+        ],
+        "qwen7b": [
+          105,
+          26
+        ],
+        "smolvlm": [
+          40,
+          40
+        ],
+        "smolvlm500m": [
+          60,
+          60
+        ]
+      },
+      "readers": [
+        "qwen",
+        "smolvlm",
+        "smolvlm500m",
+        "qwen7b",
+        "internvl3_2b"
+      ],
+      "readers_config": "configs/readers_study2.yaml",
+      "repeats": 1,
+      "results_schema": "study2",
+      "seed": 20261020
+    },
+    "sweep_file": "configs\\sweeps\\study2.yaml",
+    "sweep_name": "study2",
+    "sweep_sha1": "b0a2903c84777226aee8811dcf30a73fdf17f313"
+  },
+  "git_commit": "badfe672c9c49fb1a06343b78d4ca7929c1591f4",
+  "git_dirty": true,
+  "gpu_name": "NVIDIA GeForce RTX 5060 Laptop GPU",
+  "packages": {
+    "freetype-py": "2.5.1",
+    "jiwer": "4.0.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0",
+    "scipy": "1.17.1",
+    "torch": "2.14.1+cu130",
+    "transformers": "5.19.0"
+  },
+  "platform": "Windows-10-10.0.26300-SP0",
+  "python_version": "3.11.15",
+  "run_id": "20261019-1414_study2_internvl3_2b_badfe67",
+  "timestamp_utc": "2026-10-19T14:14:17Z"
+}

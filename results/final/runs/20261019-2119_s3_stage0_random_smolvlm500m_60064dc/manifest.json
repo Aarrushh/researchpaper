@@ -1,0 +1,185 @@
+{
+  "config": {
+    "conditions": 7,
+    "deadline": "2026-10-19T23:40:00+00:00",
+    "generation": {
+      "do_sample": false,
+      "max_new_tokens": "ceil(1.5 x the reference's length in the reader's tokens), per page (sections 1B.9 and 2.8)",
+      "num_beams": 1,
+      "repetition_penalty": 1.0
+    },
+    "pages": 112,
+    "placement": {
+      "decision": "D18",
+      "device_map": "cuda",
+      "dtype": "bfloat16"
+    },
+    "reader": {
+      "aligned_pitch_px": 64,
+      "device_map": "cuda",
+      "dtype": "bfloat16",
+      "hf_id": "HuggingFaceTB/SmolVLM-500M-Instruct",
+      "image_token": "<image>",
+      "max_new_tokens": 1157,
+      "merge_size": 4,
+      "name": "smolvlm500m",
+      "page_px": [
+        512,
+        512
+      ],
+      "patch_size": 16,
+      "position_id_fix": "pre_hook",
+      "prompt": "Transcribe all text in the image exactly. Output only the text.",
+      "revision": "a7da5b986cb59b408707209984f360a5f4ad7e47",
+      "token_cell_px": 64
+    },
+    "render": {
+      "aa_mode": "coverage_srgb",
+      "background_color": [
+        255,
+        255,
+        255
+      ],
+      "blind_strip_px": 0,
+      "font_file": "SourceSans3-Regular.ttf",
+      "font_size_px": [
+        29,
+        35,
+        42,
+        50,
+        60,
+        72,
+        86
+      ],
+      "line_pitch_px": 20,
+      "margin_px": 16,
+      "max_phase_x_px": 0,
+      "max_phase_y_px": 0,
+      "page_height_px": 512,
+      "page_width_px": 512,
+      "patch_aware_slot_px": 16,
+      "phase_x_px": 0,
+      "phase_y_px": 0,
+      "render_mode": "conventional",
+      "text_color": [
+        0,
+        0,
+        0
+      ]
+    },
+    "repeats": 1,
+    "rows_planned": 112,
+    "save_images": "first",
+    "sweep": {
+      "aa_mode": "coverage_srgb",
+      "blocks": {
+        "Z": {
+          "font_size_px": {
+            "internvl3_2b": [
+              10,
+              12,
+              15,
+              19,
+              24,
+              29,
+              36
+            ],
+            "qwen": [
+              10,
+              12,
+              15,
+              19,
+              24,
+              29,
+              36
+            ],
+            "qwen7b": [
+              10,
+              12,
+              15,
+              19,
+              24,
+              29,
+              36
+            ],
+            "smolvlm": [
+              16,
+              19,
+              23,
+              28,
+              34,
+              42,
+              52
+            ],
+            "smolvlm500m": [
+              29,
+              35,
+              42,
+              50,
+              60,
+              72,
+              86
+            ]
+          },
+          "line_pitch_mode": "unaligned",
+          "paginate": "per_condition",
+          "phases_px": [
+            0.0
+          ],
+          "render_mode": "conventional"
+        }
+      },
+      "font_file": "data/external/fonts/source-sans-3/SourceSans3-Regular.ttf",
+      "output_root": "results/runs",
+      "pages": {
+        "natural": {
+          "books": [
+            "pg105",
+            "pg84",
+            "pg1661"
+          ],
+          "per_text_type": 0
+        },
+        "random62": {
+          "per_text_type": {
+            "internvl3_2b": 8,
+            "qwen": 8,
+            "qwen7b": 8,
+            "smolvlm": 16,
+            "smolvlm500m": 16
+          }
+        }
+      },
+      "readers": [
+        "qwen",
+        "smolvlm",
+        "smolvlm500m",
+        "qwen7b",
+        "internvl3_2b"
+      ],
+      "readers_config": "configs/readers_study2.yaml",
+      "repeats": 1,
+      "results_schema": "study2",
+      "seed": 20261023
+    },
+    "sweep_file": "configs\\sweeps\\s3_stage0_random.yaml",
+    "sweep_name": "s3_stage0_random",
+    "sweep_sha1": "9c57bb0a232e67e79f8c720d3ac81b883653f661"
+  },
+  "git_commit": "60064dc3b2edebc8e0ca666db3adebcbeede2cd1",
+  "git_dirty": true,
+  "gpu_name": "NVIDIA GeForce RTX 5060 Laptop GPU",
+  "packages": {
+    "freetype-py": "2.5.1",
+    "jiwer": "4.0.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0",
+    "scipy": "1.17.1",
+    "torch": "2.14.1+cu130",
+    "transformers": "5.19.0"
+  },
+  "platform": "Windows-10-10.0.26300-SP0",
+  "python_version": "3.11.15",
+  "run_id": "20261019-2119_s3_stage0_random_smolvlm500m_60064dc",
+  "timestamp_utc": "2026-10-19T21:19:17Z"
+}
