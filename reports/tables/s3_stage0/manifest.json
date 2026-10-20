@@ -1,0 +1,65 @@
+{
+  "config": {
+    "alpha": 0.05,
+    "analysis_plan": "design note R7, section 3 (stage 0)",
+    "blas_threads": 1,
+    "curve": "CER(s) = 1 / (1 + (s / a) ** beta), binomial deviance of capped cell CERs, pages as weights; check fit with a free floor e0",
+    "epsilons": [
+      0.05,
+      0.01
+    ],
+    "resamples": 2000,
+    "runs_root": "results\\runs",
+    "seed": 20261025,
+    "sweeps": {
+      "s3_stage0_prose": {
+        "pages_excluded": {},
+        "rows_fitted": 392,
+        "rows_loaded": 392,
+        "run_dirs": [
+          "20261019-2241_s3_stage0_prose_qwen_60064dc",
+          "20261019-2313_s3_stage0_prose_smolvlm500m_60064dc",
+          "20261019-2313_s3_stage0_prose_smolvlm_60064dc",
+          "20261019-2322_s3_stage0_prose_internvl3_2b_60064dc",
+          "20261019-2348_s3_stage0_prose_qwen7b_60064dc"
+        ],
+        "sweep_file": "configs\\sweeps\\s3_stage0_prose.yaml",
+        "sweep_sha1": "40a1d702828e42174e0b22c14c586b720eef5b8c"
+      },
+      "s3_stage0_random": {
+        "pages_excluded": {},
+        "rows_fitted": 392,
+        "rows_loaded": 392,
+        "run_dirs": [
+          "20261019-2036_s3_stage0_random_qwen_60064dc",
+          "20261019-2119_s3_stage0_random_smolvlm500m_60064dc",
+          "20261019-2119_s3_stage0_random_smolvlm_60064dc",
+          "20261019-2132_s3_stage0_random_internvl3_2b_60064dc",
+          "20261019-2156_s3_stage0_random_qwen7b_60064dc"
+        ],
+        "sweep_file": "configs\\sweeps\\s3_stage0_random.yaml",
+        "sweep_sha1": "9c57bb0a232e67e79f8c720d3ac81b883653f661"
+      }
+    },
+    "tables": {
+      "acuity": 10,
+      "cells": 70
+    }
+  },
+  "git_commit": "79d5f8c536c41fd769d8d7d4de4be3f5884d1590",
+  "git_dirty": true,
+  "gpu_name": "NVIDIA GeForce RTX 5060 Laptop GPU",
+  "packages": {
+    "freetype-py": "2.5.1",
+    "jiwer": "4.0.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0",
+    "scipy": "1.17.1",
+    "torch": "2.14.1+cu130",
+    "transformers": "5.19.0"
+  },
+  "platform": "Windows-10-10.0.26300-SP0",
+  "python_version": "3.11.15",
+  "run_id": "20261020-0759_s3_stage0_analysis_79d5f8c",
+  "timestamp_utc": "2026-10-20T07:59:33Z"
+}
