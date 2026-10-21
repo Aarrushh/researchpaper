@@ -152,6 +152,25 @@ def test_the_stage0_fit_is_checked_over_the_sweeps_that_wrote_its_tables():
     assert all((REPO_ROOT / c).is_file() for c in configs)
 
 
+def test_the_rescoring_fit_is_checked_with_the_sweep_and_name_that_wrote_its_tables(tmp_path, monkeypatch):
+    # ANALYSIS_PLAN_3.md section 3.2: scripts/26_rescore_study2.py reads one sweep (--config, not --configs) and
+    # wrote reports/tables/study2_rescored/ with its defaults.
+    m = _module()
+    script, configs, extra = m.FITS["study2_rescored"]
+    spec = importlib.util.spec_from_file_location("rescore_study2", REPO_ROOT / "scripts" / script)
+    rescore = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rescore)
+    defaults = rescore.parse_args([])
+    assert configs == () and extra == ("--config", defaults.config) and defaults.name == "study2_rescored"
+    assert (REPO_ROOT / defaults.config).is_file()
+    seen = []
+    monkeypatch.setattr(m, "_regenerate_and_compare", lambda name, script, args, *rest: seen.append(list(args)) or [])
+    (tmp_path / "study2_rescored").mkdir()
+    assert m.check_fits(tmp_path / "final", ["study2_rescored"], tmp_path) == []
+    assert seen == [["--name", "study2_rescored", "--runs-root", str(tmp_path / "final" / "runs"),
+                     "--config", "configs/sweeps/study2.yaml"]]
+
+
 def test_check_fits_names_an_unknown_fit_and_missing_tables(tmp_path):
     m = _module()
     assert m.check_fits(tmp_path, ["nothing"], tmp_path)[0].startswith("nothing: not a fit")

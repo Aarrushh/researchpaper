@@ -1519,3 +1519,32 @@ Broke:
 Next:
 - Committed on the owner's go of 20 October ("Yes: commit the Study 2 re-scoring to build/p5 locally (no push)…"). Section 5, item 5 of `ANALYSIS_PLAN_3.md` is marked done.
 - `40_freeze.py --check` has no `study2_rescored` entry yet, so these tables are not covered by the freeze check. Adding one would let them regenerate from `results/final/runs` like the others.
+
+## 2026-10-21, Claude (D22): the final freeze, every table and figure from `results/final/`; `analysis-freeze-v1`
+Did:
+- On the owner's go of 21 October: "yes okay create a plan for the rest of the steps to fully finish and freeze off the experiemnts and then implement it".
+- `scripts/40_freeze.py`: `FITS` gains `study2_rescored`, run as `scripts/26_rescore_study2.py --config configs/sweeps/study2.yaml --name study2_rescored`. `check_fits` passes `--configs` only to a fit that lists sweeps, so `s3_stage0` runs as before.
+- `tests/test_freeze.py`: 12 passed, 1 of them new. It checks that the entry matches the script's defaults, and the arguments `check_fits` builds for it.
+- `make freeze-check-all` runs the whole check: `40_freeze.py --check --sweep configs/sweeps/full.yaml --sweep configs/sweeps/study2.yaml --fit s3_stage0 --fit study2_rescored`.
+- That check, at 88f2caf7 with this change, took 2,026 s beside the test suite. Its result: "the freeze checks out and the tables regenerate byte for byte".
+  - All 44,989 hashes of `results/final/` match, with 0 problems.
+  - All 33 tables regenerate identically: Study 1's 9, Study 2's 6, stage 0's 11 and the re-scoring's 7.
+- Everything else that needs no GPU was rebuilt once from `results/final/` into a temporary folder and compared byte for byte:
+  - tables: `ladder/` (2, `09_ladder_choice.py --runs-root results/final/runs`), `exploratory/levels.csv` (`21_levels.py`), `contract/contract_checks.csv` (`08_contract_checks.py`);
+  - Figure 0: `03_equivariance.py --figure-only --out results/final/equivariance`;
+  - Figures 1, 2 and 3a: `30_make_figures.py --config configs/sweeps/full.yaml --runs-root results/final/runs --mtf-dir results/final/mtf`;
+  - Figures 3 and 4: the same with `configs/sweeps/study2.yaml`;
+  - Figures 5 and 6: `31_stage0_figures.py`.
+  11 of the 12 were identical at once.
+- Figure 0 differed only in its creation date. The PDF of W1.9 (ef4aa8a4, 14 October) carries one, since W2.5 made figures dateless only afterwards. Every object before the document information, so all its page content, was identical. It is redrawn with the command above, and is now identical.
+- Not rebuilt: `reports/tables/readers/` and `reports/tables/study2_prerun/` need the models on the GPU. They stand as committed.
+- The full test suite, `-m "not todo and not model"`: 838 passed, 125 deselected, 0 failed, in 1,353 s.
+- `HANDOFF.md` is brought up to date for the writing.
+- Tagged `analysis-freeze-v1` on this commit, local only.
+Found:
+- Nothing new. `results/final/` is unchanged since `data-freeze-v2`.
+Broke:
+- Nothing.
+Next:
+- The paper, by the owner (`ANALYSIS_PLAN_3.md` section 5, item 6). A change to any table needs `make freeze-check-all` and a new tag.
+- H2 was preregistered (`PREREGISTRATION.md`) and never run: the paper says so.

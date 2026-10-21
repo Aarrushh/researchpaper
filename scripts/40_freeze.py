@@ -1,7 +1,7 @@
 # PURPOSE: Freeze the results: copy them into results/final/ and write the README that names every file's SHA-256 (W3.5).
 # WHAT GOES HERE: The copy, the README, and the check that the tables regenerate byte for byte from the frozen copy.
 # FILLED IN AT STEP: W3.5 (build guide section 3.8).
-# DO NOT: Edit anything under results/final/ by hand. Do not freeze over a previous freeze without --replace. Do not tag here: the tags data-freeze-v1 (Study 1), data-freeze-v2 (Study 2) and data-freeze-s3-stage0 (stage 0's tables) follow the owner's sign-off.
+# DO NOT: Edit anything under results/final/ by hand. Do not freeze over a previous freeze without --replace. Do not tag here: the tags data-freeze-v1 (Study 1), data-freeze-v2 (Study 2), data-freeze-s3-stage0 (stage 0's tables) and analysis-freeze-v1 (every table, make freeze-check-all) follow the owner's sign-off.
 """Step W3.5: the freeze (build guide 3.8).
 
     python scripts/40_freeze.py [--results results] [--final results/final] [--replace]
@@ -16,10 +16,10 @@ A second freeze is refused unless ``--replace`` removes the first.
 The second form checks a freeze: every file's SHA-256 against the README, and, for each ``--sweep``, the tables that
 the sweep's analysis script regenerates from ``results/final/runs`` against ``reports/tables/<sweep_name>/``, byte
 for byte (only manifest.json may differ): scripts/22_analyze_study2.py for ``study2`` (PREREGISTRATION_2.md section 9,
-step 7), scripts/20_analyze.py for every other sweep. Each ``--fit`` names an analysis of several sweeps in ``FITS``
-(Study 3's stage 0: scripts/25_fit_stage0.py over its three sweeps, ANALYSIS_PLAN_3.md section 2.7), whose tables are
-regenerated and compared with ``reports/tables/<fit_name>/`` the same way. Exit 1 on any difference. The tag is the
-owner's, after sign-off.
+step 7), scripts/20_analyze.py for every other sweep. Each ``--fit`` names an analysis in ``FITS`` with its own
+script (Study 3's stage 0: scripts/25_fit_stage0.py over its three sweeps, ANALYSIS_PLAN_3.md section 2.7; Study 2's
+exploratory re-scoring: scripts/26_rescore_study2.py, section 3.2), whose tables are regenerated and compared with
+``reports/tables/<fit_name>/`` the same way. Exit 1 on any difference. The tag is the owner's, after sign-off.
 """
 
 from __future__ import annotations
@@ -57,11 +57,14 @@ HASH_LINE = re.compile(r"^([0-9a-f]{64})  (.+)$")  # sha256sum format: the hash,
 ROOT = Path(__file__).resolve().parents[1]
 ANALYZE = "20_analyze.py"  # under scripts/: Study 1's tables, for every sweep not in ANALYZERS
 ANALYZERS = {"study2": "22_analyze_study2.py"}  # by sweep name (PREREGISTRATION_2.md section 9, step 7)
-# Analyses of several sweeps, by table folder: (script under scripts/, its --configs, further arguments). The configs
-# are scripts/25_fit_stage0.py's DEFAULT_CONFIGS, which wrote the committed tables (ANALYSIS_PLAN_3.md section 2.7).
+# Analyses written by their own script, by table folder: (script under scripts/, its --configs, further arguments).
+# s3_stage0's configs are scripts/25_fit_stage0.py's DEFAULT_CONFIGS, which wrote the committed tables
+# (ANALYSIS_PLAN_3.md section 2.7). study2_rescored reads one sweep, so it has no --configs and names its --config
+# among the further arguments (ANALYSIS_PLAN_3.md section 3.2).
 FITS: dict[str, tuple[str, tuple[str, ...], tuple[str, ...]]] = {
     "s3_stage0": ("25_fit_stage0.py", ("configs/sweeps/s3_stage0_random.yaml", "configs/sweeps/s3_stage0_prose.yaml",
                                        "configs/sweeps/s3_stage0_prose_internvl3.yaml"), ()),
+    "study2_rescored": ("26_rescore_study2.py", (), ("--config", "configs/sweeps/study2.yaml")),
 }
 
 _log = logging.getLogger("freeze")
@@ -278,8 +281,9 @@ def check_fits(final: Path, names: Sequence[str], tables_root: Path, root: Path 
                python: str = sys.executable) -> list[str]:
     """Regenerate each fit of ``FITS`` from ``final/runs`` and compare its tables with ``tables_root/<name>/``.
 
-    A fit is one script over several sweeps (``--configs`` and ``--name``), such as Study 3's stage 0. Every CSV must
-    be byte-identical; manifest.json is not compared. Returns the problems.
+    A fit is an analysis with its own script and ``--name``: over several sweeps (``--configs``), such as Study 3's
+    stage 0, or over one sweep named among its further arguments, such as Study 2's re-scoring. Every CSV must be
+    byte-identical; manifest.json is not compared. Returns the problems.
     """
     final, tables_root = Path(final), Path(tables_root)
     problems: list[str] = []
@@ -292,7 +296,7 @@ def check_fits(final: Path, names: Sequence[str], tables_root: Path, root: Path 
         if not committed.is_dir():
             problems.append(f"{committed} is missing: run scripts/{script} first")
             continue
-        args = ["--configs", *configs, "--name", name, "--runs-root", str(final / "runs"), *extra]
+        args = [*(("--configs", *configs) if configs else ()), "--name", name, "--runs-root", str(final / "runs"), *extra]
         problems += _regenerate_and_compare(name, script, args, committed, root, python)
     return problems
 

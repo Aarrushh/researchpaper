@@ -11,7 +11,7 @@ RESUME ?=                         # e.g. RESUME=results/runs/<run_id> continues 
 
 .DEFAULT_GOAL := help
 .PHONY: help env check-env test test-models test-all readers render-check equivariance coherence
-.PHONY: contract reader-facts ladder pilot sweep analyze levels figures figures-stage0 mtf freeze freeze-check clean-interim
+.PHONY: contract reader-facts ladder pilot sweep analyze levels figures figures-stage0 mtf freeze freeze-check freeze-check-all clean-interim
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -79,6 +79,9 @@ freeze: ## Copy results into results/final with a README of SHA-256 hashes (W3.5
 
 freeze-check: ## Check results/final: every hash, and the tables regenerate byte for byte (W3.5); SWEEP=... to pick config
 	$(PYTHON) scripts/40_freeze.py --check --sweep "$(SWEEP)"
+
+freeze-check-all: ## Check results/final and every paper table: Study 1, Study 2, stage 0 and Study 2's re-scoring (~25 min, CPU)
+	$(PYTHON) scripts/40_freeze.py --check --sweep configs/sweeps/full.yaml --sweep configs/sweeps/study2.yaml --fit s3_stage0 --fit study2_rescored
 
 clean-interim: ## Delete regenerable rendered pages in data/interim (keeps README files)
 	find data/interim -type f ! -name 'README.md' ! -name '.gitkeep' -delete

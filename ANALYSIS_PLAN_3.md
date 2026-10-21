@@ -231,7 +231,7 @@ These are reported as frozen (`data-freeze-v1`, `spec-v1`), and R6's analyses as
 2. ~~Study 2's freeze: `data-freeze-v2` and its notebook entry.~~ Done, 20 October.
 3. ~~Section 1 built: `src/mrr/behaviour.py`, its tests, the shape-alike sets measured, this document committed.~~ Done, 20 October, in the commit that adds this file.
 4. **Stage 0:** ~~the per-row scoring script and the tables~~ (done 20 October, `scripts/25_fit_stage0.py`); ~~the freeze check, the tag~~ (done 20 October, `40_freeze.py --fit s3_stage0`, `data-freeze-s3-stage0`); ~~Figures 5 and 6~~ (done 20 October, `scripts/31_stage0_figures.py`).
-5. **Study 2:** ~~the exploratory tables of section 3~~ (done 20 October: section 3.2 in `scripts/26_rescore_study2.py`, `reports/tables/study2_rescored/`; section 3.3's table is above).
+5. **Study 2:** ~~the exploratory tables of section 3~~ (done 20 October: section 3.2 in `scripts/26_rescore_study2.py`, `reports/tables/study2_rescored/`; section 3.3's table is above); ~~its freeze check and the final tag~~ (done 21 October, `40_freeze.py --fit study2_rescored`, `make freeze-check-all`, `analysis-freeze-v1`).
 6. **Results text:** every claim names its table and its status.
 
 All of it runs on the CPU, with no model loaded except the tokenizers for `tokens.csv`.
