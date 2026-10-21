@@ -16,7 +16,7 @@ A vision-language model's character error rate on text whose glyphs share a phas
 
 ## Current week and step
 
-Data collection and analysis are finished and frozen (`analysis-freeze-v1`). The owner writes the paper from 21 October: `ANALYSIS_PLAN_3.md` section 5, item 6, every claim naming its table and its status.
+Data collection and analysis are finished and frozen (`analysis-freeze-v2`, which adds Amendment 2's load check to `analysis-freeze-v1`). The owner writes the paper from 21 October: `ANALYSIS_PLAN_3.md` section 5, item 6, every claim naming its table and its status.
 
 ## What is frozen (tags)
 
@@ -26,7 +26,8 @@ Data collection and analysis are finished and frozen (`analysis-freeze-v1`). The
 - `prereg-v2`: badfe672, Study 2, 19 October
 - `data-freeze-v2`: ad903d94, 20 October: every run folder (Study 1, Study 2, stage 0), 44,989 files hashed in `results/final/`
 - `data-freeze-s3-stage0`: ad209d97, 20 October: stage 0's tables
-- `analysis-freeze-v1`: the commit that adds this line, 21 October: every table and figure that needs no GPU regenerates byte for byte from `results/final/` (`make freeze-check-all`; `LAB_NOTEBOOK.md`, 21 October)
+- `analysis-freeze-v1`: 4987c291, 21 October: every table and figure that needs no GPU regenerates byte for byte from `results/final/` (`make freeze-check-all`; `LAB_NOTEBOOK.md`, 21 October)
+- `analysis-freeze-v2`: the commit that adds this line, 21 October: the same, with the load check of `ANALYSIS_PLAN_3.md` Amendment 2 (`reports/tables/load/`, exploratory, post hoc)
 - `submission`: not yet
 - Every tag is local only: nothing is pushed until the owner says so.
 

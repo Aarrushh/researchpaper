@@ -171,6 +171,20 @@ def test_the_rescoring_fit_is_checked_with_the_sweep_and_name_that_wrote_its_tab
                      "--config", "configs/sweeps/study2.yaml"]]
 
 
+def test_the_load_check_is_checked_over_the_sweeps_that_wrote_its_tables():
+    # ANALYSIS_PLAN_3.md, Amendment 2: scripts/27_load_check.py over its default sweeps, Study 2's and stage 0's three,
+    # wrote reports/tables/load/ with no other argument.
+    m = _module()
+    script, configs, extra = m.FITS["load"]
+    spec = importlib.util.spec_from_file_location("load_check", REPO_ROOT / "scripts" / script)
+    load = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(load)
+    defaults = load.parse_args([])
+    assert configs == tuple(load.DEFAULT_CONFIGS) and extra == () and defaults.name == "load"
+    assert all((REPO_ROOT / c).is_file() for c in configs)
+    assert (REPO_ROOT / defaults.stage0_tables).name in m.FITS  # its curve comes from a table the check also regenerates
+
+
 def test_check_fits_names_an_unknown_fit_and_missing_tables(tmp_path):
     m = _module()
     assert m.check_fits(tmp_path, ["nothing"], tmp_path)[0].startswith("nothing: not a fit")

@@ -164,7 +164,7 @@ Medians per reader, per page and per output token. Qwen's random-text passages 4
 
 - One font (Source Sans 3), the conventional layout, full pages at each reader's native frame, three English novels, greedy decoding.
 - InternVL3's random-text s01 (37.0 px) lies one pixel past its ladder, and the SmolVLM pair's 1% sizes are extrapolated.
-- a was measured on full pages, which read worse than the half-full pages of Studies 1 and 2 (R7 section 1.5).
+- a was measured on full pages, which read worse than the half-full pages of Studies 1 and 2 (R7 section 1.5). Amendment 2 measures how much worse.
 
 ### 2.7 Figures and freeze
 
@@ -251,3 +251,17 @@ The owner's words: "Approve all four section 6 recommendations."
    - **Why.** `shape_alike_letters` drew its glyphs with Pillow. `tests/test_render.py` forbids that anywhere under `src/` (Section 1A.11, checks 3 and 4: no text drawn with Pillow or hinted FreeType), and Pillow hints outlines that no page ever hinted. The full test suite found it; the commit that added R4 had run only the scoring tests.
    - **Change.** `_glyph` now rasterises with `mrr.render.load_glyph`, the rasteriser of every page, so the test measures the shapes the readers saw. The threshold (0.6), the size (48 px), the scaling and the shifts are unchanged.
    - **Effect.** Source Sans 3's set is unchanged (c o s u v x z), so no stage-0 row's score changes. Fira Mono's set gains q (0.603), and no Fira Mono row had been scored. R4's table above gives the new overlaps.
+2. **Glyph size against text load (21 October 2026, after `analysis-freeze-v1`; post hoc, written after every table had been seen; confirmed by the owner the same day: "Yes: port the four scratch checks into scripts/27_load_check.py, add Amendment 2, freeze the load tables and run make freeze-check-all. Commit and tag locally only after I say go.").**
+   - **Why.** Stage 0 fills every page, so its characters per page fall roughly as s^−2 as the size s rises (462 at 24 px, 211 at 36 px for the 256-token readers), and its curve moves size and load together. Section 2.6 names the limit; four scratch checks on the frozen rows, made for the owner's final synthesis, found that the load moves the CER more than the size does. This amendment puts those checks in the repository so that they regenerate with the rest.
+   - **Change.** `scripts/27_load_check.py` writes four tables to `reports/tables/load/`, all exploratory, from the frozen rows of Study 2 and stage 0 and from the frozen `acuity.csv` and `tokens.csv`; no model is loaded and no row is added. `40_freeze.py --fit load` and `make freeze-check-all` regenerate them.
+     - `contrasts.csv`: per random-text reader, three ratios of pooled primary CER (D13) against Study 2's S0 (25 px), each with a page bootstrap (2,000 resamples, seed 20261021, paired where the pages are shared) and beside what the stage-0 curve predicts. *Size*: S28 over S0 on the same pages, so the load is fixed. *Load*: stage 0 at 24 px (23 px for SmolVLM) over S0, about the same size. *Equal*: stage 0 at 36 px (34 px) over S0, about the same load.
+     - `region.csv`: substitutions and deletions per reference character, inside and outside the part of the page a Study 2 page covers, and by quarter of the page's width and height.
+     - `position.csv`: the CER by quarter of the reference and over the first k characters, k being Study 2's mean page length.
+     - `readoff_tokens.csv`: the 1% token ratio with the capacity curve κ(s) evaluated at `acuity.csv`'s read-off s01, or its bound at the largest size where the read-off is not reached.
+   - **Effect.** No preregistered verdict and no frozen table changes. What the tables show (exploratory, post hoc):
+     - **Load.** On random text, full pages at about Study 2's size read 1.71 (Qwen-7B) to 3.23 (InternVL3) times worse than S0, where the curve predicts 1.18 to 1.28. Every interval excludes 1.
+     - **Size at a fixed load.** Above the cliff, 28 px against 25 px buys ×0.84 to ×0.97, against the curve's ×0.48 to ×0.53. SmolVLM-2.2B, at its cliff (25/a = 0.98), gains ×0.80 against the curve's ×0.75.
+     - **Equal load.** Full pages at 36 px (34 px) against S0 give ratios of 0.69 to 1.39, and every interval contains 1.
+     - **Where.** The penalty covers the whole page, not only the part Study 2's pages leave empty or the end of a long page. Qwen-3B at 24 px loses 0.0339 per character inside Study 2's region and 0.0342 outside, against 0.0148 on Study 2's pages; its first 201 characters have a CER of 0.0342, against 0.0154 for a whole S0 page.
+     - **So** stage 0's a, β and s01 measure full-page capacity at each reader's native frame, not acuity at a fixed load. Section 2.6's third limit is the larger effect, and section 3.3's size/a ratios use a full-page a.
+     - **Token ratios.** `tokens.csv` evaluates every ratio at the fitted s01, also where `acuity.csv` flags `s01_disagrees`. At the read-off size the Qwen pair's prose ratios are 2.27 and 2.46 (fitted 1.78 and 1.96), and InternVL3's prose ratio is 0.525 (fitted 0.345). On random text the one read-off reached (Qwen-7B, 34.85 px) gives 0.581, and the unreached ones are bounded by 0.445 to 0.544. The SmolVLM pair's prose read-offs are not reached either: below 0.361 and 0.438.

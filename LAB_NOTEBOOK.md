@@ -1548,3 +1548,44 @@ Broke:
 Next:
 - The paper, by the owner (`ANALYSIS_PLAN_3.md` section 5, item 6). A change to any table needs `make freeze-check-all` and a new tag.
 - H2 was preregistered (`PREREGISTRATION.md`) and never run: the paper says so.
+
+## 2026-10-21, Claude (D22): glyph size against text load (`ANALYSIS_PLAN_3.md` Amendment 2), exploratory, post hoc
+Did:
+- On the owner's go of 21 October: "Yes: port the four scratch checks into scripts/27_load_check.py, add Amendment 2, freeze the load tables and run make freeze-check-all. Commit and tag locally only after I say go."
+- The final synthesis (research notes, R10 section 6) checked four questions on the frozen rows with scratch scripts outside the repository. `scripts/27_load_check.py` ports all four.
+  - It reads Study 2's S0 and S28 rows and every stage-0 row through `sweep.load_results` and `complete_rows`: 1,766 rows from 16 run folders, none excluded.
+  - It also reads the frozen `reports/tables/s3_stage0/acuity.csv` and `tokens.csv`.
+  - It loads no model.
+- It writes `reports/tables/load/`, every row `analysis_status` exploratory, with a manifest:
+  - `contrasts.csv`: 12 rows;
+  - `region.csv`: 85 rows;
+  - `position.csv`: 85 rows;
+  - `readoff_tokens.csv`: 10 rows.
+- Checks:
+  - every one of the 1,496 re-aligned rows has the counts of `results.csv`;
+  - the token-ratio formula reproduces `acuity.csv`'s kappa01 and `tokens.csv`'s ratio to 1.9e-11;
+  - two runs wrote identical bytes.
+- Against the scratch outputs: region and position agree to 3.6e-12, which is the 12-digit formatting. The contrasts and the read-off ratios agree to every printed digit, bootstrap intervals included.
+- Two changes from the scratch:
+  - the reader configs come from each run folder's manifest, not from `configs/readers_study2.yaml`, with the same result;
+  - stage 0's sweeps are told apart by name, since they share Study 2's `results_schema`.
+- `scripts/40_freeze.py`: `FITS` gains `load`, run over the script's default sweeps. `make freeze-check-all` adds `--fit load`.
+- `tests/test_load_check.py` has 7 tests on synthetic rows and `tests/test_freeze.py` 1 more.
+- `ANALYSIS_PLAN_3.md`: Amendment 2, and a pointer to it from section 2.6. `HANDOFF.md`: the tag lines.
+- `make freeze-check-all` was run as its recipe line, since `make` is not on this shell's PATH. It took 1,562 s at 4987c291 with these changes, beside the test suite. Its result: "the freeze checks out and the tables regenerate byte for byte".
+  - All 44,989 hashes of `results/final/` match, with 0 problems.
+  - All 37 tables regenerate identically: Study 1's 9, Study 2's 6, stage 0's 11, the re-scoring's 7 and the load check's 4.
+- The full test suite, `-m "not todo and not model"`: 846 passed (838 and the 8 new), 125 deselected, 0 failed, in 1,280 s, beside the freeze check.
+- Not committed or tagged: that waits for the owner's go. The tag would be `analysis-freeze-v2`, local only.
+Found (exploratory, post hoc; Amendment 2 gives the numbers):
+- **Size against load.** On random text, full pages at about Study 2's size read 1.71 to 3.23 times worse than Study 2's half-full pages; the stage-0 curve predicts 1.18 to 1.28.
+- **Size at a fixed load.** Above the cliff, size at a fixed load buys ×0.84 to ×0.97, against the curve's ×0.48 to ×0.53. At about equal load, every interval contains 1.
+- **Where the penalty falls.** It covers the whole page, not only its late part.
+- **What stage 0 measured.** Stage 0's a, β and s01 measure full-page capacity at the native frame, not acuity at a fixed load.
+- **Token ratios.** `tokens.csv`'s ratios sit at the fitted s01 even where `s01_disagrees`. At the read-off sizes the Qwen pair's prose ratios are 2.27 and 2.46, against 1.78 and 1.96 fitted.
+- No preregistered verdict and no earlier table changes.
+Broke:
+- Nothing.
+Next:
+- The owner's go to commit and tag.
+- The paper states stage 0's numbers as full-page capacity, citing `reports/tables/load/` as exploratory and post hoc.

@@ -1,7 +1,7 @@
 # PURPOSE: Freeze the results: copy them into results/final/ and write the README that names every file's SHA-256 (W3.5).
 # WHAT GOES HERE: The copy, the README, and the check that the tables regenerate byte for byte from the frozen copy.
 # FILLED IN AT STEP: W3.5 (build guide section 3.8).
-# DO NOT: Edit anything under results/final/ by hand. Do not freeze over a previous freeze without --replace. Do not tag here: the tags data-freeze-v1 (Study 1), data-freeze-v2 (Study 2), data-freeze-s3-stage0 (stage 0's tables) and analysis-freeze-v1 (every table, make freeze-check-all) follow the owner's sign-off.
+# DO NOT: Edit anything under results/final/ by hand. Do not freeze over a previous freeze without --replace. Do not tag here: the tags data-freeze-v1 (Study 1), data-freeze-v2 (Study 2), data-freeze-s3-stage0 (stage 0's tables), analysis-freeze-v1 (every table, make freeze-check-all) and analysis-freeze-v2 (with Amendment 2's load tables) follow the owner's sign-off.
 """Step W3.5: the freeze (build guide 3.8).
 
     python scripts/40_freeze.py [--results results] [--final results/final] [--replace]
@@ -18,7 +18,8 @@ the sweep's analysis script regenerates from ``results/final/runs`` against ``re
 for byte (only manifest.json may differ): scripts/22_analyze_study2.py for ``study2`` (PREREGISTRATION_2.md section 9,
 step 7), scripts/20_analyze.py for every other sweep. Each ``--fit`` names an analysis in ``FITS`` with its own
 script (Study 3's stage 0: scripts/25_fit_stage0.py over its three sweeps, ANALYSIS_PLAN_3.md section 2.7; Study 2's
-exploratory re-scoring: scripts/26_rescore_study2.py, section 3.2), whose tables are regenerated and compared with
+exploratory re-scoring: scripts/26_rescore_study2.py, section 3.2; the load check of Amendment 2:
+scripts/27_load_check.py over Study 2's sweep and stage 0's three), whose tables are regenerated and compared with
 ``reports/tables/<fit_name>/`` the same way. Exit 1 on any difference. The tag is the owner's, after sign-off.
 """
 
@@ -60,11 +61,15 @@ ANALYZERS = {"study2": "22_analyze_study2.py"}  # by sweep name (PREREGISTRATION
 # Analyses written by their own script, by table folder: (script under scripts/, its --configs, further arguments).
 # s3_stage0's configs are scripts/25_fit_stage0.py's DEFAULT_CONFIGS, which wrote the committed tables
 # (ANALYSIS_PLAN_3.md section 2.7). study2_rescored reads one sweep, so it has no --configs and names its --config
-# among the further arguments (ANALYSIS_PLAN_3.md section 3.2).
+# among the further arguments (ANALYSIS_PLAN_3.md section 3.2). load's configs are scripts/27_load_check.py's
+# DEFAULT_CONFIGS, Study 2's sweep and stage 0's three (ANALYSIS_PLAN_3.md, Amendment 2).
 FITS: dict[str, tuple[str, tuple[str, ...], tuple[str, ...]]] = {
     "s3_stage0": ("25_fit_stage0.py", ("configs/sweeps/s3_stage0_random.yaml", "configs/sweeps/s3_stage0_prose.yaml",
                                        "configs/sweeps/s3_stage0_prose_internvl3.yaml"), ()),
     "study2_rescored": ("26_rescore_study2.py", (), ("--config", "configs/sweeps/study2.yaml")),
+    "load": ("27_load_check.py", ("configs/sweeps/study2.yaml", "configs/sweeps/s3_stage0_random.yaml",
+                                  "configs/sweeps/s3_stage0_prose.yaml",
+                                  "configs/sweeps/s3_stage0_prose_internvl3.yaml"), ()),
 }
 
 _log = logging.getLogger("freeze")

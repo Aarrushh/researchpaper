@@ -1,0 +1,96 @@
+{
+  "config": {
+    "alpha": 0.05,
+    "analysis_plan": "ANALYSIS_PLAN_3.md, Amendment 2",
+    "blas_threads": 1,
+    "contrast_readers": [
+      "qwen",
+      "qwen7b",
+      "internvl3_2b",
+      "smolvlm"
+    ],
+    "full_sizes": {
+      "internvl3_2b": [
+        24.0,
+        36.0
+      ],
+      "qwen": [
+        24.0,
+        36.0
+      ],
+      "qwen7b": [
+        24.0,
+        36.0
+      ],
+      "smolvlm": [
+        23.0,
+        34.0
+      ]
+    },
+    "ported_from": "research-paper-notes/research/exploratory_2026-10-21/ (load_vs_size_check.py, page_region_check.py, page_position_check.py, readoff_tokens_check.py)",
+    "realigned_mismatches": [],
+    "resamples": 2000,
+    "rows": 1766,
+    "run_dirs": [
+      "20261019-1011_study2_qwen_badfe67",
+      "20261019-1206_study2_smolvlm500m_badfe67",
+      "20261019-1206_study2_smolvlm_badfe67",
+      "20261019-1414_study2_internvl3_2b_badfe67",
+      "20261019-1505_study2_qwen7b_badfe67",
+      "20261019-2036_s3_stage0_random_qwen_60064dc",
+      "20261019-2119_s3_stage0_random_smolvlm500m_60064dc",
+      "20261019-2119_s3_stage0_random_smolvlm_60064dc",
+      "20261019-2132_s3_stage0_random_internvl3_2b_60064dc",
+      "20261019-2156_s3_stage0_random_qwen7b_60064dc",
+      "20261019-2241_s3_stage0_prose_qwen_60064dc",
+      "20261019-2313_s3_stage0_prose_smolvlm500m_60064dc",
+      "20261019-2313_s3_stage0_prose_smolvlm_60064dc",
+      "20261019-2322_s3_stage0_prose_internvl3_2b_60064dc",
+      "20261019-2348_s3_stage0_prose_qwen7b_60064dc",
+      "20261020-0847_s3_stage0_prose_internvl3_internvl3_2b_386d084"
+    ],
+    "runs_root": "results\\final\\runs",
+    "seed": 20261021,
+    "stage0_tables": "reports\\tables\\s3_stage0",
+    "stage0_tables_sha256": {
+      "acuity.csv": "41b0a1eea907f4718a376700980ee039677d9ffac645ae8dd9ebeaf012aa6f4b",
+      "tokens.csv": "2b45e7af69518e5436e4ff81123cfd1f888dc28c34fa1cc9d6ab649213a0afe3"
+    },
+    "status": "exploratory",
+    "sweep_files": [
+      "configs\\sweeps\\study2.yaml",
+      "configs\\sweeps\\s3_stage0_random.yaml",
+      "configs\\sweeps\\s3_stage0_prose.yaml",
+      "configs\\sweeps\\s3_stage0_prose_internvl3.yaml"
+    ],
+    "sweep_sha1": {
+      "s3_stage0_prose": "40a1d702828e42174e0b22c14c586b720eef5b8c",
+      "s3_stage0_prose_internvl3": "f8426aa6873272fa574a33c526921fe50967662d",
+      "s3_stage0_random": "9c57bb0a232e67e79f8c720d3ac81b883653f661",
+      "study2": "b0a2903c84777226aee8811dcf30a73fdf17f313"
+    },
+    "tables": {
+      "contrasts": 12,
+      "position": 85,
+      "readoff_tokens": 10,
+      "region": 85
+    },
+    "token_ratio_check_max": 1.9258261652055353e-11
+  },
+  "git_commit": "4987c2919892a72fe4d57c6c8981d5af8ef40188",
+  "git_dirty": true,
+  "gpu_name": "NVIDIA GeForce RTX 5060 Laptop GPU",
+  "packages": {
+    "freetype-py": "2.5.1",
+    "jiwer": "4.0.0",
+    "numpy": "2.4.6",
+    "pillow": "12.3.0",
+    "scipy": "1.17.1",
+    "torch": "2.14.1+cu130",
+    "transformers": "5.19.0"
+  },
+  "platform": "Windows-10-10.0.26300-SP0",
+  "python_version": "3.11.15",
+  "run_id": "20261021-1420_load_analysis_4987c29",
+  "timestamp_utc": "2026-10-21T14:20:49Z"
+}
