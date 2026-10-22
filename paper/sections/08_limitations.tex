@@ -1,8 +1,9 @@
-% PURPOSE: Limitations (budget 0.5 pages).
+% PURPOSE: Limitations and deviations (budget 0.6 pages).
 % WHAT GOES HERE: Human-written prose only, replacing the paragraph-job comments below.
-% FILLED IN AT STEP: W5.2
+% FILLED IN AT STEP: W5.2; evening 8 (Wednesday 28 October).
 % DO NOT: Paste AI-generated text. Do not cite anything without a row in references/citations.md.
-\section{Limitations}
-% P1 job: two readers only; one GPU class. Evidence: docs/01_research_plan.md threats.
-% P2 job: processor version dependence and font licences. Evidence: manifests; data READMEs.
-% P3 job: what the spec does not cover. Evidence: spec scope section.
+\section{Limitations and Deviations}
+% P1 job: deviations from the preregistrations: H2 preregistered and not run (no attempt in h2/kernels/), reported as a deviation (decision D29, once recorded); the dated amendments to the analysis plan. Evidence: PREREGISTRATION.md (H2); docs/05_decisions.md; ANALYSIS_PLAN_3.md amendments. Takes over the job of the removed 07_h2_implementation.tex.
+% P2 job: H7 failed: the rules hold for the readers tested, not in general; five readers from three encoder families and two decoder families [C]. Evidence: study2/paired.csv; PREREGISTRATION_2.md section 10.
+% P3 job: page load: stage 0 confounds size with load, so its curves are full-page capacity; calibration at a fixed load is future work [E]/[P]. Evidence: load/contrasts.csv.
+% P4 job: scope: two typefaces (one sans, one monospace); Latin letters and digits, English prose; transcription with greedy decoding only; pinned model revisions; one GPU. Evidence: configs/; run manifests; spec/RENDERING_SPEC.md scope.

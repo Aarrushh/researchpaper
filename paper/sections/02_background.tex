@@ -1,10 +1,10 @@
-% PURPOSE: Background (budget 1.0 page).
+% PURPOSE: Background: how a VLM sees text (budget 0.8 pages).
 % WHAT GOES HERE: Human-written prose only, replacing the paragraph-job comments below.
-% FILLED IN AT STEP: W5.2
+% FILLED IN AT STEP: W5.2; evening 3 (Friday 23 October).
 % DO NOT: Paste AI-generated text. Do not cite anything without a row in references/citations.md.
-\section{Background}
-% P1 job: ViT patches and token merging; define cell size. Evidence: cite ViT; Qwen docs.
-% P2 job: processor resizing and why native sizes matter. Evidence: Qwen docs; decision D3.
-% P3 job: sampling, coverage and anti-aliasing. Evidence: learning topic A3 sources.
-% P4 job: sRGB versus linear light; compositing. Evidence: A4 and A5 sources.
-% P5 job: define glyph phase precisely, with a small diagram. Evidence: reports/figures/render_check_*.
+\section{Background: How a VLM Sees Text}
+% P1 job: the patch grid: the ViT cuts the image into P x P patches; layer 0 is a strided linear map, exactly shift-equivariant only for whole-patch shifts [T]. Evidence: cite ViT; Figure 0 (fig0_equivariance), or cut; results/equivariance/.
+% P2 job: from patches to vision tokens: the merge (2 x 2, 3 x 3, 4 x 4, pixel shuffle), the token cell, tokens per page (256, 81, 64) [T]. Evidence: readers/reader_facts.csv; configs/readers_study2.yaml.
+% P3 job: why each page is drawn at its reader's native size (spec R07), and SmolVLM-2.2B's blind strip (R08) [T]. Evidence: spec/RENDERING_SPEC.md.
+% P4 job: phase and coherence, defined with the schematic (a new figure, drawn on your go). Evidence: PREREGISTRATION.md H1; full/coherence_summary.csv.
+% P5 job: the decoder writes the transcription; CER defined (case kept, spaces counted, pooled over pages, D13). Evidence: ANALYSIS_PLAN_3.md section 1.2; docs/05_decisions.md D13.

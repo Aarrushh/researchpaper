@@ -140,11 +140,12 @@ W3.6 to W3.8 are stretch work and the first to go under the cut order: tick each
 
 ## W5 Write and submit (Sat 24 to Wed 28 Oct)
 
-- [ ] **W5.1** Humans write sections 3 to 6.
-  - Files: `paper/sections/03_related_work.tex` to `paper/sections/06_results.tex`, `paper/main.tex`
-  - Done when: sections 3 to 6 are drafted by the humans; MLSys style is in `main.tex`.
-- [ ] **W5.2** Humans write sections 1, 2, 7, 8, 9 and the abstract.
-  - Files: `paper/sections/00_abstract.tex`, `01`, `02`, `07`, `08`, `09`
+- [ ] **W5.1** Humans write sections 3 to 7.
+  - Files: `paper/sections/03_related_work.tex` to `paper/sections/07_calibration.tex`, `paper/main.tex`
+  - Done when: sections 3 to 7 are drafted by the humans; MLSys style is in `main.tex`.
+  - Note: the section files follow the outline the owner settled on 22 October 2026 (`paper/main.tex` header).
+- [ ] **W5.2** Humans write sections 1, 2, 8, 9 and the abstract.
+  - Files: `paper/sections/00_abstract.tex`, `01`, `02`, `08`, `09`
   - Done when: a full draft compiles within 10 pages excluding references.
 - [ ] **W5.3** Audit every number in the paper against `results/final/` and every claim against `references/citations.md`.
   - Files: `paper/`, `references/citations.md`, `references/references.bib`

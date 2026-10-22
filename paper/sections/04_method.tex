@@ -1,0 +1,13 @@
+% PURPOSE: Method: renderer and specification, readers, text, scoring, statistics, preregistration (budget 1.3 pages).
+% WHAT GOES HERE: Human-written prose only, replacing the paragraph-job comments below.
+% FILLED IN AT STEP: W5.1; evening 4 (Saturday 24 October).
+% DO NOT: Paste AI-generated text. Do not cite anything without a row in references/citations.md.
+% Replaces 04_specification.tex and 05_experimental_design.tex (outline of 22 October).
+\section{Method}
+% P1 job: the renderer and the written specification: R01 to R06 fix how pixels are drawn (FreeType 2.13.2, unhinted; coverage, phase, layout, compositing, rounding); R07 to R11 come from the measurements [T]. Evidence: spec/RENDERING_SPEC.md; contract/contract_checks.csv.
+% P2 job: the five readers: ids and pinned revisions; development or validation (validation readers chosen before Study 2); P, merge, page size, vision tokens; Qwen-7B in NF4 (language-model linear layers only). Evidence: configs/readers.yaml; configs/readers_study2.yaml; readers/reader_facts.csv.
+% P3 job: text and pages: random62 in five-character words; prose from three Project Gutenberg books (two novels and a story collection); one prompt; greedy decoding; at most ceil(1.5 n) new tokens. Evidence: data/raw/texts/README.md; configs/sweeps/; src/mrr/sweep.py.
+% P4 job: scoring: CER pooled over pages (D13); rules R1 to R5 separate reading errors from behaviour (omissions, runaway insertions, format lines, case) [E]. Evidence: ANALYSIS_PLAN_3.md section 1; src/mrr/behaviour.py.
+% P5 job: statistics: paired Wilcoxon tests; harmonic F-tests; Holm at alpha 0.05; bootstrap intervals (2,000 resamples of pages; of passages in stage 0); detectable effects at 80% power; H6's interval rule. Evidence: PREREGISTRATION.md section 6; PREREGISTRATION_2.md; src/mrr/stats.py.
+% P6 job: preregistration and freezes: what was fixed before which data; the dated amendments; the marks used in sections 5 to 7; how a reviewer can check the tags anonymously (decide on evening 4). Evidence: tags prereg-v1, prereg-v2, data-freeze-v2, analysis-freeze-v2; scripts/40_freeze.py; ANALYSIS_PLAN_3.md amendments.
+% P7 job (short, or a footnote): hardware and cost: one 8 GB laptop GPU; per-run manifests. Evidence: LAB_NOTEBOOK.md; results/final/ manifests.

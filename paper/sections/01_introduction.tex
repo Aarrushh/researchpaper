@@ -1,12 +1,12 @@
 % PURPOSE: Introduction (budget 1.0 page).
 % WHAT GOES HERE: Human-written prose only, replacing the paragraph-job comments below.
-% FILLED IN AT STEP: W5.2
+% FILLED IN AT STEP: W5.2; evening 2 (Thursday 22 October), reread on evening 8.
 % DO NOT: Paste AI-generated text. Do not cite anything without a row in references/citations.md.
 \section{Introduction}
-% P1 job: VTC works. Evidence: cite Glyph and DeepSeek-OCR (rows in citations.md).
-% P2 job: legibility at the encoder's resolution is the limit. Evidence: cite LensVLM.
-% P3 job: rendering was inherited from human-eye design. Evidence: cite FreeType hinting docs.
-% P4 job: the mechanism is known at coarse scale. Evidence: cite Grid2Matrix, Steal the Patch Size, CodeOCR.
-% P4 job (cont.): state the gap: glyph-level measurement and a written specification.
-% P5 job: what we did (two readers, phase sweep, paired comparison, spec, H2 kernel test).
-% P6 job: three contributions as a list. Evidence: each maps to a figure, table or spec rule.
+% P1 job: VTC works: text sent to a model as an image, to spend fewer tokens. Evidence: cite Glyph and DeepSeek-OCR (rows in citations.md).
+% P2 job: the open question: which rendering choices change what a VLM transcribes, and by how much; rendering is inherited from design for human eyes. Evidence: cite LensVLM; FreeType hinting docs (needs a row in citations.md).
+% P3 job: what prior work shows at coarse scale, then the gap: glyph-level, preregistered measurement across readers. Evidence: cite Grid2Matrix, Steal the Patch Size, CodeOCR.
+% P4 job: what we did: three studies, five readers, 40,788 transcriptions, two preregistrations, a frozen pipeline [T]. Evidence: row counts per study in LAB_NOTEBOOK.md; the tags in HANDOFF.md.
+% P5 job: the map in brief (headline C): the order of the levers; the largest and the smallest, with their sizes; which rows are preregistered and which exploratory. Evidence: the levers table (section 7).
+% P6 job: contributions as a list, each mapped to a section: the map of levers (sections 5 to 7); the spaces mechanism and its preregistered test (sections 5 and 6); a calibration that prices text in vision tokens, with its page-load caveat (section 7); the written specification and the frozen pipeline (section 4).
+% P7 job (or the end of P6): your one sharp takeaway for builders, the same as the abstract's.

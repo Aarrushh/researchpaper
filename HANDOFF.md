@@ -8,7 +8,7 @@ DO NOT: Exceed 400 words. Do not paste results that are not in results/final/.
 # Handoff
 
 > Paste this at the start of any new AI chat session. Update at the end of every working session.
-> Last updated: Wednesday 21 October 2026, 09:30 CEST, by Claude (D22).
+> Last updated: Thursday 22 October 2026, 12:45 CEST, by Claude (D22).
 
 ## Thesis (one sentence)
 
@@ -16,20 +16,20 @@ A vision-language model's character error rate on text whose glyphs share a phas
 
 ## Current week and step
 
-Data collection and analysis are finished and frozen (`analysis-freeze-v2`, which adds Amendment 2's load check to `analysis-freeze-v1`). The owner writes the paper from 21 October: `ANALYSIS_PLAN_3.md` section 5, item 6, every claim naming its table and its status.
+Data and analysis are frozen (`analysis-freeze-v2`). The authors write every sentence (D22); every claim names its table and status (`ANALYSIS_PLAN_3.md` section 5, item 6). The outline was settled on 22 October: headline C, "an honest map" (`paper/main.tex` header). Each `paper/sections/` file holds its paragraph jobs, evidence and evening as comments. Deadline: Friday 30 October.
 
 ## What is frozen (tags)
 
 - `prereg-v1`: 3223ba91, approved 15 October 15:20
-- `data-freeze-v1`: d25bf9b1, Saturday 17 October, signed off by the owner
+- `data-freeze-v1`: d25bf9b1, 17 October, signed off by the owner
 - `spec-v1`: 1d633f69, signed off by the owner
 - `prereg-v2`: badfe672, Study 2, 19 October
-- `data-freeze-v2`: ad903d94, 20 October: every run folder (Study 1, Study 2, stage 0), 44,989 files hashed in `results/final/`
+- `data-freeze-v2`: ad903d94, 20 October: all run folders, 44,989 files hashed in `results/final/`
 - `data-freeze-s3-stage0`: ad209d97, 20 October: stage 0's tables
-- `analysis-freeze-v1`: 4987c291, 21 October: every table and figure that needs no GPU regenerates byte for byte from `results/final/` (`make freeze-check-all`; `LAB_NOTEBOOK.md`, 21 October)
-- `analysis-freeze-v2`: the commit that adds this line, 21 October: the same, with the load check of `ANALYSIS_PLAN_3.md` Amendment 2 (`reports/tables/load/`, exploratory, post hoc)
+- `analysis-freeze-v1`: 4987c291, 21 October: every table and figure needing no GPU regenerates byte for byte (`make freeze-check-all`)
+- `analysis-freeze-v2`: 265489ea, 21 October: the same, plus Amendment 2's load check (`reports/tables/load/`, exploratory, post hoc)
 - `submission`: not yet
-- Every tag is local only: nothing is pushed until the owner says so.
+- All tags are local: nothing is pushed until the owner says so.
 
 ## What is broken
 
@@ -37,10 +37,10 @@ Nothing known. The CUDA sysmem fallback is still on (owner action 2).
 
 ## Next step
 
-The paper. Its numbers come from `reports/tables/` and `reports/figures/` only; `ANALYSIS_PLAN_3.md` says which table answers what, and whether it is confirmatory or exploratory. A changed table needs `make freeze-check-all` and a new tag.
+The introduction, evening 2 (`paper/sections/01_introduction.tex`). Numbers come only from `reports/tables/` and `reports/figures/`; a changed table needs `make freeze-check-all` and a new tag.
 
 ## Top three open decisions
 
-1. How the paper words clause (c): reversed under the preregistered CER, with the inserted spaces as an exploratory explanation; SmolVLM-500M's random-text tests reported with their detectable amplitudes.
-2. How the paper reports H2: preregistered in `PREREGISTRATION.md` and never run (no attempt in `h2/kernels/`).
-3. When to push the local tags to GitHub.
+1. D29's wording: H2 was not run although D16 said go; section 8 reports it as a deviation.
+2. Which figures stay: Figures 0 and 2 may be cut, Figures 4 and 6 moved to an appendix.
+3. When to push the tags, and how reviewers check them anonymously (`04_method.tex` P6).
