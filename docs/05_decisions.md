@@ -285,3 +285,12 @@ DO NOT: Delete or rewrite old entries. Supersede them with a new entry that refe
 - Evidence: `tests/test_study2.py`, 19 tests on 19 October: a reduced Study 2 run (qwen, smolvlm500m and qwen7b, 7 random and 3 prose pages) on a placeholder backend whose transcriptions are rewritten with planted errors and rescored with `mrr.score`; every family gives its known answer (Q0 against contained on spaces, cut against contained on letters and conventional against contained on CER supported with p_holm = 2 x 2 / 2^7 for both readers; parity and H6 pass; M3 against M0 undefined), the planted O/0 and I/l/1 swaps are counted exactly, smolvlm500m gets no random row, checks expect no determinism pairs, `--checks-only` writes checks alone, and both figures are drawn and give the same bytes twice.
 - Consequences: the preregistered tables of section 9 exist and are tested before prereg-v2; the design has no determinism twins, so `determinism_expected` is 0 for every Study 2 folder and section 11 says so. A swap of two neighbouring letters aligns as a deletion and an insertion and is not counted as a confusion; the letters-only CER still counts it.
 
+
+### D30. Licences: MIT for code, CC BY 4.0 for data, and the repository opens as a step towards the paper
+- ID: D30
+- Status: decided
+- Date: 2026-11-03
+- Decision: The code (`src/`, `scripts/`, `tests/`, `h2/judge/`) is MIT (`LICENSE`); the authors' data and reports (`results/`, `reports/`) are CC BY 4.0 (`LICENSE-DATA.md`). Third-party fonts (SIL OFL 1.1) and texts (public domain) keep their own terms, and rendered pages inherit them. `LICENSE_TODO.md` is retired. The MLSys 2027 deadline passed without a submission; the paper is now due by the end of November 2026, and the repository is published before it as the record of the work, with the README stating the long-term goal (a parameterised rendering specification for machine readers) apart from what was measured. `docs/paper_guide.html` is the theory chapter and glossary of the owner's paper guide, without the writing schedule and coaching.
+- Options considered: Apache-2.0 for code (adds a patent grant; the owner chose MIT); no licence yet (the repository would be visible but not open source).
+- Evidence: the owner's answers on 3 November 2026: "MIT code + CC-BY-4.0 data"; push with the repository kept private for review before it is made public.
+- Consequences: double-blind anonymity no longer constrains the repository. `CITATION.cff` still lacks author names; the owner adds them.
