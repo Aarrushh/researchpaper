@@ -1,9 +1,11 @@
 # PURPOSE: Machine-readable citation metadata for this repository.
 # WHAT GOES HERE: Title, authors, version, date once released.
-# FILLED IN AT STEP: W5.5 (authors added only after review ends).
-# DO NOT: Add author names before double-blind review ends.
 cff-version: 1.2.0
-message: "If you use this software, please cite it using these metadata."
+message: "If you use this software or data, please cite it using these metadata."
 title: "Rendering for Machine Readers: Text Rendering Designed for Vision Encoders"
 authors:
-  - name: "TODO[W5.5]: add authors after review (repo is double-blind until then)"
+  - family-names: "Gupta"
+    given-names: "Aarrush"
+repository-code: "https://github.com/Aarrushh/researchpaper"
+license: MIT
+date-released: 2026-11-03
