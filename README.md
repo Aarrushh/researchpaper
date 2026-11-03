@@ -20,7 +20,7 @@ The long-term goal is a **rendering specification for machine readers**. It woul
 - the layout is written in terms of the model's own geometry: patch size *P*, merge factor and native frame;
 - the rules carry measured, per-model coefficients, so each new model needs a cheap calibration rather than guesswork.
 
-The hypothesis behind the work: if text is drawn to fit how encoders actually read, each vision token carries more text. Fewer tokens per page means less prefill compute and memory on the GPU. **That efficiency link is the motivation, not a result yet.** Section 4 says what has and has not been measured.
+The hypothesis behind the work: if text is drawn to fit how encoders actually read, each vision token carries more text. Fewer tokens per page means less prefill compute and memory on the GPU. **That efficiency link is the motivation, not a result yet.** Sections 2 and 3 say what has been measured; section 4 lists what has not.
 
 ## 2. What this repo shows
 
@@ -52,14 +52,19 @@ Each result carries its status:
 - **Patch-aware rendering was not a free win.** Clause (c) of H1 reversed [C]. The largest levers turned out to be which reader, which kind of text and how full the page is, not the fine details of glyph placement.
 - **H2 never ran.** The preregistered test of whether a language model can implement the specification as a GPU kernel from the written spec alone was not carried out. It is reported as a deviation.
 
-## 4. Open questions
+## 4. Open questions: what the full specification needs
 
-1. **Compute, not just tokens.** Do token savings become real GPU savings once the encoder's own pass, batching and memory are measured? Nothing here measures throughput, latency or energy. That is the next experiment the vision depends on.
-2. **Capacity at a fixed load.** What is a reader's true acuity once page load is held constant, and how should the spec trade size against characters per page?
-3. **Generalisation.** Which coefficients can be predicted from architecture (encoder family, *P*, merge, window attention), and which must always be measured? Larger models, other encoder families and closed models are untested.
-4. **Beyond the lab page.** The open problems include non-Latin scripts, other typefaces, real documents (columns, tables, figures), resized inputs, and tasks beyond transcription such as question answering and summarisation.
-5. **The GPU renderer.** A kernel that renders the spec on the GPU, so pages never leave device memory, and the H2 question of whether a model can write it from the spec.
-6. **Co-design.** If rendering is part of the model's input interface, should encoders be trained on spec-rendered text, and should the spec and the encoder be designed together?
+This repo is one step. A full rendering specification for machine readers is bigger than any one study. It needs work from several fields, and each has open questions:
+
+1. **Reading psychophysics: capacity or acuity?** Vision science has long-standing methods for separating how small a reader can see from how much text it can take in at once. The load check here shows that the two are confounded on full pages, so capacity has to be measured at a fixed load. How do those methods carry over to VLMs?
+2. **Sampling theory: how do glyphs meet the patch grid?** A patch embedding is a strided sampler. Sampling and aliasing theory should predict which glyph sizes, phases and edge treatments survive it, rather than leaving every choice to measurement.
+3. **Interpretability of vision encoders: which rules will transfer?** H7 failed because a rule that held on one reader missed on another. Looking inside encoders could show which rules follow from the architecture (patch size, merge, attention windows), and so carry over to new models, and which are quirks of one model that must always be measured.
+4. **Typography and multilingual text: beyond Latin script.** Everything here is Latin, in two typefaces. Scripts with joined letters, large character sets, or different reading directions will need rules of their own, and typographers know which features of a script carry its meaning.
+5. **Standards practice: how is a specification maintained?** A specification people can build on needs versioning, a conformance suite and a process for adding new models, as web and font standards have. The contract checks here are a first conformance suite.
+6. **Security: legible to the model means injectable.** Text drawn to be easier for a model to read is also easier to hide instructions in, for example text people barely notice that the model still reads. The specification must say what it makes easier to attack, and how to defend it.
+7. **Systems: do fewer tokens mean less GPU work?** The efficiency motivation still has to be measured end to end: the encoder's own pass, batching, memory, and a renderer that draws pages on the GPU.
+
+Related work already approaches parts of this problem: measurements of how much text a vision token can hold ([Zhuang et al., arXiv 2602.02539](https://arxiv.org/abs/2602.02539)), and rendering text into images for context compression (DeepSeek-OCR, Glyph). None of it writes the specification itself.
 
 ## 5. Reproducing the results
 
