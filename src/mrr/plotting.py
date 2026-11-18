@@ -445,7 +445,10 @@ def plot_study2_conditions(bands: Sequence[Mapping[str, Any]], out_path: str | P
             for j, reader in enumerate(readers):
                 ax = axes[i][j]
                 rows = cell.get((reader, text_type))
-                ax.set_title(f"{reader} ({role(reader)}), {text_type}")
+                # Reader and role head each column (top row only, on two lines); the text type labels each row
+                # through the y-axis label, so no panel title is wider than its panel.
+                if i == 0:
+                    ax.set_title(f"{reader}\n({role(reader)})")
                 if not rows:
                     ax.text(0.5, 0.5, f"no {text_type} pages", ha="center", va="center", transform=ax.transAxes,
                             fontsize=6, color="0.5")
@@ -464,7 +467,7 @@ def plot_study2_conditions(bands: Sequence[Mapping[str, Any]], out_path: str | P
                 ax.set_xlim(-0.6, len(codes) - 0.4)
                 ax.set_ylim(bottom=0)
                 if j == 0:
-                    ax.set_ylabel("pooled CER")
+                    ax.set_ylabel(f"{text_type}\npooled CER")
         present = {str(r["group"]) for r in bands}
         handles = [Line2D([], [], marker="o", linestyle="", color=GROUP_COLOURS[g], markersize=3, label=g)
                    for g in GROUPS if g in present]
