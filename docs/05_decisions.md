@@ -294,3 +294,12 @@ DO NOT: Delete or rewrite old entries. Supersede them with a new entry that refe
 - Options considered: Apache-2.0 for code (adds a patent grant; the owner chose MIT); no licence yet (the repository would be visible but not open source).
 - Evidence: the owner's answers on 3 November 2026: "MIT code + CC-BY-4.0 data"; push with the repository kept private for review before it is made public.
 - Consequences: double-blind anonymity no longer constrains the repository. `CITATION.cff` still lacks author names; the owner adds them.
+
+### D31. Claude drafts the rest of the paper in the owner's style (D22 overridden for the paper text); venue arXiv
+- ID: D31
+- Status: decided
+- Date: 2026-11-18
+- Decision: The paper goes to arXiv as an independent preprint, with endorsement sought from the owner's professors. D22's rule that the authors write every sentence of the paper is overridden for the text: the owner wrote Sections 1 to 3 and the first two paragraphs of Section 4; Claude drafted the rest of Section 4, Sections 5 to 9, the abstract, `tables/studies.tex`, the token table and the table and figure captions on 18 November 2026, in the owner's style (the `aarrush-writing-style` skill), with every number checked against `analysis-freeze-v2`. Each drafted file says so in its header comment. The owner reviews and edits every sentence.
+- Options considered: the owner writes every remaining section (D22 as it stood).
+- Evidence: the owner's message of 18 November 2026: "yes override D22".
+- Consequences: the paper's AI-use statement must describe Claude's drafting of the text. The owner asked to leave that out; Claude declined to draft a statement that omits it, because arXiv's policy and the public repository's history both bear on it. The wording is still open and is the owner's to settle before submission. D29 (H2 not run) is still to be recorded.
