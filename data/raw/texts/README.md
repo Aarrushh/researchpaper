@@ -10,7 +10,7 @@ DO NOT: Edit a file after download (strip boilerplate in code, not by hand). Rel
 - **What belongs here:** Project Gutenberg public-domain texts, exactly as downloaded. Plain UTF-8 `.txt` or EPUB 3 `.epub`.
 - **Where it comes from:** Project Gutenberg. Record the book ID and title for each file.
 - **Licence:** the texts are public domain in the US. "Project Gutenberg" is a trademark, and the header and footer carry its licence terms. Strip both in code (`mrr.text_source.strip_gutenberg_boilerplate`), never by editing the raw file. Anything released (processed text, rendered pages) must come from stripped text only.
-- **Committed:** yes, for the files listed below. The repo is private. The raw files keep the Gutenberg header and footer unedited, which the Project Gutenberg licence allows.
+- **Committed:** yes, for the files listed below. The repo is public (opened in November 2026). The raw files keep the Gutenberg header and footer unedited, which the Project Gutenberg licence allows.
 - **Rule:** immutable once downloaded. If you replace a file, update its row and checksum in the same commit.
 
 ## How a file becomes text

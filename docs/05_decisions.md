@@ -286,6 +286,15 @@ DO NOT: Delete or rewrite old entries. Supersede them with a new entry that refe
 - Consequences: the preregistered tables of section 9 exist and are tested before prereg-v2; the design has no determinism twins, so `determinism_expected` is 0 for every Study 2 folder and section 11 says so. A swap of two neighbouring letters aligns as a deletion and an insertion and is not counted as a confusion; the letters-only CER still counts it.
 
 
+### D29. H2 is not run; the paper reports it as a deviation
+- ID: D29
+- Status: decided
+- Date: 2026-10-20 (recorded 2026-11-24)
+- Decision: H2, preregistered in `PREREGISTRATION.md` (can a language model, given only the written specification, write a GPU kernel whose output matches the reference renderer), is not run. Its condition for running (`data-freeze-v1` tagged by the cut date) was met on 17 October, so this overrides the earlier decision to run H2 in full once the data were frozen. The paper is scoped to what was measured on the readers, reports H2 as a deviation from the preregistration, and makes no claim about GPU rendering, speed or energy.
+- Options considered: run H2 as preregistered (three attempts under `h2/README.md`); run it after the paper as separate work.
+- Evidence: the owner's instruction of 20 October 2026, quoted in `ANALYSIS_PLAN_3.md`: "Scope the paper to what we measured: the mechanisms, Study 2's preregistered results and a calibration method shown on five readers." No attempt exists under `h2/kernels/`; `README.md` already states that H2 never ran.
+- Consequences: Section 8 of the paper states the deviation and the reason. H2 stays open as future work (the conclusion lists the missing GPU kernel). This entry was written on 24 November 2026 from that instruction; D30 and D31 had noted it as still to be recorded.
+
 ### D30. Licences: MIT for code, CC BY 4.0 for data, and the repository opens as a step towards the paper
 - ID: D30
 - Status: decided
