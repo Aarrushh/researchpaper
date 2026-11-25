@@ -53,6 +53,8 @@ huggingface/
 
 # Paper build output
 paper/*.pdf
+# The compiled preprint is kept, so the paper has a stable link.
+!paper/rendering_for_machine_readers.pdf
 *.aux
 *.bbl
 *.blg
